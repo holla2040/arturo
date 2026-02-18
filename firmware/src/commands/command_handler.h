@@ -30,6 +30,7 @@ bool buildCommandResponse(JsonDocument& doc, const Source& source,
 
 #ifdef ARDUINO
 class RedisClient; // forward declare
+class CtiDevice;   // forward declare
 
 class CommandHandler {
 public:
@@ -38,6 +39,9 @@ public:
     int commandsProcessed() const { return _processed; }
     int commandsFailed() const { return _failed; }
 
+    // Register a CTI device for command dispatch
+    void setCtiDevice(CtiDevice* device) { _ctiDevice = device; }
+
 private:
     RedisClient& _redis;
     const char* _instance;
@@ -45,6 +49,7 @@ private:
     int _processed = 0;
     int _failed = 0;
     char _streamName[64];
+    CtiDevice* _ctiDevice = nullptr;
 
     void handleMessage(const char* messageJson);
 };

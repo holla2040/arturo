@@ -4,12 +4,12 @@
 #include <cctype>
 
 #ifdef ARDUINO
+#include "../debug_log.h"
+#include "../config.h"
 #include <esp_ota_ops.h>
 #include <esp_partition.h>
 #include <esp_http_client.h>
 #include <mbedtls/sha256.h>
-#include "../debug_log.h"
-#include "../config.h"
 #endif
 
 namespace arturo {

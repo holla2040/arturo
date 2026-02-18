@@ -2,6 +2,10 @@
 #include <cstddef>
 #include <cstdint>
 
+#ifdef ARDUINO
+#include <HardwareSerial.h>
+#endif
+
 namespace arturo {
 
 // Serial port configuration — testable without hardware
@@ -27,8 +31,6 @@ extern const SerialConfig SERIAL_CONFIG_MODBUS;   // 9600-8N1
 extern const SerialConfig SERIAL_CONFIG_ASCII;    // 115200-8N1
 
 #ifdef ARDUINO
-#include <HardwareSerial.h>
-
 class SerialDevice {
 public:
     // uartNum: 0=USB, 1=UART1, 2=UART2

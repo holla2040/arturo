@@ -1,6 +1,10 @@
 #pragma once
 #include "config.h"
 
+#ifdef ARDUINO
+#include <Arduino.h>
+#endif
+
 #if DEBUG_LEVEL >= DEBUG_LEVEL_ERROR
 #define LOG_ERROR(tag, fmt, ...) Serial.printf("[%lu] [" tag "] " fmt "\n", (unsigned long)millis(), ##__VA_ARGS__)
 #else

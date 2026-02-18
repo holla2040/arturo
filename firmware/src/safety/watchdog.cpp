@@ -41,19 +41,11 @@ bool Watchdog::init(unsigned long timeoutMs) {
     uint32_t timeoutS = timeoutMs / 1000;
     if (timeoutS == 0) timeoutS = 1;
 
-    esp_task_wdt_config_t config = {
-        .timeout_ms = timeoutMs,
-        .idle_core_mask = 0,    // don't watch idle tasks
-        .trigger_panic = true   // reset on timeout
-    };
-    esp_err_t err = esp_task_wdt_reconfigure(&config);
-    if (err != ESP_OK) {
-        // Try init if not yet initialized
-        err = esp_task_wdt_init(&config);
-        if (err != ESP_OK) {
-            LOG_ERROR("WDT", "Init failed: %d", err);
-            return false;
-        }
+    // ESP-IDF v4.x API: esp_task_wdt_init(timeout_seconds, panic_on_trigger)
+    esp_err_t err = esp_task_wdt_init(timeoutS, true);
+    if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+        LOG_ERROR("WDT", "Init failed: %d", err);
+        return false;
     }
 
     // Subscribe current task to watchdog

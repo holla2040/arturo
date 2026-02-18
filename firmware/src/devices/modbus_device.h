@@ -3,6 +3,10 @@
 #include <cstddef>
 #include "../protocols/modbus.h"
 
+#ifdef ARDUINO
+#include "serial_device.h"
+#endif
+
 namespace arturo {
 
 // Modbus device configuration — testable without hardware
@@ -28,8 +32,6 @@ unsigned long modbusCharTimeoutUs(uint32_t baudRate);
 unsigned long modbusFrameSilenceUs(uint32_t baudRate);
 
 #ifdef ARDUINO
-#include "serial_device.h"
-
 class ModbusDevice {
 public:
     ModbusDevice();

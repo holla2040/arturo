@@ -1,10 +1,12 @@
 #include "command_handler.h"
 #include "../config.h"
+#include "device_registry.h"
 #include <cstring>
 
 #ifdef ARDUINO
 #include "../debug_log.h"
 #include "../network/redis_client.h"
+#include "../devices/cti_device.h"
 #endif
 
 namespace arturo {
@@ -120,10 +122,43 @@ void CommandHandler::handleMessage(const char* messageJson) {
 
     unsigned long startMs = millis();
 
-    // STUB: Echo the command_name as the response.
-    // Real SCPI dispatch will be wired in later.
-    const char* stubResponse = req.commandName;
-    bool success = true;
+    // Look up the device in the registry
+    const DeviceInfo* device = getDevice(req.deviceId);
+    bool success = false;
+    char responseBuf[256] = {0};
+    const char* errorCode = nullptr;
+    const char* errorMessage = nullptr;
+
+    if (device == nullptr) {
+        errorCode = "device_not_found";
+        errorMessage = "Device not registered on this station";
+        LOG_ERROR("CMD", "Unknown device: %s", req.deviceId);
+    } else if (strcmp(device->protocolType, "cti") == 0) {
+        // CTI protocol dispatch
+        if (_ctiDevice == nullptr) {
+            errorCode = "device_unavailable";
+            errorMessage = "CTI device not initialized";
+            LOG_ERROR("CMD", "CTI device not available for %s", req.deviceId);
+        } else {
+            const char* ctiCmd = ctiLookupCommand(req.commandName);
+            if (ctiCmd == nullptr) {
+                errorCode = "unknown_command";
+                errorMessage = "Command not in CTI command table";
+                LOG_ERROR("CMD", "Unknown CTI command: %s", req.commandName);
+            } else {
+                success = _ctiDevice->executeCommand(ctiCmd, responseBuf, sizeof(responseBuf));
+                if (!success) {
+                    errorCode = "device_error";
+                    errorMessage = "CTI command failed";
+                }
+            }
+        }
+    } else {
+        // Other protocols (scpi, modbus) — placeholder for future dispatch
+        errorCode = "unsupported_protocol";
+        errorMessage = "Protocol dispatch not yet implemented";
+        LOG_ERROR("CMD", "No dispatcher for protocol: %s", device->protocolType);
+    }
 
     unsigned long durationMs = millis() - startMs;
 
@@ -140,7 +175,9 @@ void CommandHandler::handleMessage(const char* messageJson) {
 
     if (!buildCommandResponse(respDoc, src, respId, timestamp,
                               req.correlationId, req.deviceId, req.commandName,
-                              success, stubResponse, nullptr, nullptr,
+                              success,
+                              success ? responseBuf : nullptr,
+                              errorCode, errorMessage,
                               (int)durationMs)) {
         LOG_ERROR("CMD", "Failed to build command response");
         _failed++;

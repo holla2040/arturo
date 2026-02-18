@@ -74,6 +74,7 @@ Read first: `docs/reference/SCRIPTING_LANGUAGE_ORIGINAL.md`, `docs/architecture/
 ## Phase 6: Dashboard and Reports — UNBLOCKED
 
 - [x] Web dashboard — Station status, active test progress, recent measurements, E-stop status
+  - **Note:** `go build ./cmd/arturo-server` not verified — `modernc.org/sqlite` missing from local module cache (no network). Dashboard package compiles, `gofmt` passes, existing tests pass. Next agent must run full build + integration test once dependencies are available.
 - [ ] PDF report generation
 - [ ] CSV export
 

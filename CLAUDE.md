@@ -16,9 +16,9 @@ Arturo is an industrial test automation system with ESP32 stations and a central
 
 - Up to 6 stations connect directly to Redis over WiFi/Ethernet
 - One Ubuntu machine runs the controller (Go processes) + Redis + terminal (operator UI)
-- All messages use Protocol v1.0.0 envelope format (see docs/architecture/MIGRATION_PLAN.md section 2.1)
+- All messages use Protocol v1.0.0 envelope format (see docs/architecture/ARCHITECTURE.md section 2.1)
 - 5 message types: `device.command.request`, `device.command.response`, `service.heartbeat`, `system.emergency_stop`, `system.ota.request`
-- Test definitions are `.art` script files — the single unit of orchestration (see MIGRATION_PLAN.md section 2.8)
+- Test definitions are `.art` script files — the single unit of orchestration (see ARCHITECTURE.md section 2.8)
 - Scripts are authorable by humans and LLMs; the engine provides parse-only validation and structured JSON errors
 
 ## Redis Channel Conventions
@@ -48,8 +48,6 @@ cd firmware && pio test -e native                     # run unit tests on host
 
 ## Development Guidelines
 
-- Start every session by reading `TODO.md`. It contains agent instructions, project state, and available tasks.
-- Mark tasks `[-]` when starting, `[x]` when done.
 - Keep service count low. If it can be a function call inside arturo-server, it is not a separate service.
 - Every message must use the Protocol v1.0.0 envelope format.
 - Station firmware uses ArduinoJson v7 with static allocation.
@@ -61,10 +59,9 @@ cd firmware && pio test -e native                     # run unit tests on host
 
 ## Key Files
 
-- `docs/architecture/MIGRATION_PLAN.md` - Full build plan, architecture, phasing, debugging setup
+- `docs/architecture/ARCHITECTURE.md` - Architecture decisions, protocol spec, phasing, debugging setup
 - `docs/reference/PROTOCOL_ORIGINAL.md` - Original protocol spec (reference)
 - `docs/reference/SCRIPTING_LANGUAGE_ORIGINAL.md` - Arturo DSL reference
 - `schemas/` - JSON Schema message contracts
 - `profiles/` - Device YAML profiles (SCPI, Modbus, CTI, etc.)
 - `scripts/` - Test scripts (.art) and shared libraries (.artlib)
-- `TODO.md` - Self-directing task list — agents read this first to know what to work on and track progress

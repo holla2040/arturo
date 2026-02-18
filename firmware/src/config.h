@@ -41,13 +41,13 @@ static const char* DEVICE_IDS[] = {"DMM-01", "PUMP-01"};
 #define HEARTBEAT_INTERVAL_MS  30000
 #define PRESENCE_TTL_SECONDS   90
 
-// Redis channels (from MIGRATION_PLAN.md section 2.3)
+// Redis channels (from ARCHITECTURE.md section 2.3)
 #define CHANNEL_HEARTBEAT      "events:heartbeat"
 #define CHANNEL_COMMANDS_PREFIX "commands:"
 #define PRESENCE_KEY_PREFIX     "device:"
 #define PRESENCE_KEY_SUFFIX     ":alive"
 
-// Debug levels (compile-time, from MIGRATION_PLAN.md section 6.2)
+// Debug levels (compile-time, from ARCHITECTURE.md section 6.2)
 #define DEBUG_LEVEL_NONE   0
 #define DEBUG_LEVEL_ERROR  1
 #define DEBUG_LEVEL_INFO   2

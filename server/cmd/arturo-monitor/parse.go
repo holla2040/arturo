@@ -47,7 +47,7 @@ func FormatMessage(dm *DisplayMessage) string {
 		tag = "command"
 		req, err := protocol.ParseCommandRequest(dm.Message)
 		if err == nil {
-			detail = fmt.Sprintf("cmd=%s  device=%s", req.CommandName, req.DeviceID)
+			detail = fmt.Sprintf("%-20s  device=%s", "cmd="+req.CommandName, req.DeviceID)
 		} else {
 			detail = fmt.Sprintf("corr=%s  (parse error)", corrID)
 		}
@@ -60,7 +60,7 @@ func FormatMessage(dm *DisplayMessage) string {
 			if resp.Response != nil {
 				respVal = *resp.Response
 			}
-			detail = fmt.Sprintf("success=%t  response=%q", resp.Success, respVal)
+			detail = fmt.Sprintf("%-20s  response=%q", fmt.Sprintf("success=%t", resp.Success), respVal)
 			if resp.Success {
 				color = colorGreen
 			} else {
@@ -75,7 +75,7 @@ func FormatMessage(dm *DisplayMessage) string {
 		color = colorCyan
 		hb, err := protocol.ParseHeartbeat(dm.Message)
 		if err == nil {
-			detail = fmt.Sprintf("%s  heap=%d  rssi=%d", hb.Status, hb.FreeHeap, hb.WifiRSSI)
+			detail = fmt.Sprintf("%-20s  rssi=%d", fmt.Sprintf("%s  heap=%d", hb.Status, hb.FreeHeap), hb.WifiRSSI)
 			warnings := HealthWarnings(hb)
 			if len(warnings) > 0 {
 				detail += fmt.Sprintf("  %s[%s]%s", colorYellow, strings.Join(warnings, ", "), colorCyan)

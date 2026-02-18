@@ -29,7 +29,7 @@ Every message between any component uses this structure:
 {
   "envelope": {
     "id": "uuid-v4",
-    "timestamp": "2025-07-18T10:00:00.123Z",
+    "timestamp": 1752832800,
     "source": {
       "service": "esp32_relay_controller",
       "instance": "relay-board-01",
@@ -49,7 +49,7 @@ Every message between any component uses this structure:
 | Field | Required | Purpose |
 |-------|----------|---------|
 | `id` | Yes | UUIDv4, unique per message |
-| `timestamp` | Yes | RFC3339 with milliseconds |
+| `timestamp` | Yes | UTC epoch seconds (integer) |
 | `source.service` | Yes | Who sent this |
 | `source.instance` | Yes | Which instance |
 | `source.version` | Yes | Firmware/software version |
@@ -584,14 +584,14 @@ redis-cli XPENDING commands:relay-board-01 esp32-group - + 10
 
 # Send a command to a station manually
 redis-cli XADD commands:relay-board-01 '*' \
-  message '{"envelope":{"id":"test-001","timestamp":"2026-02-17T12:00:00.000Z","source":{"service":"manual","instance":"cli","version":"0.0.0"},"schema_version":"v1","type":"device.command.request","correlation_id":"manual-test-001","reply_to":"responses:manual:cli"},"payload":{"device_id":"relay-8ch","command":"set_relay","parameters":{"channel":"3","state":"on"},"timeout_ms":5000}}'
+  message '{"envelope":{"id":"test-001","timestamp":1771329600,"source":{"service":"manual","instance":"cli","version":"0.0.0"},"schema_version":"v1","type":"device.command.request","correlation_id":"manual-test-001","reply_to":"responses:manual:cli"},"payload":{"device_id":"relay-8ch","command":"set_relay","parameters":{"channel":"3","state":"on"},"timeout_ms":5000}}'
 
 # Then read the response
 redis-cli XREAD BLOCK 5000 STREAMS responses:manual:cli $
 
 # Trigger a manual emergency stop
 redis-cli PUBLISH events:emergency_stop \
-  '{"envelope":{"id":"estop-manual","timestamp":"2026-02-17T12:00:00.000Z","source":{"service":"manual","instance":"cli","version":"0.0.0"},"schema_version":"v1","type":"system.emergency_stop"},"payload":{"reason":"manual_test","triggered_by":"cli","severity":"critical"}}'
+  '{"envelope":{"id":"estop-manual","timestamp":1771329600,"source":{"service":"manual","instance":"cli","version":"0.0.0"},"schema_version":"v1","type":"system.emergency_stop"},"payload":{"reason":"manual_test","triggered_by":"cli","severity":"critical"}}'
 ```
 
 ### 6.4 Message Logging to Disk

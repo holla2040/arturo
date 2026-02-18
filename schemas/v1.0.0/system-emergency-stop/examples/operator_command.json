@@ -1,7 +1,7 @@
 {
   "envelope": {
     "id": "f5a6b7c8-d9e0-4f1a-2b3c-4d5e6f7a8b9c",
-    "timestamp": "2026-02-17T12:10:00.500Z",
+    "timestamp": 1771330200,
     "source": {
       "service": "controller",
       "instance": "ctrl-01",
@@ -13,6 +13,6 @@
   "payload": {
     "reason": "operator_command",
     "description": "Operator triggered emergency stop via CLI",
-    "initiator": "orch-01"
+    "initiator": "ctrl-01"
   }
 }

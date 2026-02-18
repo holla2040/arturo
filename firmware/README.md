@@ -66,10 +66,6 @@ Arduino on ESP32 runs on FreeRTOS. The `setup()` and `loop()` functions execute 
 - **Core 0**: Network (Redis, WiFi, heartbeat). These tasks share the network stack.
 - **Core 1**: Hardware I/O (device communication, GPIO). These tasks talk to physical instruments.
 
-**Core assignment strategy:**
-- **Core 0**: Network (Redis, WiFi, heartbeat). These tasks share the network stack.
-- **Core 1**: Hardware I/O (device communication, GPIO). These tasks talk to physical instruments.
-
 Network and hardware don't block each other.
 
 **Task creation in setup():**

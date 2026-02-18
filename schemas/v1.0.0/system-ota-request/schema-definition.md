@@ -241,7 +241,7 @@ func (c *Controller) RequestOTA(stationID, firmwareURL, version, sha256 string, 
     msg := map[string]interface{}{
         "envelope": map[string]interface{}{
             "id":             uuid.New().String(),
-            "timestamp":      time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
+            "timestamp":      time.Now().Unix(),
             "source":         c.source,
             "schema_version": "v1.0.0",
             "type":           "system.ota.request",

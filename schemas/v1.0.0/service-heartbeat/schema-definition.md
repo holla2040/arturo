@@ -190,7 +190,7 @@ void heartbeatTask(void* param) {
         StaticJsonDocument<768> doc;
         JsonObject envelope = doc.createNestedObject("envelope");
         envelope["id"] = generateUUID();
-        envelope["timestamp"] = getISO8601Timestamp();
+        envelope["timestamp"] = getEpochSeconds();
         JsonObject source = envelope.createNestedObject("source");
         source["service"] = SERVICE_NAME;
         source["instance"] = INSTANCE_ID;

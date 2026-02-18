@@ -1,7 +1,7 @@
 {
   "envelope": {
     "id": "a6b7c8d9-e0f1-4a2b-3c4d-5e6f7a8b9c0d",
-    "timestamp": "2026-02-17T14:00:00.000Z",
+    "timestamp": 1771336800,
     "source": {
       "service": "controller",
       "instance": "ctrl-01",

@@ -18,11 +18,11 @@ The terminal and controller run on the same Ubuntu machine. The operator sees th
 
 | Word | Meaning |
 |------|---------|
-| **timestamp** | UTC epoch milliseconds (integer). Always UTC, never local. |
-| **time** | Local time. |
-| **date** | Local date/time. |
+| **timestamp** | UTC epoch seconds (integer). Always UTC, never local. |
+| **time** | Local time (US/Denver). |
+| **date** | Local date/time (US/Denver). |
 
-Wherever a field or variable is called `timestamp`, it is UTC milliseconds. Wherever it is called `time` or `date`, it is in local time.
+Wherever a field or variable is called `timestamp`, it is UTC epoch seconds. Wherever it is called `time` or `date`, it is in local time (US/Denver).
 
 ## Architecture
 

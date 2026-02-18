@@ -1,7 +1,7 @@
 {
   "envelope": {
     "id": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
-    "timestamp": "2026-02-17T12:00:00.047Z",
+    "timestamp": 1771329600,
     "source": {
       "service": "esp32_tcp_bridge",
       "instance": "dmm-station-01",

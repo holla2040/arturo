@@ -64,4 +64,4 @@ All messages must validate against their respective JSON Schema before being sen
 ### v1.0.0 (Current)
 - Initial schema release
 - Five message types: command request/response, heartbeat, emergency stop, OTA
-- Common envelope with UUIDv4 IDs, RFC3339 timestamps, correlation tracking
+- Common envelope with UUIDv4 IDs, epoch second timestamps, correlation tracking

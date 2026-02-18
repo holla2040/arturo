@@ -132,7 +132,7 @@ The `response` field is always a string (the raw device output). The controller 
 void buildSuccessResponse(JsonDocument& doc, const DeviceCommand& cmd, const char* response, uint32_t durationMs) {
     JsonObject envelope = doc.createNestedObject("envelope");
     envelope["id"] = generateUUID();
-    envelope["timestamp"] = getISO8601Timestamp();
+    envelope["timestamp"] = getEpochSeconds();
     JsonObject source = envelope.createNestedObject("source");
     source["service"] = SERVICE_NAME;
     source["instance"] = INSTANCE_ID;

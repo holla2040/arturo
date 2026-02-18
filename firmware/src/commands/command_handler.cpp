@@ -6,7 +6,7 @@
 #ifdef ARDUINO
 #include "../debug_log.h"
 #include "../network/redis_client.h"
-#include "../devices/cti_device.h"
+#include "../devices/cti_onboard_device.h"
 #endif
 
 namespace arturo {
@@ -135,21 +135,21 @@ void CommandHandler::handleMessage(const char* messageJson) {
         LOG_ERROR("CMD", "Unknown device: %s", req.deviceId);
     } else if (strcmp(device->protocolType, "cti") == 0) {
         // CTI protocol dispatch
-        if (_ctiDevice == nullptr) {
+        if (_ctiOnBoardDevice == nullptr) {
             errorCode = "device_unavailable";
-            errorMessage = "CTI device not initialized";
-            LOG_ERROR("CMD", "CTI device not available for %s", req.deviceId);
+            errorMessage = "CTI OnBoard device not initialized";
+            LOG_ERROR("CMD", "CTI OnBoard device not available for %s", req.deviceId);
         } else {
-            const char* ctiCmd = ctiLookupCommand(req.commandName);
+            const char* ctiCmd = ctiOnBoardLookupCommand(req.commandName);
             if (ctiCmd == nullptr) {
                 errorCode = "unknown_command";
-                errorMessage = "Command not in CTI command table";
-                LOG_ERROR("CMD", "Unknown CTI command: %s", req.commandName);
+                errorMessage = "Command not in CTI OnBoard command table";
+                LOG_ERROR("CMD", "Unknown CTI OnBoard command: %s", req.commandName);
             } else {
-                success = _ctiDevice->executeCommand(ctiCmd, responseBuf, sizeof(responseBuf));
+                success = _ctiOnBoardDevice->executeCommand(ctiCmd, responseBuf, sizeof(responseBuf));
                 if (!success) {
                     errorCode = "device_error";
-                    errorMessage = "CTI command failed";
+                    errorMessage = "CTI OnBoard command failed";
                 }
             }
         }

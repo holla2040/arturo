@@ -8,20 +8,20 @@
 
 namespace arturo {
 
-// CTI command name → CTI protocol command mapping
-struct CtiCommandMapping {
+// CTI OnBoard command name → CTI protocol command mapping
+struct CtiOnBoardCommandMapping {
     const char* commandName;   // from Redis request (e.g., "pump_status")
     const char* ctiCommand;    // CTI protocol command (e.g., "A?")
 };
 
 // Look up a CTI command string by command name
 // Returns the CTI command string, or nullptr if not found
-const char* ctiLookupCommand(const char* commandName);
+const char* ctiOnBoardLookupCommand(const char* commandName);
 
 #ifdef ARDUINO
-class CtiDevice {
+class CtiOnBoardDevice {
 public:
-    CtiDevice();
+    CtiOnBoardDevice();
 
     // Initialize with a serial device (must already be begin()'d)
     bool init(SerialDevice& serial);

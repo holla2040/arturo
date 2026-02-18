@@ -10,7 +10,7 @@
 #include "network/redis_client.h"
 #include "commands/command_handler.h"
 #include "devices/serial_device.h"
-#include "devices/cti_device.h"
+#include "devices/cti_onboard_device.h"
 #include "safety/watchdog.h"
 #include "safety/wifi_reconnect.h"
 #include "safety/power_recovery.h"
@@ -165,18 +165,18 @@ void setup() {
     static arturo::CommandHandler handler(redis, STATION_INSTANCE);
     cmdHandler = &handler;
 
-    // 5a. Initialize CTI serial port (UART1, 2400 7E1 via MAX3232)
+    // 5a. Initialize CTI OnBoard serial port (UART1, 2400 7E1 via MAX3232)
     static arturo::SerialDevice ctiSerial(CTI_UART_NUM);
     if (ctiSerial.begin(arturo::SERIAL_CONFIG_CTI, CTI_RX_PIN, CTI_TX_PIN)) {
         LOG_INFO("MAIN", "CTI serial ready: UART%d, pins RX=%d TX=%d",
                  CTI_UART_NUM, CTI_RX_PIN, CTI_TX_PIN);
 
-        static arturo::CtiDevice ctiDevice;
-        if (ctiDevice.init(ctiSerial)) {
-            handler.setCtiDevice(&ctiDevice);
-            LOG_INFO("MAIN", "CTI device registered with command handler");
+        static arturo::CtiOnBoardDevice ctiOnBoardDevice;
+        if (ctiOnBoardDevice.init(ctiSerial)) {
+            handler.setCtiOnBoardDevice(&ctiOnBoardDevice);
+            LOG_INFO("MAIN", "CTI OnBoard device registered with command handler");
         } else {
-            LOG_ERROR("MAIN", "CTI device init failed");
+            LOG_ERROR("MAIN", "CTI OnBoard device init failed");
         }
     } else {
         LOG_ERROR("MAIN", "CTI serial init failed on UART%d", CTI_UART_NUM);

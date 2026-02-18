@@ -39,7 +39,7 @@ Key project files:
 Read first: `firmware/README.md`, `firmware/src/protocols/scpi_client.cpp` (pattern to follow), `firmware/src/commands/command_handler.cpp`
 
 - [x] TCP device client — `firmware/src/devices/tcp_device.cpp` — TCP socket client for SCPI instruments over Ethernet. Follow scpi_client.cpp pattern. Needs connect/disconnect, send/receive with timeout, reconnect logic.
-- [x] Serial device bridge — `firmware/src/devices/serial_device.cpp` — HardwareSerial wrapper for UART instruments (CTI pumps, Modbus). Configure baud, parity, stop bits from device profile.
+- [x] Serial device bridge — `firmware/src/devices/serial_device.cpp` — HardwareSerial wrapper for UART instruments (CTI OnBoard pumps, Modbus). Configure baud, parity, stop bits from device profile.
 - [x] Relay controller — `firmware/src/devices/relay_controller.cpp` — GPIO output for relay channels. Safe-state on boot (all off). Channel validation against profile.
 - [x] Modbus device client — `firmware/src/devices/modbus_device.cpp` — RS485 Modbus RTU. Function codes 03 (read holding), 06 (write single), 16 (write multiple). CRC16 calculation. Reference: `profiles/controllers/omega_cn7500.yaml`
 - [x] CTI packetizer — `firmware/src/protocols/cti.cpp` — Port from Go reference in arturo-go-archive `src/common/protocols/cti.go`. Checksum calculation, response code parsing. Reference: `docs/reference/CTI_BROOKS_PROTOCOL.md`

@@ -84,8 +84,8 @@ Test definitions are `.art` script files — the single source of truth for what
 
 | Function | GPIO | UART | Notes |
 |----------|------|------|-------|
-| CTI RX (PUMP-01) | 17 | UART1 RXD | RS-232 via MAX3232, 2400 7E1 |
-| CTI TX (PUMP-01) | 18 | UART1 TXD | RS-232 via MAX3232, 2400 7E1 |
+| CTI OnBoard RX (PUMP-01) | 17 | UART1 RXD | RS-232 via MAX3232, 2400 7E1 |
+| CTI OnBoard TX (PUMP-01) | 18 | UART1 TXD | RS-232 via MAX3232, 2400 7E1 |
 | USB Serial (debug) | — | UART0 | 115200 8N1, CDC on boot |
 
 ## Key Decisions

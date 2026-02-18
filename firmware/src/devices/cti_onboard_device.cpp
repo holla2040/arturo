@@ -1,4 +1,4 @@
-#include "cti_device.h"
+#include "cti_onboard_device.h"
 #include <cstring>
 
 #ifdef ARDUINO
@@ -9,7 +9,7 @@ namespace arturo {
 
 // Command name → CTI command mapping table
 // Extracted from profiles/pumps/cti_onboard.yaml
-static const CtiCommandMapping CTI_COMMANDS[] = {
+static const CtiOnBoardCommandMapping CTI_ONBOARD_COMMANDS[] = {
     {"pump_status",          "A?"},
     {"pump_on",              "A1"},
     {"pump_off",             "A0"},
@@ -22,26 +22,26 @@ static const CtiCommandMapping CTI_COMMANDS[] = {
     {"get_status_3",         "S3"},
 };
 
-static const int CTI_COMMAND_COUNT = sizeof(CTI_COMMANDS) / sizeof(CTI_COMMANDS[0]);
+static const int CTI_ONBOARD_COMMAND_COUNT = sizeof(CTI_ONBOARD_COMMANDS) / sizeof(CTI_ONBOARD_COMMANDS[0]);
 
-const char* ctiLookupCommand(const char* commandName) {
+const char* ctiOnBoardLookupCommand(const char* commandName) {
     if (commandName == nullptr) return nullptr;
 
-    for (int i = 0; i < CTI_COMMAND_COUNT; i++) {
-        if (strcmp(CTI_COMMANDS[i].commandName, commandName) == 0) {
-            return CTI_COMMANDS[i].ctiCommand;
+    for (int i = 0; i < CTI_ONBOARD_COMMAND_COUNT; i++) {
+        if (strcmp(CTI_ONBOARD_COMMANDS[i].commandName, commandName) == 0) {
+            return CTI_ONBOARD_COMMANDS[i].ctiCommand;
         }
     }
     return nullptr;
 }
 
 #ifdef ARDUINO
-CtiDevice::CtiDevice()
+CtiOnBoardDevice::CtiOnBoardDevice()
     : _serial(nullptr), _transactions(0), _errors(0), _initialized(false) {
     memset(&_lastResp, 0, sizeof(_lastResp));
 }
 
-bool CtiDevice::init(SerialDevice& serial) {
+bool CtiOnBoardDevice::init(SerialDevice& serial) {
     if (!serial.isReady()) {
         LOG_ERROR("CTI", "Serial device not ready");
         return false;
@@ -50,11 +50,11 @@ bool CtiDevice::init(SerialDevice& serial) {
     _serial = &serial;
     _initialized = true;
 
-    LOG_INFO("CTI", "CtiDevice initialized");
+    LOG_INFO("CTI", "CtiOnBoardDevice initialized");
     return true;
 }
 
-bool CtiDevice::executeCommand(const char* ctiCmd, char* responseBuf, size_t responseBufLen) {
+bool CtiOnBoardDevice::executeCommand(const char* ctiCmd, char* responseBuf, size_t responseBufLen) {
     if (!_initialized || _serial == nullptr) {
         LOG_ERROR("CTI", "Not initialized");
         return false;

@@ -1,6 +1,6 @@
 {
   "envelope": {
-    "id": "b1ffc99a-8d1c-4ef9-cc7e-7cc0ce491b22",
+    "id": "b1ffc99a-8d1c-4ef9-8c7e-7cc0ce491b22",
     "timestamp": 1771329665,
     "source": {
       "service": "esp32_tcp_bridge",
@@ -9,7 +9,7 @@
     },
     "schema_version": "v1.0.0",
     "type": "device.command.response",
-    "correlation_id": "d4e5f6a7-b8c9-4d0e-f1a2-b3c4d5e6f7a8"
+    "correlation_id": "d4e5f6a7-b8c9-4d0e-a1a2-b3c4d5e6f7a8"
   },
   "payload": {
     "device_id": "fluke-8846a",

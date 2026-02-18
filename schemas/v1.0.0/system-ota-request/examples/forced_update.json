@@ -1,6 +1,6 @@
 {
   "envelope": {
-    "id": "c8d9e0f1-a2b3-4c4d-5e6f-7a8b9c0d1e2f",
+    "id": "c8d9e0f1-a2b3-4c4d-9e6f-7a8b9c0d1e2f",
     "timestamp": 1771338600,
     "source": {
       "service": "controller",
@@ -9,7 +9,7 @@
     },
     "schema_version": "v1.0.0",
     "type": "system.ota.request",
-    "correlation_id": "d9e0f1a2-b3c4-4d5e-6f7a-8b9c0d1e2f3a",
+    "correlation_id": "d9e0f1a2-b3c4-4d5e-af7a-8b9c0d1e2f3a",
     "reply_to": "responses:controller:ctrl-01"
   },
   "payload": {

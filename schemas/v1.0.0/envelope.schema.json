@@ -1,0 +1,86 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/holla2040/arturo/schemas/v1.0.0/envelope.json",
+  "title": "Arturo Message Envelope",
+  "description": "Standard message envelope for Arturo Protocol v1.0.0.",
+  "type": "object",
+  "required": ["envelope", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "envelope": {
+      "type": "object",
+      "description": "Message metadata and routing information.",
+      "required": ["id", "timestamp", "source", "schema_version", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique message identifier. UUIDv4 format.",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "timestamp": {
+          "type": "integer",
+          "description": "UTC epoch seconds.",
+          "minimum": 0
+        },
+        "source": {
+          "type": "object",
+          "description": "Identifies who sent this message.",
+          "required": ["service", "instance", "version"],
+          "additionalProperties": false,
+          "properties": {
+            "service": {
+              "type": "string",
+              "description": "Service name.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "instance": {
+              "type": "string",
+              "description": "Instance identifier.",
+              "pattern": "^[a-z0-9][a-z0-9_-]*$",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "version": {
+              "type": "string",
+              "description": "Software/firmware version. Semver format.",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            }
+          }
+        },
+        "schema_version": {
+          "type": "string",
+          "description": "Protocol version.",
+          "const": "v1.0.0"
+        },
+        "type": {
+          "type": "string",
+          "description": "Message type in dot notation.",
+          "enum": [
+            "device.command.request",
+            "device.command.response",
+            "service.heartbeat",
+            "system.emergency_stop",
+            "system.ota.request"
+          ]
+        },
+        "correlation_id": {
+          "type": "string",
+          "description": "Links a request to its response.",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "reply_to": {
+          "type": "string",
+          "description": "Redis Stream name where the response should be sent.",
+          "pattern": "^[a-z0-9][a-z0-9_:/-]*$"
+        }
+      }
+    },
+    "payload": {
+      "type": "object",
+      "description": "Message-type-specific data. Schema depends on envelope.type."
+    }
+  }
+}

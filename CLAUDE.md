@@ -38,9 +38,10 @@ cd server && go build -o arturo-monitor ./cmd/arturo-monitor
 
 ### Station Firmware (ESP32)
 ```bash
-arduino-cli compile --fqbn esp32:esp32:esp32s3 firmware/
-arduino-cli upload --fqbn esp32:esp32:esp32s3 --port /dev/ttyUSB0 firmware/
-arduino-cli monitor --port /dev/ttyUSB0 --config baudrate=115200
+cd firmware && pio run -e esp32s3                    # compile
+cd firmware && pio run -e esp32s3 -t upload           # flash
+cd firmware && pio device monitor --baud 115200       # serial monitor
+cd firmware && pio test -e native                     # run unit tests on host
 ```
 
 ## Development Guidelines

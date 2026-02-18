@@ -1,0 +1,147 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/holla2040/arturo/schemas/v1.0.0/service-heartbeat.json",
+  "title": "Service Heartbeat",
+  "description": "Periodic health report from a station. Published via Redis Pub/Sub.",
+  "type": "object",
+  "required": ["envelope", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "envelope": {
+      "type": "object",
+      "description": "Message metadata and routing information.",
+      "required": ["id", "timestamp", "source", "schema_version", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "timestamp": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source": {
+          "type": "object",
+          "required": ["service", "instance", "version"],
+          "additionalProperties": false,
+          "properties": {
+            "service": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "instance": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]*$",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "version": {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            }
+          }
+        },
+        "schema_version": {
+          "type": "string",
+          "const": "v1.0.0"
+        },
+        "type": {
+          "type": "string",
+          "const": "service.heartbeat"
+        },
+        "correlation_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "reply_to": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_:/-]*$"
+        }
+      }
+    },
+    "payload": {
+      "type": "object",
+      "required": ["status", "uptime_seconds", "devices", "free_heap", "wifi_rssi", "firmware_version"],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "description": "Current station status.",
+          "enum": ["starting", "running", "degraded", "stopping"]
+        },
+        "uptime_seconds": {
+          "type": "integer",
+          "description": "Seconds since boot.",
+          "minimum": 0
+        },
+        "devices": {
+          "type": "array",
+          "description": "List of connected device IDs.",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]*$"
+          }
+        },
+        "free_heap": {
+          "type": "integer",
+          "description": "Current free heap memory in bytes.",
+          "minimum": 0
+        },
+        "min_free_heap": {
+          "type": "integer",
+          "description": "Lowest free heap since boot (high-water mark).",
+          "minimum": 0
+        },
+        "wifi_rssi": {
+          "type": "integer",
+          "description": "WiFi signal strength in dBm.",
+          "minimum": -127,
+          "maximum": 0
+        },
+        "wifi_reconnects": {
+          "type": "integer",
+          "description": "Number of WiFi reconnections since boot.",
+          "minimum": 0,
+          "default": 0
+        },
+        "redis_reconnects": {
+          "type": "integer",
+          "description": "Number of Redis reconnections since boot.",
+          "minimum": 0,
+          "default": 0
+        },
+        "commands_processed": {
+          "type": "integer",
+          "description": "Total commands executed since boot.",
+          "minimum": 0,
+          "default": 0
+        },
+        "commands_failed": {
+          "type": "integer",
+          "description": "Total commands that returned errors since boot.",
+          "minimum": 0,
+          "default": 0
+        },
+        "last_error": {
+          "type": ["string", "null"],
+          "description": "Most recent error message, or null if no errors.",
+          "maxLength": 256
+        },
+        "watchdog_resets": {
+          "type": "integer",
+          "description": "Number of watchdog-triggered resets since last clean boot.",
+          "minimum": 0,
+          "default": 0
+        },
+        "firmware_version": {
+          "type": "string",
+          "description": "Currently running firmware version. Semver format.",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        }
+      }
+    }
+  }
+}

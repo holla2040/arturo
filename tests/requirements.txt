@@ -1,0 +1,4 @@
+jsonschema>=4.17,<5
+pyyaml>=6.0,<7
+redis>=5.0,<6
+pytest>=7.0,<9

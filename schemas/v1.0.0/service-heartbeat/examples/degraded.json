@@ -1,6 +1,6 @@
 {
   "envelope": {
-    "id": "d3e4f5a6-b7c8-4d9e-0f1a-2b3c4d5e6f7a",
+    "id": "d3e4f5a6-b7c8-4d9e-8f1a-2b3c4d5e6f7a",
     "timestamp": 1771329900,
     "source": {
       "service": "esp32_tcp_bridge",

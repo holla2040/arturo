@@ -1,0 +1,136 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/holla2040/arturo/schemas/v1.0.0/device-command-response.json",
+  "title": "Device Command Response",
+  "description": "Response from a device command execution. Sent by a station to the controller via Redis Stream.",
+  "type": "object",
+  "required": ["envelope", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "envelope": {
+      "type": "object",
+      "description": "Message metadata and routing information.",
+      "required": ["id", "timestamp", "source", "schema_version", "type", "correlation_id"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "timestamp": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source": {
+          "type": "object",
+          "required": ["service", "instance", "version"],
+          "additionalProperties": false,
+          "properties": {
+            "service": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "instance": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]*$",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "version": {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            }
+          }
+        },
+        "schema_version": {
+          "type": "string",
+          "const": "v1.0.0"
+        },
+        "type": {
+          "type": "string",
+          "const": "device.command.response"
+        },
+        "correlation_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "reply_to": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_:/-]*$"
+        }
+      }
+    },
+    "payload": {
+      "type": "object",
+      "required": ["device_id", "command_name", "success"],
+      "additionalProperties": false,
+      "properties": {
+        "device_id": {
+          "type": "string",
+          "description": "Device that executed the command.",
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]*$",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "command_name": {
+          "type": "string",
+          "description": "The command that was executed (echoed from request).",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "success": {
+          "type": "boolean",
+          "description": "Whether the command executed successfully."
+        },
+        "response": {
+          "type": ["string", "null"],
+          "description": "Device response data. Null if no output or failed.",
+          "maxLength": 4096
+        },
+        "error": {
+          "type": "object",
+          "description": "Error information. Present only when success is false.",
+          "required": ["code", "message"],
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "type": "string",
+              "enum": [
+                "E_DEVICE_TIMEOUT",
+                "E_DEVICE_NOT_FOUND",
+                "E_DEVICE_NOT_CONNECTED",
+                "E_DEVICE_ERROR",
+                "E_COMMAND_FAILED",
+                "E_VALIDATION_FAILED",
+                "E_INVALID_PARAMETER",
+                "E_INTERNAL"
+              ]
+            },
+            "message": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            "details": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        },
+        "duration_ms": {
+          "type": "integer",
+          "description": "Time from command send to response received, in milliseconds.",
+          "minimum": 0
+        }
+      },
+      "if": {
+        "properties": { "success": { "const": false } }
+      },
+      "then": {
+        "required": ["device_id", "command_name", "success", "error"]
+      }
+    }
+  }
+}

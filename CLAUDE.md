@@ -14,7 +14,7 @@ Arturo is an industrial test automation system with ESP32 field devices and a ce
 
 - Up to 6 ESP32 nodes connect directly to Redis over WiFi/Ethernet
 - One Ubuntu server runs Go processes + Redis
-- All messages use Protocol v2 envelope format (see docs/architecture/MIGRATION_PLAN.md section 2.1)
+- All messages use Protocol v1.0.0 envelope format (see docs/architecture/MIGRATION_PLAN.md section 2.1)
 - 4 message types for v1: `device.command.request`, `device.command.response`, `service.heartbeat`, `system.emergency_stop`
 
 ## Redis Channel Conventions
@@ -44,7 +44,7 @@ cd firmware && pio device monitor       # Serial console
 ## Development Guidelines
 
 - Keep service count low. If it can be a function call inside arturo-server, it is not a separate service.
-- Every message must use the Protocol v2 envelope format.
+- Every message must use the Protocol v1.0.0 envelope format.
 - ESP32 firmware uses ArduinoJson v7 with static allocation.
 - Debug output on ESP32 goes to USB serial, controlled by DEBUG_LEVEL in config.h.
 - Use `arturo-monitor` to observe all Redis traffic during development.
@@ -53,7 +53,7 @@ cd firmware && pio device monitor       # Serial console
 ## Key Files
 
 - `docs/architecture/MIGRATION_PLAN.md` - Full build plan, architecture, phasing, debugging setup
-- `docs/reference/PROTOCOL_V2_ORIGINAL.md` - Original protocol spec (reference)
+- `docs/reference/PROTOCOL_ORIGINAL.md` - Original protocol spec (reference)
 - `docs/reference/SCRIPTING_LANGUAGE_ORIGINAL.md` - Arturo DSL reference
 - `schemas/` - JSON Schema message contracts
 - `profiles/` - Device YAML profiles (SCPI, Modbus, CTI, etc.)

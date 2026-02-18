@@ -31,7 +31,7 @@ arturo/
 ├── firmware/                       # ESP32 PlatformIO project
 │   ├── src/
 │   │   ├── network/                # WiFi, Redis client
-│   │   ├── messaging/              # Protocol v2 envelope, command handler, heartbeat
+│   │   ├── messaging/              # Protocol v1.0.0 envelope, command handler, heartbeat
 │   │   ├── protocols/              # SCPI, Modbus, CTI, ASCII packetizers
 │   │   ├── devices/                # TCP, serial, relay, modbus device drivers
 │   │   └── safety/                 # Watchdog, E-stop, interlocks
@@ -43,7 +43,7 @@ arturo/
 
 - **Redis Streams** for reliable command/response delivery
 - **Redis Pub/Sub** for heartbeats and emergency stop
-- **Protocol v2 envelope** on every message (JSON, same format on ESP32 and server)
+- **Protocol v1.0.0 envelope** on every message (JSON, same format on ESP32 and server)
 - **4 initial message types**: `device.command.request`, `device.command.response`, `service.heartbeat`, `system.emergency_stop`
 - **Direct ESP32-to-Redis** connection (no MQTT broker, no middleware)
 - **2 server processes** (not 39)

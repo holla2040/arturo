@@ -1,6 +1,6 @@
 # Message Schemas
 
-JSON Schema definitions for Arturo Protocol v2 messages.
+JSON Schema definitions for Arturo Protocol v1.0.0 messages.
 
 Phase 0 deliverable: define these four schemas before writing any code.
 

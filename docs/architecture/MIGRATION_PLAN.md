@@ -21,7 +21,7 @@ All on a single LAN. No cloud. No MQTT (for now).
 
 These architecture decisions from the original project are proven and worth keeping:
 
-### 2.1 Protocol v2 Envelope Format
+### 2.1 Protocol v1.0.0 Envelope Format
 
 Every message between any component uses this structure:
 
@@ -35,7 +35,7 @@ Every message between any component uses this structure:
       "instance": "relay-board-01",
       "version": "1.0.0"
     },
-    "schema_version": "v1",
+    "schema_version": "v1.0.0",
     "type": "device.command.response",
     "correlation_id": "corr-456",
     "reply_to": "responses/orchestrator/orch-01"
@@ -256,7 +256,7 @@ arturo-esp32/
 │   │   └── redis_client.cpp        # XREAD, XADD, PUBLISH, SUBSCRIBE (minimal RESP)
 │   │
 │   ├── messaging/
-│   │   ├── envelope.cpp            # Build/parse Protocol v2 JSON envelopes
+│   │   ├── envelope.cpp            # Build/parse Protocol v1.0.0 JSON envelopes
 │   │   ├── command_handler.cpp     # Dispatch incoming commands to device driver
 │   │   └── heartbeat.cpp           # 30-second heartbeat publisher
 │   │

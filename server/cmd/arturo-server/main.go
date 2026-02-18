@@ -5,19 +5,300 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log"
+	"net/http"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 	"time"
 
+	"github.com/holla2040/arturo/internal/api"
+	"github.com/holla2040/arturo/internal/estop"
 	"github.com/holla2040/arturo/internal/protocol"
+	"github.com/holla2040/arturo/internal/registry"
+	"github.com/holla2040/arturo/internal/store"
 	"github.com/redis/go-redis/v9"
 )
 
+const serverVersion = "1.0.0"
+
+var serverSource = protocol.Source{
+	Service:  "arturo_server",
+	Instance: "ctrl-01",
+	Version:  serverVersion,
+}
+
 func main() {
-	if len(os.Args) < 2 || os.Args[1] != "send" {
-		fmt.Fprintf(os.Stderr, "Usage: arturo-server send --station STATION --device DEVICE --cmd CMD [--timeout MS] [--redis ADDR]\n")
-		os.Exit(1)
+	// If first arg is "send", run the legacy CLI sender
+	if len(os.Args) > 1 && os.Args[1] == "send" {
+		runSendCommand()
+		return
 	}
 
+	// Server mode
+	redisAddr := flag.String("redis", "localhost:6379", "Redis address")
+	listenAddr := flag.String("listen", ":8080", "HTTP listen address")
+	dbPath := flag.String("db", "arturo.db", "SQLite database path")
+	flag.Parse()
+
+	// Context for graceful shutdown
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	// Initialize Redis
+	rdb := redis.NewClient(&redis.Options{Addr: *redisAddr})
+	defer rdb.Close()
+
+	if err := rdb.Ping(ctx).Err(); err != nil {
+		log.Fatalf("Failed to connect to Redis at %s: %v", *redisAddr, err)
+	}
+	log.Printf("Connected to Redis at %s", *redisAddr)
+
+	// Initialize SQLite store
+	db, err := store.New(*dbPath)
+	if err != nil {
+		log.Fatalf("Failed to open database at %s: %v", *dbPath, err)
+	}
+	defer db.Close()
+	log.Printf("Opened database at %s", *dbPath)
+
+	// Initialize components
+	reg := registry.New()
+	dispatcher := api.NewResponseDispatcher()
+	wsHub := api.NewHub()
+
+	// E-stop coordinator with callback to broadcast via WebSocket
+	estopCoord := estop.New(func(state estop.State) {
+		wsHub.BroadcastEvent("estop", state)
+		db.RecordDeviceEvent("system", "controller", "emergency_stop", state.Reason)
+	})
+
+	// Redis command sender
+	sender := &redisCommandSender{rdb: rdb}
+
+	// HTTP handler
+	handler := &api.Handler{
+		Registry:   reg,
+		Store:      db,
+		Estop:      estopCoord,
+		Dispatcher: dispatcher,
+		Sender:     sender,
+		Source:     serverSource,
+	}
+
+	mux := http.NewServeMux()
+	handler.RegisterRoutes(mux)
+	mux.HandleFunc("GET /ws", wsHub.HandleWebSocket)
+
+	server := &http.Server{
+		Addr:    *listenAddr,
+		Handler: mux,
+	}
+
+	var wg sync.WaitGroup
+
+	// 1. Heartbeat listener
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		runHeartbeatListener(ctx, rdb, reg, wsHub)
+	}()
+
+	// 2. E-stop listener
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		runEstopListener(ctx, rdb, estopCoord, wsHub)
+	}()
+
+	// 3. Response listener
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		runResponseListener(ctx, rdb, dispatcher, wsHub)
+	}()
+
+	// 4. Health check ticker
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		runHealthChecker(ctx, reg, wsHub)
+	}()
+
+	// 5. WebSocket hub
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		wsHub.Run(ctx)
+	}()
+
+	// 6. HTTP server
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		log.Printf("HTTP server listening on %s", *listenAddr)
+		if err := server.ListenAndServe(); err != http.ErrServerClosed {
+			log.Fatalf("HTTP server error: %v", err)
+		}
+	}()
+
+	// Wait for shutdown signal
+	<-ctx.Done()
+	log.Println("Shutting down...")
+
+	// Graceful HTTP shutdown with 5s timeout
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	server.Shutdown(shutdownCtx)
+
+	wg.Wait()
+	log.Println("Shutdown complete")
+}
+
+// runHeartbeatListener subscribes to heartbeat events and updates the registry.
+func runHeartbeatListener(ctx context.Context, rdb *redis.Client, reg *registry.Registry, hub *api.Hub) {
+	sub := rdb.Subscribe(ctx, "events:heartbeat")
+	defer sub.Close()
+
+	ch := sub.Channel()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg, ok := <-ch:
+			if !ok {
+				return
+			}
+			parsed, err := protocol.Parse([]byte(msg.Payload))
+			if err != nil {
+				log.Printf("heartbeat: parse error: %v", err)
+				continue
+			}
+			payload, err := protocol.ParseHeartbeat(parsed)
+			if err != nil {
+				log.Printf("heartbeat: payload error: %v", err)
+				continue
+			}
+			reg.UpdateFromHeartbeat(parsed.Envelope.Source.Instance, payload)
+			hub.BroadcastEvent("heartbeat", payload)
+		}
+	}
+}
+
+// runEstopListener subscribes to emergency stop events.
+func runEstopListener(ctx context.Context, rdb *redis.Client, coord *estop.Coordinator, hub *api.Hub) {
+	sub := rdb.Subscribe(ctx, "events:emergency_stop")
+	defer sub.Close()
+
+	ch := sub.Channel()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg, ok := <-ch:
+			if !ok {
+				return
+			}
+			parsed, err := protocol.Parse([]byte(msg.Payload))
+			if err != nil {
+				log.Printf("estop: parse error: %v", err)
+				continue
+			}
+			if err := coord.HandleMessage(parsed); err != nil {
+				log.Printf("estop: handle error: %v", err)
+			}
+		}
+	}
+}
+
+// runResponseListener reads command responses from the response stream.
+func runResponseListener(ctx context.Context, rdb *redis.Client, dispatcher *api.ResponseDispatcher, hub *api.Hub) {
+	stream := "responses:" + serverSource.Instance
+	lastID := "$" // Only read new messages
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		result, err := rdb.XRead(ctx, &redis.XReadArgs{
+			Streams: []string{stream, lastID},
+			Block:   2 * time.Second,
+			Count:   10,
+		}).Result()
+
+		if err == redis.Nil {
+			continue
+		}
+		if err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+			log.Printf("response listener: XREAD error: %v", err)
+			time.Sleep(time.Second)
+			continue
+		}
+
+		for _, s := range result {
+			for _, xmsg := range s.Messages {
+				lastID = xmsg.ID
+				jsonStr, ok := xmsg.Values["message"].(string)
+				if !ok {
+					continue
+				}
+				parsed, err := protocol.Parse([]byte(jsonStr))
+				if err != nil {
+					log.Printf("response listener: parse error: %v", err)
+					continue
+				}
+				dispatched := dispatcher.Dispatch(parsed)
+				hub.BroadcastEvent("command_response", parsed.Payload)
+				if !dispatched {
+					log.Printf("response listener: no waiter for correlation_id=%s", parsed.Envelope.CorrelationID)
+				}
+			}
+		}
+	}
+}
+
+// runHealthChecker periodically checks station health.
+func runHealthChecker(ctx context.Context, reg *registry.Registry, hub *api.Hub) {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-ticker.C:
+			reg.RunHealthCheck(now)
+		}
+	}
+}
+
+// redisCommandSender implements api.CommandSender using Redis XADD.
+type redisCommandSender struct {
+	rdb *redis.Client
+}
+
+func (s *redisCommandSender) SendCommand(ctx context.Context, stream string, msg *protocol.Message) error {
+	msgJSON, err := json.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("marshal command: %w", err)
+	}
+	_, err = s.rdb.XAdd(ctx, &redis.XAddArgs{
+		Stream: stream,
+		Values: map[string]interface{}{"message": string(msgJSON)},
+	}).Result()
+	return err
+}
+
+// --- Legacy "send" subcommand ---
+
+func runSendCommand() {
 	sendFlags := flag.NewFlagSet("send", flag.ExitOnError)
 	station := sendFlags.String("station", "", "station instance ID (required)")
 	device := sendFlags.String("device", "", "device ID (required)")
@@ -36,7 +317,7 @@ func main() {
 	source := protocol.Source{
 		Service:  "arturo_server",
 		Instance: "server-01",
-		Version:  "1.0.0",
+		Version:  serverVersion,
 	}
 
 	msg, err := protocol.BuildCommandRequest(source, *device, *cmd, nil, *timeout)

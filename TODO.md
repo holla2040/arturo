@@ -26,36 +26,39 @@ Key project files:
 - [x] Phase 0: Freeze Contracts — 7 JSON schemas, 8 device profiles, 69 schema tests pass
 - [x] Phase 1: Heartbeat + Monitor — arturo-monitor working, ESP32 heartbeats, presence keys
 - [x] Phase 2: Command Round-Trip — SCPI client, Redis streams, CLI sender, 39 Go tests pass
+- [x] Phase 3: Relay and Serial Variants — 9 firmware modules (devices, protocols, safety), 133 new tests, 172 total pass
+- [x] Phase 4: Controller Core — device registry, health monitor, REST API, WebSocket, SQLite, E-stop coordinator, report generator, arturo-server rewrite
 
 ---
 
-## Phase 3: Relay and Serial Variants (firmware/, C++)
+## Phase 3: Relay and Serial Variants (firmware/, C++) — COMPLETE
 
 Read first: `firmware/README.md`, `firmware/src/protocols/scpi_client.cpp` (pattern to follow), `firmware/src/commands/command_handler.cpp`
 
-- [ ] TCP device client — `firmware/src/devices/tcp_device.cpp` — TCP socket client for SCPI instruments over Ethernet. Follow scpi_client.cpp pattern. Needs connect/disconnect, send/receive with timeout, reconnect logic.
-- [ ] Serial device bridge — `firmware/src/devices/serial_device.cpp` — HardwareSerial wrapper for UART instruments (CTI pumps, Modbus). Configure baud, parity, stop bits from device profile.
-- [ ] Relay controller — `firmware/src/devices/relay_controller.cpp` — GPIO output for relay channels. Safe-state on boot (all off). Channel validation against profile.
-- [ ] Modbus device client — `firmware/src/devices/modbus_device.cpp` — RS485 Modbus RTU. Function codes 03 (read holding), 06 (write single), 16 (write multiple). CRC16 calculation. Reference: `profiles/controllers/omega_cn7500.yaml`
-- [ ] CTI packetizer — `firmware/src/protocols/cti.cpp` — Port from Go reference in arturo-go-archive `src/common/protocols/cti.go`. Checksum calculation, response code parsing. Reference: `docs/reference/CTI_BROOKS_PROTOCOL.md`
-- [ ] Modbus packetizer — `firmware/src/protocols/modbus.cpp` — Port from Go reference. CRC16, slave addressing, function code dispatch.
-- [ ] Watchdog timer — `firmware/src/safety/watchdog.cpp` — Hardware watchdog, 8s timeout, feed from main loop.
-- [ ] E-stop handler — `firmware/src/safety/estop.cpp` — GPIO button input, immediate local relay shutoff, publish `system.emergency_stop` to Redis.
-- [ ] Safety interlocks — `firmware/src/safety/interlock.cpp` — Local checks (temperature, over-current) that don't depend on network.
+- [x] TCP device client — `firmware/src/devices/tcp_device.cpp` — TCP socket client for SCPI instruments over Ethernet. Follow scpi_client.cpp pattern. Needs connect/disconnect, send/receive with timeout, reconnect logic.
+- [x] Serial device bridge — `firmware/src/devices/serial_device.cpp` — HardwareSerial wrapper for UART instruments (CTI pumps, Modbus). Configure baud, parity, stop bits from device profile.
+- [x] Relay controller — `firmware/src/devices/relay_controller.cpp` — GPIO output for relay channels. Safe-state on boot (all off). Channel validation against profile.
+- [x] Modbus device client — `firmware/src/devices/modbus_device.cpp` — RS485 Modbus RTU. Function codes 03 (read holding), 06 (write single), 16 (write multiple). CRC16 calculation. Reference: `profiles/controllers/omega_cn7500.yaml`
+- [x] CTI packetizer — `firmware/src/protocols/cti.cpp` — Port from Go reference in arturo-go-archive `src/common/protocols/cti.go`. Checksum calculation, response code parsing. Reference: `docs/reference/CTI_BROOKS_PROTOCOL.md`
+- [x] Modbus packetizer — `firmware/src/protocols/modbus.cpp` — Port from Go reference. CRC16, slave addressing, function code dispatch.
+- [x] Watchdog timer — `firmware/src/safety/watchdog.cpp` — Hardware watchdog, 8s timeout, feed from main loop.
+- [x] E-stop handler — `firmware/src/safety/estop.cpp` — GPIO button input, immediate local relay shutoff, publish `system.emergency_stop` to Redis.
+- [x] Safety interlocks — `firmware/src/safety/interlock.cpp` — Local checks (temperature, over-current) that don't depend on network.
 
-## Phase 4: Controller Core (server/, Go)
+## Phase 4: Controller Core (server/, Go) — COMPLETE
 
 Read first: `server/cmd/arturo-server/main.go` (current stub), `server/internal/protocol/` (envelope/command builders), `docs/architecture/MIGRATION_PLAN.md` section 5
 
-- [ ] Device registry — `server/internal/registry/` — Map device IDs to station instances. Populate from heartbeat payloads (devices field). Lookup for command routing. Reference: MIGRATION_PLAN.md section 5.2
-- [ ] Health monitor — Track heartbeat timestamps per station. Flag OFFLINE after 90s silence. Expose status via registry.
-- [ ] REST API — `server/cmd/arturo-server/` — Endpoints: GET /devices, GET /devices/:id, POST /devices/:id/command, GET /system/status. Use net/http or chi router.
-- [ ] WebSocket — Push real-time heartbeats and command results to browser clients.
-- [ ] SQLite storage — `server/internal/store/` — Tables: test_runs, measurements, device_history. Store command results and test outcomes.
-- [ ] E-stop coordinator — Subscribe to `events:emergency_stop`. Broadcast to all stations. Log to stream. Expose status via API.
-- [ ] Report generator — CSV/JSON export of test results from SQLite.
+- [x] Device registry — `server/internal/registry/` — Map device IDs to station instances. Populate from heartbeat payloads (devices field). Lookup for command routing. 20 tests.
+- [x] Health monitor — Track heartbeat timestamps per station. Flag OFFLINE after 90s silence. Expose status via registry. (integrated in registry package)
+- [x] REST API — `server/internal/api/` — Endpoints: GET /devices, GET /devices/{id}, POST /devices/{id}/command, GET /system/status, GET /reports/{id}/csv, GET /reports/{id}/json. Go 1.22 net/http.ServeMux. 19 tests.
+- [x] WebSocket — `server/internal/api/websocket.go` — Push real-time heartbeats, command results, e-stop events to browser clients. 6 tests.
+- [x] SQLite storage — `server/internal/store/` — Tables: test_runs, measurements, device_history. Pure Go SQLite (modernc.org/sqlite). 13 tests.
+- [x] E-stop coordinator — `server/internal/estop/` — State management + callbacks. Redis subscription wired in main.go. 13 tests.
+- [x] Report generator — `server/internal/report/` — CSV/JSON export of test results from SQLite. 8 tests.
+- [x] arturo-server main.go rewrite — HTTP server mode (default) + legacy `send` subcommand. Heartbeat/estop/response listeners, health check ticker, graceful shutdown.
 
-## Phase 5: Script Engine (server/, Go) — BLOCKED until Phase 4 device registry is [x]
+## Phase 5: Script Engine (server/, Go) — UNBLOCKED
 
 Read first: `docs/reference/SCRIPTING_LANGUAGE_ORIGINAL.md`, `docs/architecture/MIGRATION_PLAN.md` sections 2.6, 2.8, 5.3
 

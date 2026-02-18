@@ -48,6 +48,8 @@ cd firmware && pio test -e native                     # run unit tests on host
 
 ## Development Guidelines
 
+- Start every session by reading `TODO.md`. It contains agent instructions, project state, and available tasks.
+- Mark tasks `[-]` when starting, `[x]` when done.
 - Keep service count low. If it can be a function call inside arturo-server, it is not a separate service.
 - Every message must use the Protocol v1.0.0 envelope format.
 - Station firmware uses ArduinoJson v7 with static allocation.
@@ -65,3 +67,4 @@ cd firmware && pio test -e native                     # run unit tests on host
 - `schemas/` - JSON Schema message contracts
 - `profiles/` - Device YAML profiles (SCPI, Modbus, CTI, etc.)
 - `scripts/` - Test scripts (.art) and shared libraries (.artlib)
+- `TODO.md` - Self-directing task list — agents read this first to know what to work on and track progress

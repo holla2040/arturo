@@ -1,0 +1,22 @@
+manufacturer: "Omega"
+model: "CN7500"
+type: "temperature_controller"
+protocol: "modbus_rtu"
+packetizer:
+  type: "modbus"
+  options:
+    slave_address: 1
+modbus:
+  slave_address: 1
+  registers:
+    temperature: 0x1000  # Process value
+    setpoint: 0x1001     # Setpoint value
+    output: 0x1002       # Output percentage
+    alarm1: 0x1010       # Alarm 1 status
+    alarm2: 0x1011       # Alarm 2 status
+commands:
+  read_temperature: "read_holding_registers"
+  read_setpoint: "read_holding_registers"
+  write_setpoint: "write_single_register"
+responses:
+  # Modbus responses are binary and handled by the packetizer

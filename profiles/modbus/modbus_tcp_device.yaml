@@ -1,0 +1,24 @@
+manufacturer: "Generic"
+model: "Modbus-TCP-Device"
+type: "plc"
+protocol: "modbus"
+packetizer:
+  type: "modbus"
+  options:
+    slave_address: 1
+modbus:
+  slave_address: 1
+  registers:
+    temperature: 0x0000
+    humidity: 0x0001
+    pressure: 0x0002
+    status: 0x0010
+  coils:
+    output1: 0x0000
+    output2: 0x0001
+commands:
+  read_temperature: "read_holding_registers"
+  read_humidity: "read_holding_registers"
+  write_output: "write_single_register"
+responses:
+  # Modbus responses are binary and handled by the packetizer

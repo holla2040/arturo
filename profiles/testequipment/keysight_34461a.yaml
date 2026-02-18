@@ -1,0 +1,23 @@
+manufacturer: "Keysight Technologies"
+model: "34461A"
+type: "dmm"
+protocol: "scpi"
+packetizer:
+  type: "scpi"
+  line_ending: "\n"
+commands:
+  identify: "*IDN?"
+  reset: "*RST"
+  clear: "*CLS"
+  measure_dc_voltage: "MEAS:VOLT:DC?"
+  measure_ac_voltage: "MEAS:VOLT:AC?"
+  measure_resistance: "MEAS:RES?"
+  measure_dc_current: "MEAS:CURR:DC?"
+  measure_ac_current: "MEAS:CURR:AC?"
+  measure_frequency: "MEAS:FREQ?"
+  measure_period: "MEAS:PER?"
+  check_errors: "SYST:ERR?"
+  self_test: "*TST?"
+responses:
+  success: "0,\"No error\""
+  error: "ERR"

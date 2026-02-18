@@ -1,0 +1,34 @@
+# Go
+server/arturo-server
+server/arturo-engine
+server/arturo-monitor
+*.exe
+*.test
+*.out
+
+# PlatformIO
+firmware/.pio/
+firmware/.vscode/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.env.local
+
+# Build artifacts
+build/
+dist/

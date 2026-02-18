@@ -1,0 +1,81 @@
+manufacturer: "CTI"
+model: "On-Board Cryopump"
+type: "cryopump"
+protocol: "cti"
+packetizer:
+  type: "cti"
+commands:
+  # Basic pump control
+  pump_on: "$P{addr}A1{checksum}"
+  pump_off: "$P{addr}A0{checksum}"
+  pump_status: "$P{addr}A?{checksum}"
+  
+  # Temperature readings
+  get_temp_1st_stage: "$P{addr}J{checksum}"   # Returns 1st stage temp in K
+  get_temp_2nd_stage: "$P{addr}K{checksum}"   # Returns 2nd stage temp in K
+  
+  # Pressure readings
+  get_pump_tc_pressure: "$P{addr}L{checksum}" # Returns pump TC pressure
+  get_aux_tc_pressure: "$P{addr}M{checksum}"  # Returns aux TC pressure
+  
+  # Status queries
+  get_status_1: "$P{addr}S1{checksum}"        # Status indicators 1
+  get_status_2: "$P{addr}S2{checksum}"        # Status indicators 2
+  get_status_3: "$P{addr}S3{checksum}"        # Status indicators 3
+  
+  # Regeneration control
+  start_regen: "$P{addr}N1{checksum}"         # Start normal regeneration
+  start_fast_regen: "$P{addr}N2{checksum}"    # Start fast regeneration
+  abort_regen: "$P{addr}N0{checksum}"         # Abort regeneration
+  get_regen_step: "$P{addr}O{checksum}"       # Get current regen step
+  get_regen_error: "$P{addr}e{checksum}"      # Get regen error code
+  
+  # System info
+  get_module_info: "$P{addr}@{checksum}"      # Get module type and version
+  get_serial_number: "$P{addr}VA?{checksum}"  # Get serial number (first 8 chars)
+  get_serial_suffix: "$P{addr}VQ?{checksum}"  # Get serial number (last 3 chars)
+  
+  # Operating parameters
+  get_operating_hours: "$P{addr}Y?{checksum}" # Get elapsed operating hours
+  get_regen_cycles: "$P{addr}Z?{checksum}"    # Get number of regen cycles
+  get_time_since_regen: "$P{addr}a{checksum}" # Time since last full regen
+  get_time_since_fast: "$P{addr}a2{checksum}" # Time since last fast regen
+  
+  # Power failure recovery
+  get_pfr_status: "$P{addr}i?{checksum}"      # Get power fail recovery status
+  set_pfr_off: "$P{addr}i0{checksum}"         # Set PFR off
+  set_pfr_on: "$P{addr}i1{checksum}"          # Set PFR on
+  set_pfr_temp: "$P{addr}i2{checksum}"        # Set PFR when T2 < limit
+  get_pfr_flag: "$P{addr}t?{checksum}"        # Get power failure flag
+  clear_pfr_flag: "$P{addr}t={checksum}"      # Clear power failure flag
+  
+  # Valve control
+  open_rough_valve: "$P{addr}D1{checksum}"    # Open rough valve
+  close_rough_valve: "$P{addr}D0{checksum}"   # Close rough valve
+  get_rough_valve: "$P{addr}D?{checksum}"     # Get rough valve status
+  open_purge_valve: "$P{addr}E1{checksum}"    # Open purge valve
+  close_purge_valve: "$P{addr}E0{checksum}"   # Close purge valve
+  get_purge_valve: "$P{addr}E?{checksum}"     # Get purge valve status
+  
+  # Regen parameters
+  get_restart_delay: "$P{addr}P0?{checksum}"  # Get pump restart delay
+  set_restart_delay: "$P{addr}P0{value}{checksum}" # Set pump restart delay
+  get_min_run_pressure: "$P{addr}P3?{checksum}" # Get rough base pressure
+  set_min_run_pressure: "$P{addr}P3{value}{checksum}" # Set rough base pressure
+  get_min_run_temp: "$P{addr}P6?{checksum}"   # Get power fail recover temp
+  
+  # Additional status
+  get_pump_failure: "$P{addr}u{checksum}"     # Get pump failure cause
+  get_regen_flags: "$P{addr}v{checksum}"      # Get regen flag conditions
+  get_memory_error: "$P{addr}W{checksum}"     # Get memory error code
+
+responses:
+  ack: "$A"                # Acknowledged, no power fail
+  ack_reset: "$B"          # Acknowledged, reset occurred
+  error: "$E"              # Invalid command, no reset
+  error_reset: "$F"        # Invalid command, reset occurred
+  cant_act: "$G"           # OK command but can't act, no reset
+  cant_act_reset: "$H"     # OK command but can't act, with reset
+  serial_lock: "$I"        # OK command but serial lock, no reset
+  serial_lock_reset: "$J"  # OK command but serial lock, with reset
+  comm_fail: "$Z"          # Communication failure

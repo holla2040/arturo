@@ -1,0 +1,20 @@
+manufacturer: "Fluke"
+model: "8846A"
+type: "dmm"
+protocol: "scpi"
+packetizer:
+  type: "scpi"
+  line_ending: "\n"
+commands:
+  identify: "*IDN?"
+  reset: "*RST"
+  clear: "*CLS"
+  measure_dc_voltage: "MEAS:VOLT:DC?"
+  measure_ac_voltage: "MEAS:VOLT:AC?"
+  measure_resistance: "MEAS:RES?"
+  measure_dc_current: "MEAS:CURR:DC?"
+  measure_ac_current: "MEAS:CURR:AC?"
+  check_errors: "SYST:ERR?"
+responses:
+  success: "0,\"No error\""
+  error: "ERR"

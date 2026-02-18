@@ -1,0 +1,18 @@
+manufacturer: "Arduino"
+model: "Uno"
+type: "microcontroller"
+protocol: "ascii"
+packetizer:
+  type: "ascii"
+  line_ending: "\n"
+commands:
+  digital_write: "DW{pin},{value}"
+  digital_read: "DR{pin}?"
+  analog_write: "AW{pin},{value}"
+  analog_read: "AR{pin}?"
+  pin_mode: "PM{pin},{mode}"
+  identify: "ID?"
+  reset: "RST"
+responses:
+  success: "OK"
+  error: "ERR"

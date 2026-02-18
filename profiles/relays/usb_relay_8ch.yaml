@@ -1,0 +1,19 @@
+manufacturer: "Generic"
+model: "USB-8CH-RELAY"
+type: "relay_board"
+protocol: "ascii"
+packetizer:
+  type: "ascii"
+  line_ending: "\r\n"
+commands:
+  relay_on: "RELAY{channel}ON"
+  relay_off: "RELAY{channel}OFF"
+  relay_toggle: "RELAY{channel}TOGGLE"
+  all_on: "ALLON"
+  all_off: "ALLOFF"
+  status: "STATUS"
+  identify: "ID"
+  reset: "RESET"
+responses:
+  success: "OK"
+  error: "ERROR"

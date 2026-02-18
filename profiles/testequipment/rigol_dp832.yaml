@@ -1,0 +1,23 @@
+manufacturer: "Rigol"
+model: "DP832"
+type: "power_supply"
+protocol: "scpi"
+packetizer:
+  type: "scpi"
+  line_ending: "\n"
+commands:
+  identify: "*IDN?"
+  reset: "*RST"
+  clear: "*CLS"
+  set_voltage: ":SOUR1:VOLT {value}"
+  set_current: ":SOUR1:CURR {value}"
+  output_on: ":OUTP CH1,ON"
+  output_off: ":OUTP CH1,OFF"
+  measure_voltage: ":MEAS:VOLT? CH1"
+  measure_current: ":MEAS:CURR? CH1"
+  get_voltage: ":SOUR1:VOLT?"
+  get_current: ":SOUR1:CURR?"
+  check_errors: ":SYST:ERR?"
+responses:
+  success: "0,\"No error\""
+  error: "ERR"

@@ -80,6 +80,8 @@ func main() {
 		cancel()
 	}()
 
+	tracker := NewStationTracker()
+
 	var wg sync.WaitGroup
 
 	// Goroutine 1: Stream watcher
@@ -207,6 +209,10 @@ func main() {
 						continue
 					}
 
+					if msg.Envelope.Type == protocol.TypeServiceHeartbeat {
+						tracker.RecordHeartbeat(msg.Envelope.Source.Instance)
+					}
+
 					dm := &DisplayMessage{
 						Timestamp: time.Now(),
 						Channel:   redisMsg.Channel,
@@ -233,14 +239,14 @@ func main() {
 			defer ticker.Stop()
 
 			// Run once immediately, then on ticker
-			pollPresence(ctx, rdb)
+			pollPresence(ctx, rdb, tracker)
 
 			for {
 				select {
 				case <-ctx.Done():
 					return
 				case <-ticker.C:
-					pollPresence(ctx, rdb)
+					pollPresence(ctx, rdb, tracker)
 				}
 			}
 		}()
@@ -318,20 +324,36 @@ func matchTypeFilter(msgType, filter string) bool {
 }
 
 // pollPresence scans for device:*:alive keys and prints their status.
-func pollPresence(ctx context.Context, rdb *redis.Client) {
+// It also checks tracker for stations that have vanished from Redis but were previously seen.
+func pollPresence(ctx context.Context, rdb *redis.Client, tracker *StationTracker) {
+	seen := make(map[string]bool)
+
 	iter := rdb.Scan(ctx, 0, "device:*:alive", 100).Iterator()
-	found := false
 	for iter.Next(ctx) {
 		key := iter.Val()
+		instance := extractInstance(key)
+		seen[instance] = true
+
 		ttl, err := rdb.TTL(ctx, key).Result()
 		if err != nil {
 			log.Printf("presence TTL error for %s: %v", key, err)
 			continue
 		}
-		fmt.Printf("[presence] %s\n", FormatPresence(key, int64(ttl.Seconds())))
-		found = true
+
+		state, lastSeen := tracker.GetState(instance, ttl)
+		fmt.Printf("[presence] %s\n", FormatPresence(key, int64(ttl.Seconds()), state, lastSeen))
 	}
-	if !found {
+
+	// Print OFFLINE for stations known to tracker but missing from SCAN
+	for _, instance := range tracker.KnownInstances() {
+		if !seen[instance] {
+			key := fmt.Sprintf("device:%s:alive", instance)
+			_, lastSeen := tracker.GetState(instance, 0)
+			fmt.Printf("[presence] %s\n", FormatPresence(key, 0, StateOffline, lastSeen))
+		}
+	}
+
+	if len(seen) == 0 && len(tracker.KnownInstances()) == 0 {
 		fmt.Println("[presence] no stations detected")
 	}
 }

@@ -18,7 +18,20 @@ type DisplayMessage struct {
 	StreamID  string
 }
 
-// FormatMessage formats a DisplayMessage for terminal output.
+// extractInstance extracts the station instance name from a Redis key.
+// Key format: "device:{instance}:alive" or "commands:{instance}" or "responses:{instance}"
+func extractInstance(key string) string {
+	parts := strings.Split(key, ":")
+	if len(parts) >= 3 && parts[0] == "device" && parts[len(parts)-1] == "alive" {
+		return strings.Join(parts[1:len(parts)-1], ":")
+	}
+	if len(parts) >= 2 && (parts[0] == "commands" || parts[0] == "responses") {
+		return strings.Join(parts[1:], ":")
+	}
+	return key
+}
+
+// FormatMessage formats a DisplayMessage for terminal output with ANSI color coding.
 // Line 1: timestamp, channel, direction, message type.
 // Line 2 (indented): correlation_id (first 8 chars) + type-specific fields.
 func FormatMessage(dm *DisplayMessage) string {
@@ -31,6 +44,7 @@ func FormatMessage(dm *DisplayMessage) string {
 	}
 
 	var detail string
+	var color string
 	switch dm.Message.Envelope.Type {
 	case protocol.TypeDeviceCommandRequest:
 		req, err := protocol.ParseCommandRequest(dm.Message)
@@ -49,23 +63,30 @@ func FormatMessage(dm *DisplayMessage) string {
 				durationMs = *resp.DurationMs
 			}
 			detail = fmt.Sprintf("corr=%s success=%t duration=%dms", corrID, resp.Success, durationMs)
+			if resp.Success {
+				color = colorGreen
+			} else {
+				color = colorRed
+			}
 		} else {
 			detail = fmt.Sprintf("corr=%s (parse error)", corrID)
 		}
 
 	case protocol.TypeServiceHeartbeat:
+		color = colorCyan
 		hb, err := protocol.ParseHeartbeat(dm.Message)
 		if err == nil {
 			detail = fmt.Sprintf("status=%s heap=%d rssi=%d", hb.Status, hb.FreeHeap, hb.WifiRSSI)
 			warnings := HealthWarnings(hb)
 			if len(warnings) > 0 {
-				detail += fmt.Sprintf(" [%s]", strings.Join(warnings, ", "))
+				detail += fmt.Sprintf(" %s[%s]%s", colorYellow, strings.Join(warnings, ", "), colorCyan)
 			}
 		} else {
 			detail = "(parse error)"
 		}
 
 	case protocol.TypeSystemEmergencyStop:
+		color = colorRed
 		estop, err := protocol.ParseEmergencyStop(dm.Message)
 		if err == nil {
 			detail = fmt.Sprintf("reason=%s initiator=%s", estop.Reason, estop.Initiator)
@@ -77,7 +98,11 @@ func FormatMessage(dm *DisplayMessage) string {
 		detail = fmt.Sprintf("corr=%s", corrID)
 	}
 
-	return fmt.Sprintf("%s\n    %s", line1, detail)
+	body := fmt.Sprintf("%s\n    %s", line1, detail)
+	if color != "" {
+		return color + body + colorReset
+	}
+	return body
 }
 
 // formatParams formats a map as {k:v,...} for compact display.
@@ -92,21 +117,31 @@ func formatParams(params map[string]string) string {
 	return fmt.Sprintf("{%s}", strings.Join(parts, ","))
 }
 
-// FormatPresence formats a presence key status for terminal display.
+// FormatPresence formats a presence key status for terminal display with color coding.
 // Key format: "device:{instance}:alive"
-func FormatPresence(key string, ttl int64) string {
-	instance := key
-	parts := strings.Split(key, ":")
-	if len(parts) >= 3 && parts[0] == "device" && parts[len(parts)-1] == "alive" {
-		instance = strings.Join(parts[1:len(parts)-1], ":")
+func FormatPresence(key string, ttl int64, state StationState, lastSeen time.Time) string {
+	instance := extractInstance(key)
+
+	var color string
+	switch state {
+	case StateOnline:
+		color = colorGreen
+	case StateStale:
+		color = colorYellow
+	case StateOffline:
+		color = colorRed
 	}
 
-	status := "ONLINE"
-	if ttl <= 0 {
-		status = "OFFLINE"
+	line := fmt.Sprintf("%-20s TTL=%-4d %s", instance, ttl, state.String())
+
+	if state == StateStale || state == StateOffline {
+		if !lastSeen.IsZero() {
+			ago := time.Since(lastSeen).Round(time.Second)
+			line += fmt.Sprintf("  (last seen %s ago)", ago)
+		}
 	}
 
-	return fmt.Sprintf("%-20s TTL=%-4d %s", instance, ttl, status)
+	return color + line + colorReset
 }
 
 // ParseStreamFields extracts a protocol.Message from Redis stream fields.

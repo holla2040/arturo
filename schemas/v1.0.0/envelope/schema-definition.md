@@ -119,8 +119,8 @@ Every message in the Arturo system wraps its payload in this envelope. The envel
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `service` | string | Yes | Service name. Lowercase with underscores (e.g., `esp32_tcp_bridge`, `orchestrator`). |
-| `instance` | string | Yes | Instance identifier. Lowercase with hyphens (e.g., `dmm-station-01`, `orch-01`). |
+| `service` | string | Yes | Service name. Lowercase with underscores (e.g., `esp32_tcp_bridge`, `controller`). |
+| `instance` | string | Yes | Instance identifier. Lowercase with hyphens (e.g., `dmm-station-01`, `ctrl-01`). |
 | `version` | string | Yes | Semver software/firmware version (e.g., `1.0.0`). |
 
 ## Correlation ID Usage
@@ -128,11 +128,11 @@ Every message in the Arturo system wraps its payload in this envelope. The envel
 The `correlation_id` field links request-response pairs across Redis Streams.
 
 **Flow:**
-1. Server generates a UUIDv4 `correlation_id` and includes it in `device.command.request`
-2. Server also sets `reply_to` to its response stream (e.g., `responses:orchestrator:orch-01`)
-3. ESP32 echoes the same `correlation_id` in `device.command.response`
-4. ESP32 publishes the response to the `reply_to` stream
-5. Server matches the response to the original request by `correlation_id`
+1. Controller generates a UUIDv4 `correlation_id` and includes it in `device.command.request`
+2. Controller also sets `reply_to` to its response stream (e.g., `responses:controller:ctrl-01`)
+3. Station echoes the same `correlation_id` in `device.command.response`
+4. Station publishes the response to the `reply_to` stream
+5. Controller matches the response to the original request by `correlation_id`
 
 **Required by message type:**
 
@@ -150,34 +150,34 @@ Known service names used in `source.service`:
 
 | Service Name | Description |
 |-------------|-------------|
-| `orchestrator` | Go server command orchestrator |
-| `esp32_tcp_bridge` | ESP32 node bridging TCP/SCPI instruments |
-| `esp32_serial_bridge` | ESP32 node bridging serial instruments |
-| `esp32_relay_controller` | ESP32 node controlling relays |
-| `esp32_estop` | ESP32 emergency stop node |
+| `controller` | Go controller process |
+| `esp32_tcp_bridge` | Station bridging TCP/SCPI instruments |
+| `esp32_serial_bridge` | Station bridging serial instruments |
+| `esp32_relay_controller` | Station controlling relays |
+| `esp32_estop` | Emergency stop station |
 | `arturo_monitor` | Debugging/monitoring tool |
 
 ## Implementation Details
 
-### Go Server (Message Creation)
+### Controller (Go)
 
 ```go
 envelope := map[string]interface{}{
     "id":             uuid.New().String(),
     "timestamp":      time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
     "source": map[string]interface{}{
-        "service":  "orchestrator",
-        "instance": "orch-01",
+        "service":  "controller",
+        "instance": "ctrl-01",
         "version":  "1.0.0",
     },
     "schema_version": "v1.0.0",
     "type":           "device.command.request",
     "correlation_id": uuid.New().String(),
-    "reply_to":       "responses:orchestrator:orch-01",
+    "reply_to":       "responses:controller:ctrl-01",
 }
 ```
 
-### ESP32 Firmware (ArduinoJson)
+### Station Firmware (ArduinoJson)
 
 ```cpp
 StaticJsonDocument<512> doc;

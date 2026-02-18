@@ -3,14 +3,14 @@
     "id": "6ba7b810-9dad-41d0-80b4-00c04fd430c8",
     "timestamp": "2026-02-17T12:01:00.000Z",
     "source": {
-      "service": "orchestrator",
-      "instance": "orch-01",
+      "service": "controller",
+      "instance": "ctrl-01",
       "version": "1.0.0"
     },
     "schema_version": "v1.0.0",
     "type": "device.command.request",
     "correlation_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
-    "reply_to": "responses:orchestrator:orch-01"
+    "reply_to": "responses:controller:ctrl-01"
   },
   "payload": {
     "device_id": "relay-8ch",

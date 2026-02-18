@@ -12,18 +12,18 @@
 | Direction | Any -> All (broadcast) |
 | Status | Active |
 
-Emergency stop broadcast. Any node (ESP32 or server) can publish this message. All nodes subscribe to the E-stop channel and must immediately enter a safe state when received.
+Emergency stop broadcast. Any station or the controller can publish this message. All stations subscribe to the E-stop channel and must immediately enter a safe state when received.
 
-This is the highest-priority message in the system. ESP32 nodes check for E-stop on a dedicated high-priority FreeRTOS task (watchdogTask, priority 3).
+This is the highest-priority message in the system. Stations check for E-stop on a dedicated high-priority FreeRTOS task (watchdogTask, priority 3).
 
 ## Design Decisions
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Transport | Pub/Sub (not Stream) | E-stop must reach all subscribers immediately. At-most-once delivery is acceptable -- the safe state is fail-safe. |
-| Acknowledgment | None | Fire-and-forget. Nodes enter safe state locally regardless of acknowledgment. |
-| Local action | Immediate | ESP32 cuts relay power via GPIO before responding to Redis. Physical safety first. |
-| Duplicate handling | Idempotent | Receiving multiple E-stops is harmless. Nodes stay in safe state until explicitly cleared. |
+| Acknowledgment | None | Fire-and-forget. Stations enter safe state locally regardless of acknowledgment. |
+| Local action | Immediate | Station cuts relay power via GPIO before responding to Redis. Physical safety first. |
+| Duplicate handling | Idempotent | Receiving multiple E-stops is harmless. Stations stay in safe state until explicitly cleared. |
 
 ## JSON Schema Definition
 
@@ -32,7 +32,7 @@ This is the highest-priority message in the system. ESP32 nodes check for E-stop
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/holla2040/arturo/schemas/v1.0.0/system-emergency-stop.json",
   "title": "System Emergency Stop",
-  "description": "Emergency stop broadcast. All nodes must immediately enter safe state.",
+  "description": "Emergency stop broadcast. All stations must immediately enter safe state.",
   "type": "object",
   "required": ["envelope", "payload"],
   "additionalProperties": false,
@@ -67,7 +67,7 @@ This is the highest-priority message in the system. ESP32 nodes check for E-stop
         },
         "initiator": {
           "type": "string",
-          "description": "Instance ID of the node or operator that triggered the E-stop.",
+          "description": "Instance ID of the station or operator that triggered the E-stop.",
           "maxLength": 64
         }
       }
@@ -94,51 +94,51 @@ No `correlation_id` or `reply_to` -- E-stop is fire-and-forget broadcast.
 
 | Reason | Trigger | Typical Source |
 |--------|---------|---------------|
-| `button_press` | Physical E-stop button pressed on an ESP32 node | ESP32 E-stop node |
-| `operator_command` | Operator manually triggered E-stop via UI or CLI | Go server |
-| `safety_interlock` | Automated safety check failed (temperature, voltage, etc.) | ESP32 or server |
-| `device_fault` | Device reported a critical error | ESP32 bridge node |
-| `software_error` | Software detected an unrecoverable state | Go server |
+| `button_press` | Physical E-stop button pressed on a station | E-stop station |
+| `operator_command` | Operator manually triggered E-stop via terminal | Controller |
+| `safety_interlock` | Automated safety check failed (temperature, voltage, etc.) | Station or controller |
+| `device_fault` | Device reported a critical error | Bridge station |
+| `software_error` | Software detected an unrecoverable state | Controller |
 
 ## E-Stop Response Behavior
 
-### ESP32 Nodes
+### Stations
 
-When an ESP32 receives `system.emergency_stop`:
+When a station receives `system.emergency_stop`:
 
 1. **Immediately** set all relay GPIOs to safe state (OFF)
 2. Set status LED to rapid blink (error indicator)
 3. Stop processing command queue (drain without executing)
-4. Set node status to `"degraded"` in heartbeat
-5. Continue publishing heartbeats (so server knows node is alive)
+4. Set station status to `"degraded"` in heartbeat
+5. Continue publishing heartbeats (so controller knows station is alive)
 6. Reject all new commands with `E_COMMAND_FAILED` ("E-stop active")
 7. Wait for explicit clear command before resuming
 
-### Go Server
+### Controller
 
-When the server receives or sends `system.emergency_stop`:
+When the controller receives or sends `system.emergency_stop`:
 
 1. Log the E-stop event with full context
-2. Stop sending new commands to all ESP32 nodes
+2. Stop sending new commands to all stations
 3. Cancel pending command timeouts
-4. Notify connected web clients
+4. Notify connected web clients (terminal)
 5. Set system state to "emergency stopped"
-6. Require operator acknowledgment before resuming
+6. Require operator acknowledgment at the terminal before resuming
 
-### Local E-Stop (ESP32 Button)
+### Local E-Stop (Station Button)
 
-The ESP32 E-stop node has a physical button wired to a GPIO interrupt:
+The E-stop station has a physical button wired to a GPIO interrupt:
 
 1. GPIO interrupt fires (debounced, 50ms)
 2. **Immediately** cut local relay power (before Redis)
 3. Publish `system.emergency_stop` to Redis
-4. Other ESP32 nodes receive and enter safe state
+4. Other stations receive and enter safe state
 
 The local GPIO action happens before the Redis publish. Physical safety does not depend on network availability.
 
 ## Implementation Details
 
-### ESP32 Firmware (C++)
+### Station Firmware (C++)
 
 ```cpp
 // E-stop subscription handler (runs in watchdogTask, priority 3)
@@ -174,27 +174,27 @@ void IRAM_ATTR estopButtonISR() {
 }
 ```
 
-### Go Server
+### Controller (Go)
 
 ```go
-// Trigger E-stop from server
-func (s *Server) EmergencyStop(reason, description string) {
+// Trigger E-stop from controller
+func (c *Controller) EmergencyStop(reason, description string) {
     msg := map[string]interface{}{
         "envelope": map[string]interface{}{
             "id":             uuid.New().String(),
             "timestamp":      time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
-            "source":         s.source,
+            "source":         c.source,
             "schema_version": "v1.0.0",
             "type":           "system.emergency_stop",
         },
         "payload": map[string]interface{}{
             "reason":      reason,
             "description": description,
-            "initiator":   s.instanceID,
+            "initiator":   c.instanceID,
         },
     }
-    s.redis.Publish(ctx, "events:emergency_stop", marshal(msg))
-    s.estopActive = true
+    c.redis.Publish(ctx, "events:emergency_stop", marshal(msg))
+    c.estopActive = true
 }
 ```
 

@@ -8,11 +8,11 @@
 | Format | JSON |
 | Message Type | `device.command.request` |
 | Transport | Redis Stream |
-| Channel | `commands:{instance-id}` (per-device stream) |
-| Direction | Server -> ESP32 |
+| Channel | `commands:{instance-id}` (per-station stream) |
+| Direction | Controller -> Station |
 | Status | Active |
 
-Request to execute a command on a physical device. The Go server publishes this message to a device-specific Redis Stream using XADD. The target ESP32 reads it with XREAD BLOCK and dispatches the command to the hardware.
+Request to execute a command on a physical device. The controller publishes this message to a station-specific Redis Stream using XADD. The target station reads it with XREAD BLOCK and dispatches the command to the hardware.
 
 Commands can be either profile command names (e.g., `measure_dc_voltage`) that map to device-specific SCPI/Modbus/serial sequences, or raw device commands (e.g., `MEAS:VOLT:DC?`) sent directly to the instrument.
 
@@ -23,7 +23,7 @@ Commands can be either profile command names (e.g., `measure_dc_voltage`) that m
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/holla2040/arturo/schemas/v1.0.0/device-command-request.json",
   "title": "Device Command Request",
-  "description": "Request to execute a command on a device. Sent by the server to an ESP32 node via Redis Stream.",
+  "description": "Request to execute a command on a device. Sent by the controller to a station via Redis Stream.",
   "type": "object",
   "required": ["envelope", "payload"],
   "additionalProperties": false,
@@ -78,23 +78,23 @@ Commands can be either profile command names (e.g., `measure_dc_voltage`) that m
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `correlation_id` | string | Yes | UUIDv4 linking this request to its response. Server generates this. |
-| `reply_to` | string | Yes | Redis Stream where the ESP32 should publish the response (e.g., `responses:orchestrator:orch-01`). |
+| `correlation_id` | string | Yes | UUIDv4 linking this request to its response. Controller generates this. |
+| `reply_to` | string | Yes | Redis Stream where the station should publish the response (e.g., `responses:controller:ctrl-01`). |
 
 ### Payload Fields
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `device_id` | string | Yes | -- | Target device identifier. Must match a device connected to the ESP32 (e.g., `fluke-8846a`, `relay-8ch`). |
+| `device_id` | string | Yes | -- | Target device identifier. Must match a device connected to the station (e.g., `fluke-8846a`, `relay-8ch`). |
 | `command_name` | string | Yes | -- | Profile command name (e.g., `measure_dc_voltage`) or raw command (e.g., `MEAS:VOLT:DC?`). |
 | `parameters` | object | No | `{}` | Key-value string pairs for parameterized commands (e.g., `{"channel": "3", "state": "on"}`). |
-| `timeout_ms` | integer | No | `5000` | How long the ESP32 should wait for a device response. Returns `E_DEVICE_TIMEOUT` if exceeded. Range: 100-300000ms. |
+| `timeout_ms` | integer | No | `5000` | How long the station should wait for a device response. Returns `E_DEVICE_TIMEOUT` if exceeded. Range: 100-300000ms. |
 
 ## Command Types
 
 ### Profile Commands
 
-Profile commands map to device-specific sequences defined in YAML profile files. The ESP32 looks up the command in the loaded device profile and translates it to the appropriate protocol.
+Profile commands map to device-specific sequences defined in YAML profile files. The station looks up the command in the loaded device profile and translates it to the appropriate protocol.
 
 | Command Name | Device | Protocol | What it does |
 |-------------|--------|----------|-------------|
@@ -117,29 +117,29 @@ If `command_name` doesn't match a profile command, it is sent directly to the de
 ## Redis Stream Usage
 
 ```
-Server:  XADD commands:dmm-station-01 * message <json>
-ESP32:   XREAD BLOCK 0 STREAMS commands:dmm-station-01 $last_id
+Controller:  XADD commands:dmm-station-01 * message <json>
+Station:     XREAD BLOCK 0 STREAMS commands:dmm-station-01 $last_id
 ```
 
-The server publishes to the device-specific stream. Each ESP32 reads only from its own stream. After processing, the ESP32 publishes the response to the `reply_to` stream.
+The controller publishes to the station-specific stream. Each station reads only from its own stream. After processing, the station publishes the response to the `reply_to` stream.
 
 ## Implementation Details
 
-### Go Server
+### Controller (Go)
 
 ```go
 // Build and send command request
-func (s *Server) SendCommand(instanceID, deviceID, commandName string, params map[string]string, timeoutMs int) (string, error) {
+func (c *Controller) SendCommand(stationID, deviceID, commandName string, params map[string]string, timeoutMs int) (string, error) {
     correlationID := uuid.New().String()
     msg := map[string]interface{}{
         "envelope": map[string]interface{}{
             "id":             uuid.New().String(),
             "timestamp":      time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
-            "source":         s.source,
+            "source":         c.source,
             "schema_version": "v1.0.0",
             "type":           "device.command.request",
             "correlation_id": correlationID,
-            "reply_to":       fmt.Sprintf("responses:orchestrator:%s", s.instanceID),
+            "reply_to":       fmt.Sprintf("responses:controller:%s", c.instanceID),
         },
         "payload": map[string]interface{}{
             "device_id":    deviceID,
@@ -148,13 +148,13 @@ func (s *Server) SendCommand(instanceID, deviceID, commandName string, params ma
             "timeout_ms":   timeoutMs,
         },
     }
-    streamKey := fmt.Sprintf("commands:%s", instanceID)
-    s.redis.XAdd(ctx, &redis.XAddArgs{Stream: streamKey, Values: map[string]interface{}{"message": marshal(msg)}})
+    streamKey := fmt.Sprintf("commands:%s", stationID)
+    c.redis.XAdd(ctx, &redis.XAddArgs{Stream: streamKey, Values: map[string]interface{}{"message": marshal(msg)}})
     return correlationID, nil
 }
 ```
 
-### ESP32 Firmware (C++)
+### Station Firmware (C++)
 
 ```cpp
 // Parse incoming command from Redis Stream
@@ -176,6 +176,6 @@ bool parseCommandRequest(const char* json, DeviceCommand& cmd) {
 ### v1.0.0 (Current)
 - Initial command request definition
 - Profile commands and raw command support
-- Per-device Redis Stream channels
+- Per-station Redis Stream channels
 - Configurable timeout with 5-second default
 - String-only parameter values

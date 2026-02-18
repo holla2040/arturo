@@ -2,7 +2,7 @@
 
 ## Overview
 
-ESP32 field device firmware that bridges physical instruments to Redis over WiFi. Each ESP32 node handles one or more devices (SCPI instruments, serial devices, relays, Modbus) and communicates with the central Go server via Redis Streams and Pub/Sub.
+ESP32 station firmware that bridges physical instruments to Redis over WiFi. Each station handles one or more devices (SCPI instruments, serial devices, relays, Modbus) and communicates with the controller via Redis Streams and Pub/Sub.
 
 ## Technical Decisions
 
@@ -66,6 +66,10 @@ Arduino on ESP32 runs on FreeRTOS. The `setup()` and `loop()` functions execute 
 - **Core 0**: Network (Redis, WiFi, heartbeat). These tasks share the network stack.
 - **Core 1**: Hardware I/O (device communication, GPIO). These tasks talk to physical instruments.
 
+**Core assignment strategy:**
+- **Core 0**: Network (Redis, WiFi, heartbeat). These tasks share the network stack.
+- **Core 1**: Hardware I/O (device communication, GPIO). These tasks talk to physical instruments.
+
 Network and hardware don't block each other.
 
 **Task creation in setup():**
@@ -122,8 +126,8 @@ ESP32 has dual OTA partitions built into the bootloader. Partition A runs while 
 
 **Update flow:**
 
-1. Go server sends `system.ota.request` to ESP32 via Redis Stream
-2. ESP32 downloads `.bin` from server over HTTP (`http://server:8080/firmware/arturo-relay-v1.1.0.bin`)
+1. Controller sends `system.ota.request` to station via Redis Stream
+2. Station downloads `.bin` from controller over HTTP (`http://192.168.1.10:8080/firmware/arturo-relay-v1.1.0.bin`)
 3. ESP32 writes to inactive partition using ESP-IDF OTA API
 4. ESP32 verifies SHA256 checksum
 5. ESP32 reboots to new partition
@@ -148,7 +152,7 @@ The ESP32 checks: is `version` newer than what I'm running? Does `sha256` match 
 
 ### Serial Debug Output
 
-Every ESP32 prints structured debug logs to USB serial at 115200 baud.
+Every station prints structured debug logs to USB serial at 115200 baud.
 
 **Debug levels (compile-time in config.h):**
 
@@ -188,7 +192,7 @@ Every ESP32 prints structured debug logs to USB serial at 115200 baud.
 | TCP bridge | ESP32-S3 + W5500 Ethernet | SCPI instruments | Ethernet to instrument, WiFi to Redis |
 | Serial bridge | ESP32-S3 + MAX3232 or MAX485 | Serial devices | UART to instrument, WiFi to Redis |
 | Relay controller | ESP32-S3 + relay board | Power switching | GPIO to relays, WiFi to Redis |
-| E-stop node | ESP32-S3 + button + LED | Safety | GPIO button/LED, WiFi to Redis |
+| E-stop station | ESP32-S3 + button + LED | Safety | GPIO button/LED, WiFi to Redis |
 
 ESP32-S3 for all variants: dual-core 240MHz, 512KB SRAM, WiFi, plenty of GPIO.
 
@@ -260,19 +264,19 @@ firmware/
 
 ## Redis Communication
 
-Each ESP32 gets its own command stream. No shared channels for commands.
+Each station gets its own command stream. No shared channels for commands.
 
 ```
 commands:relay-board-01      <- only relay-board-01 reads this (Stream)
 commands:dmm-station-01      <- only dmm-station-01 reads this (Stream)
-events:heartbeat             <- all ESP32s publish here (Pub/Sub)
-events:emergency_stop        <- all ESP32s subscribe and publish (Pub/Sub)
+events:heartbeat             <- all stations publish here (Pub/Sub)
+events:emergency_stop        <- all stations subscribe and publish (Pub/Sub)
 device:{instance}:alive      <- presence key with 90s TTL
 ```
 
 ## Heartbeat Diagnostics
 
-Every heartbeat includes fields for monitoring ESP32 health:
+Every heartbeat includes fields for monitoring station health:
 
 ```json
 {

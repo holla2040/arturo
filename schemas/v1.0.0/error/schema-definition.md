@@ -128,7 +128,7 @@ The `details` object carries error-specific context:
 
 ## Implementation Details
 
-### ESP32 Firmware (C++)
+### Station Firmware (C++)
 
 ```cpp
 struct ArturoError {
@@ -151,7 +151,7 @@ if (millis() - startTime > cmd.timeout_ms) {
 }
 ```
 
-### Go Server
+### Controller (Go)
 
 ```go
 type ArturoError struct {
@@ -167,7 +167,7 @@ type ArturoError struct {
 2. Follow the naming convention: `E_` prefix, uppercase, underscores
 3. Document the code, category, and description in the Error Codes table
 4. Document expected `details` fields
-5. Update both Go and ESP32 implementations
+5. Update both controller and station firmware implementations
 
 ## Version History
 

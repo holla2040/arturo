@@ -1,16 +1,16 @@
 # Arturo Protocol v1.0.0 Schemas
 
-JSON Schema definitions for the Arturo messaging protocol. These schemas are the single source of truth for all messages exchanged between the Go server and ESP32 field devices over Redis.
+JSON Schema definitions for the Arturo messaging protocol. These schemas are the single source of truth for all messages exchanged between the controller and stations over Redis.
 
 ## Message Types
 
 | Type | Transport | Direction | Description |
 |------|-----------|-----------|-------------|
-| `device.command.request` | Redis Stream | Server -> ESP32 | Execute a command on a device |
-| `device.command.response` | Redis Stream | ESP32 -> Server | Result of a device command |
-| `service.heartbeat` | Redis Pub/Sub | ESP32 -> Server | Periodic health report |
+| `device.command.request` | Redis Stream | Controller -> Station | Execute a command on a device |
+| `device.command.response` | Redis Stream | Station -> Controller | Result of a device command |
+| `service.heartbeat` | Redis Pub/Sub | Station -> Controller | Periodic health report |
 | `system.emergency_stop` | Redis Pub/Sub | Any -> All | Emergency stop broadcast |
-| `system.ota.request` | Redis Stream | Server -> ESP32 | Firmware update request |
+| `system.ota.request` | Redis Stream | Controller -> Station | Firmware update request |
 
 ## Shared Definitions
 
@@ -57,7 +57,7 @@ v1.0.0/
 
 ## Validation
 
-All messages must validate against their respective JSON Schema before being sent. Both the Go server and ESP32 firmware validate incoming messages.
+All messages must validate against their respective JSON Schema before being sent. Both the controller and station firmware validate incoming messages.
 
 ## Version History
 

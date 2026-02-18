@@ -8,11 +8,11 @@
 | Format | JSON |
 | Message Type | `system.ota.request` |
 | Transport | Redis Stream |
-| Channel | `commands:{instance-id}` (per-device stream) |
-| Direction | Server -> ESP32 |
+| Channel | `commands:{instance-id}` (per-station stream) |
+| Direction | Controller -> Station |
 | Status | Active |
 
-Request to update firmware on an ESP32 node via OTA (Over-The-Air). The server publishes this to the device's command stream. The ESP32 downloads the firmware binary over HTTP, writes it to the inactive OTA partition, verifies the SHA256 checksum, and reboots.
+Request to update firmware on a station via OTA (Over-The-Air). The controller publishes this to the station's command stream. The station downloads the firmware binary over HTTP, writes it to the inactive OTA partition, verifies the SHA256 checksum, and reboots.
 
 OTA uses the ESP-IDF dual-partition system called from Arduino code. If the new firmware fails to connect to Redis within 30 seconds of boot, the bootloader automatically rolls back to the previous partition.
 
@@ -20,9 +20,9 @@ OTA uses the ESP-IDF dual-partition system called from Arduino code. If the new 
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Transport | Redis Stream (not Pub/Sub) | OTA is a targeted command to a specific device. Must be reliably delivered. |
-| Binary delivery | HTTP download | ESP32 pulls the binary from the server over HTTP. Simpler than chunking through Redis. |
-| Verification | SHA256 checksum | Validates binary integrity after download. ESP32 rejects mismatched checksums. |
+| Transport | Redis Stream (not Pub/Sub) | OTA is a targeted command to a specific station. Must be reliably delivered. |
+| Binary delivery | HTTP download | Station pulls the binary from the controller over HTTP. Simpler than chunking through Redis. |
+| Verification | SHA256 checksum | Validates binary integrity after download. Station rejects mismatched checksums. |
 | Rollback | Automatic (bootloader) | ESP-IDF's built-in rollback. No custom rollback logic needed. |
 | Version check | Semver comparison | Skip update if already running the target version (unless `force: true`). |
 
@@ -33,7 +33,7 @@ OTA uses the ESP-IDF dual-partition system called from Arduino code. If the new 
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/holla2040/arturo/schemas/v1.0.0/system-ota-request.json",
   "title": "System OTA Request",
-  "description": "Request to update firmware on an ESP32 node via OTA.",
+  "description": "Request to update firmware on a station via OTA.",
   "type": "object",
   "required": ["envelope", "payload"],
   "additionalProperties": false,
@@ -84,41 +84,41 @@ OTA uses the ESP-IDF dual-partition system called from Arduino code. If the new 
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `correlation_id` | string | Yes | UUIDv4 linking this request to the OTA response. Server tracks OTA progress by this ID. |
-| `reply_to` | string | Yes | Redis Stream for the ESP32 to report OTA result. |
+| `correlation_id` | string | Yes | UUIDv4 linking this request to the OTA response. Controller tracks OTA progress by this ID. |
+| `reply_to` | string | Yes | Redis Stream for the station to report OTA result. |
 
 ### Payload Fields
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `firmware_url` | string | Yes | -- | HTTP URL to the firmware `.bin` file. The ESP32 downloads this over WiFi. Must be reachable from the device's network. |
-| `version` | string | Yes | -- | Target firmware version in semver format (e.g., `1.1.0`). ESP32 compares this against its running version. |
-| `sha256` | string | Yes | -- | SHA256 hex digest (64 characters) of the firmware binary. ESP32 verifies the download matches before flashing. |
+| `firmware_url` | string | Yes | -- | HTTP URL to the firmware `.bin` file. The station downloads this over WiFi. Must be reachable on the LAN. |
+| `version` | string | Yes | -- | Target firmware version in semver format (e.g., `1.1.0`). Station compares this against its running version. |
+| `sha256` | string | Yes | -- | SHA256 hex digest (64 characters) of the firmware binary. Station verifies the download matches before flashing. |
 | `force` | boolean | No | `false` | If `true`, skip version comparison and flash regardless. Useful for rollbacks or re-flashing the same version. |
 
 ## OTA Update Flow
 
 ```
-1. Server:  XADD commands:dmm-station-01 * message <ota-request-json>
-2. ESP32:   Receives OTA request via XREAD
-3. ESP32:   Compare version against running firmware
-4.          If same version and force=false → respond with success (no-op)
-5. ESP32:   HTTP GET firmware_url → download .bin to inactive partition
-6. ESP32:   Calculate SHA256 of downloaded binary
-7.          If SHA256 mismatch → respond with E_VALIDATION_FAILED
-8. ESP32:   Mark inactive partition as boot target
-9. ESP32:   Respond with success (pre-reboot)
-10. ESP32:  Reboot
-11. ESP32:  Boot from new partition
-12. ESP32:  Connect to WiFi + Redis within 30 seconds
-13.         If connection fails → bootloader rolls back automatically
-14. ESP32:  Publish heartbeat with new firmware_version
-15. Server: Detects version change in heartbeat → OTA confirmed
+1. Controller:  XADD commands:dmm-station-01 * message <ota-request-json>
+2. Station:     Receives OTA request via XREAD
+3. Station:     Compare version against running firmware
+4.              If same version and force=false -> respond with success (no-op)
+5. Station:     HTTP GET firmware_url -> download .bin to inactive partition
+6. Station:     Calculate SHA256 of downloaded binary
+7.              If SHA256 mismatch -> respond with E_VALIDATION_FAILED
+8. Station:     Mark inactive partition as boot target
+9. Station:     Respond with success (pre-reboot)
+10. Station:    Reboot
+11. Station:    Boot from new partition
+12. Station:    Connect to WiFi + Redis within 30 seconds
+13.             If connection fails -> bootloader rolls back automatically
+14. Station:    Publish heartbeat with new firmware_version
+15. Controller: Detects version change in heartbeat -> OTA confirmed
 ```
 
 ## OTA Response
 
-The ESP32 responds using a standard `device.command.response` message with `command_name: "ota_update"`:
+The station responds using a standard `device.command.response` message with `command_name: "ota_update"`:
 
 ### Success (Pre-Reboot)
 
@@ -157,7 +157,7 @@ The ESP32 responds using a standard `device.command.response` message with `comm
 
 ## Firmware Binary Hosting
 
-The Go server hosts firmware binaries over HTTP:
+The controller hosts firmware binaries over HTTP:
 
 ```
 http://192.168.1.10:8080/firmware/arturo-tcp-bridge-v1.1.0.bin
@@ -168,14 +168,14 @@ File naming convention: `arturo-{variant}-v{version}.bin`
 
 | Variant | Description |
 |---------|-------------|
-| `tcp-bridge` | TCP/SCPI instrument bridge |
-| `serial-bridge` | Serial instrument bridge |
-| `relay-controller` | GPIO relay controller |
-| `estop` | Emergency stop node |
+| `tcp-bridge` | TCP/SCPI instrument bridge station |
+| `serial-bridge` | Serial instrument bridge station |
+| `relay-controller` | GPIO relay controller station |
+| `estop` | Emergency stop station |
 
 ## Implementation Details
 
-### ESP32 Firmware (C++)
+### Station Firmware (C++)
 
 ```cpp
 #include <esp_ota_ops.h>
@@ -232,21 +232,21 @@ bool performOTA(const char* firmwareUrl, const char* expectedSha256, const char*
 }
 ```
 
-### Go Server
+### Controller (Go)
 
 ```go
-// Trigger OTA update on a specific node
-func (s *Server) RequestOTA(instanceID, firmwareURL, version, sha256 string, force bool) (string, error) {
+// Trigger OTA update on a specific station
+func (c *Controller) RequestOTA(stationID, firmwareURL, version, sha256 string, force bool) (string, error) {
     correlationID := uuid.New().String()
     msg := map[string]interface{}{
         "envelope": map[string]interface{}{
             "id":             uuid.New().String(),
             "timestamp":      time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
-            "source":         s.source,
+            "source":         c.source,
             "schema_version": "v1.0.0",
             "type":           "system.ota.request",
             "correlation_id": correlationID,
-            "reply_to":       fmt.Sprintf("responses:orchestrator:%s", s.instanceID),
+            "reply_to":       fmt.Sprintf("responses:controller:%s", c.instanceID),
         },
         "payload": map[string]interface{}{
             "firmware_url": firmwareURL,
@@ -255,8 +255,8 @@ func (s *Server) RequestOTA(instanceID, firmwareURL, version, sha256 string, for
             "force":        force,
         },
     }
-    streamKey := fmt.Sprintf("commands:%s", instanceID)
-    s.redis.XAdd(ctx, &redis.XAddArgs{Stream: streamKey, Values: map[string]interface{}{"message": marshal(msg)}})
+    streamKey := fmt.Sprintf("commands:%s", stationID)
+    c.redis.XAdd(ctx, &redis.XAddArgs{Stream: streamKey, Values: map[string]interface{}{"message": marshal(msg)}})
     return correlationID, nil
 }
 ```

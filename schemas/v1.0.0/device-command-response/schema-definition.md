@@ -9,10 +9,10 @@
 | Message Type | `device.command.response` |
 | Transport | Redis Stream |
 | Channel | `responses:{service}:{instance-id}` (from request's `reply_to`) |
-| Direction | ESP32 -> Server |
+| Direction | Station -> Controller |
 | Status | Active |
 
-Response from a device command execution. The ESP32 publishes this to the Redis Stream specified in the request's `reply_to` field. Covers both success and error cases in a single message type using the `success` boolean.
+Response from a device command execution. The station publishes this to the Redis Stream specified in the request's `reply_to` field. Covers both success and error cases in a single message type using the `success` boolean.
 
 ## JSON Schema Definition
 
@@ -21,7 +21,7 @@ Response from a device command execution. The ESP32 publishes this to the Redis 
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/holla2040/arturo/schemas/v1.0.0/device-command-response.json",
   "title": "Device Command Response",
-  "description": "Response from a device command execution. Sent by an ESP32 node to the server via Redis Stream.",
+  "description": "Response from a device command execution. Sent by a station to the controller via Redis Stream.",
   "type": "object",
   "required": ["envelope", "payload"],
   "additionalProperties": false,
@@ -87,7 +87,7 @@ Response from a device command execution. The ESP32 publishes this to the Redis 
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `correlation_id` | string | Yes | Echoed from the original request. Server uses this to match response to request. |
+| `correlation_id` | string | Yes | Echoed from the original request. Controller uses this to match response to request. |
 | `reply_to` | -- | Not used | Response is published to the stream specified in the request's `reply_to`, but the response itself does not include a `reply_to` field. |
 
 ### Payload Fields
@@ -114,9 +114,9 @@ The `error` field is required when `success` is `false`:
 
 ## Response Data Types
 
-The `response` field is always a string (the raw device output). The server is responsible for parsing it into the appropriate type based on the command profile.
+The `response` field is always a string (the raw device output). The controller is responsible for parsing it into the appropriate type based on the command profile.
 
-| Device Response | `response` Value | Server Parses As |
+| Device Response | `response` Value | Controller Parses As |
 |----------------|-----------------|------------------|
 | DC voltage | `"1.23456789"` | float64 |
 | Relay state | `"ON"` | boolean |
@@ -125,7 +125,7 @@ The `response` field is always a string (the raw device output). The server is r
 
 ## Implementation Details
 
-### ESP32 Firmware (C++)
+### Station Firmware (C++)
 
 ```cpp
 // Build success response
@@ -164,17 +164,17 @@ void buildErrorResponse(JsonDocument& doc, const DeviceCommand& cmd, const char*
 }
 ```
 
-### Go Server (Response Handling)
+### Controller (Go)
 
 ```go
 // Wait for response by correlation ID
-func (s *Server) WaitForResponse(correlationID string, timeout time.Duration) (*CommandResponse, error) {
+func (c *Controller) WaitForResponse(correlationID string, timeout time.Duration) (*CommandResponse, error) {
     ctx, cancel := context.WithTimeout(context.Background(), timeout)
     defer cancel()
 
     for {
-        results, err := s.redis.XRead(ctx, &redis.XReadArgs{
-            Streams: []string{s.responseStream, s.lastResponseID},
+        results, err := c.redis.XRead(ctx, &redis.XReadArgs{
+            Streams: []string{c.responseStream, c.lastResponseID},
             Block:   timeout,
             Count:   1,
         }).Result()
@@ -197,5 +197,5 @@ func (s *Server) WaitForResponse(correlationID string, timeout time.Duration) (*
 - Initial command response definition
 - Unified success/error in single message type
 - Conditional `error` field required when `success` is false
-- String-only response data (server parses by profile)
+- String-only response data (controller parses by profile)
 - Duration tracking in milliseconds

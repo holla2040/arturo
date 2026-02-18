@@ -9,13 +9,13 @@
 | Message Type | `service.heartbeat` |
 | Transport | Redis Pub/Sub |
 | Channel | `events:heartbeat` |
-| Direction | ESP32 -> Server |
+| Direction | Station -> Controller |
 | Interval | Every 30 seconds |
 | Status | Active |
 
-Periodic health report published by each ESP32 node. The server uses heartbeats to track which nodes are alive, monitor hardware health, and detect failures. If heartbeats stop arriving, the server marks the node as unreachable.
+Periodic health report published by each station. The controller uses heartbeats to track which stations are alive, monitor hardware health, and detect failures. If heartbeats stop arriving, the controller marks the station as unreachable.
 
-Each ESP32 also maintains a Redis presence key (`device:{instance}:alive`) with a 90-second TTL, refreshed with each heartbeat. This provides a simple liveness check without Pub/Sub.
+Each station also maintains a Redis presence key (`device:{instance}:alive`) with a 90-second TTL, refreshed with each heartbeat. This provides a simple liveness check without Pub/Sub.
 
 ## JSON Schema Definition
 
@@ -24,7 +24,7 @@ Each ESP32 also maintains a Redis presence key (`device:{instance}:alive`) with 
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/holla2040/arturo/schemas/v1.0.0/service-heartbeat.json",
   "title": "Service Heartbeat",
-  "description": "Periodic health report from an ESP32 node. Published via Redis Pub/Sub.",
+  "description": "Periodic health report from a station. Published via Redis Pub/Sub.",
   "type": "object",
   "required": ["envelope", "payload"],
   "additionalProperties": false,
@@ -43,7 +43,7 @@ Each ESP32 also maintains a Redis presence key (`device:{instance}:alive`) with 
       "properties": {
         "status": {
           "type": "string",
-          "description": "Current node status.",
+          "description": "Current station status.",
           "enum": ["starting", "running", "degraded", "stopping"]
         },
         "uptime_seconds": {
@@ -131,21 +131,21 @@ No `correlation_id` or `reply_to` -- heartbeats are fire-and-forget over Pub/Sub
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `status` | string | Yes | -- | Node status: `starting` (boot sequence), `running` (normal), `degraded` (device errors), `stopping` (shutdown). |
+| `status` | string | Yes | -- | Station status: `starting` (boot sequence), `running` (normal), `degraded` (device errors), `stopping` (shutdown). |
 | `uptime_seconds` | integer | Yes | -- | Seconds since boot. Resets on watchdog restart or OTA reboot. |
-| `devices` | array | Yes | -- | List of device IDs connected to this node (e.g., `["fluke-8846a"]`). Empty array if no devices. |
+| `devices` | array | Yes | -- | List of device IDs connected to this station (e.g., `["fluke-8846a"]`). Empty array if no devices. |
 | `free_heap` | integer | Yes | -- | Current free heap memory in bytes. ESP32-S3 starts with ~360KB free after initialization. |
 | `min_free_heap` | integer | No | -- | Lowest free heap value since boot. Tracks memory leaks. If this drops below ~50KB, investigate. |
 | `wifi_rssi` | integer | Yes | -- | WiFi signal strength in dBm. Below -80 dBm may cause packet loss. |
 | `wifi_reconnects` | integer | No | `0` | WiFi reconnection count. Non-zero indicates WiFi instability. |
-| `redis_reconnects` | integer | No | `0` | Redis reconnection count. Non-zero indicates network or server issues. |
+| `redis_reconnects` | integer | No | `0` | Redis reconnection count. Non-zero indicates network issues. |
 | `commands_processed` | integer | No | `0` | Lifetime command counter. Useful for throughput monitoring. |
 | `commands_failed` | integer | No | `0` | Failed command counter. High ratio to processed indicates device problems. |
 | `last_error` | string/null | No | `null` | Most recent error for quick triage without reading logs. |
 | `watchdog_resets` | integer | No | `0` | Watchdog reset count. Non-zero means firmware crashed or hung. |
 | `firmware_version` | string | Yes | -- | Running firmware version. Used by OTA to determine if update is needed. |
 
-## Node Status Values
+## Station Status Values
 
 | Status | Meaning | Typical Duration |
 |--------|---------|-----------------|
@@ -156,7 +156,7 @@ No `correlation_id` or `reply_to` -- heartbeats are fire-and-forget over Pub/Sub
 
 ## Presence Key
 
-In addition to Pub/Sub heartbeats, each ESP32 maintains a Redis key for simple liveness checks:
+In addition to Pub/Sub heartbeats, each station maintains a Redis key for simple liveness checks:
 
 ```
 SET device:{instance}:alive "1" EX 90
@@ -164,25 +164,25 @@ SET device:{instance}:alive "1" EX 90
 
 - Key: `device:dmm-station-01:alive`
 - TTL: 90 seconds (3x heartbeat interval)
-- If the key expires, the node is considered dead
+- If the key expires, the station is considered dead
 - Refreshed with every heartbeat publication
 
-The server can check liveness with a simple `EXISTS` command without subscribing to Pub/Sub.
+The controller can check liveness with a simple `EXISTS` command without subscribing to Pub/Sub.
 
 ## First Heartbeat
 
-The first heartbeat after boot serves as a startup announcement. The server should:
+The first heartbeat after boot serves as a startup announcement. The controller should:
 
-1. Register the node as alive
+1. Register the station as alive
 2. Record the firmware version
 3. Note the device list
 4. Begin monitoring for subsequent heartbeats
 
-If the first heartbeat has `status: "starting"`, the server should wait for a `status: "running"` heartbeat before sending commands.
+If the first heartbeat has `status: "starting"`, the controller should wait for a `status: "running"` heartbeat before sending commands.
 
 ## Implementation Details
 
-### ESP32 Firmware (C++)
+### Station Firmware (C++)
 
 ```cpp
 void heartbeatTask(void* param) {
@@ -199,7 +199,7 @@ void heartbeatTask(void* param) {
         envelope["type"] = "service.heartbeat";
 
         JsonObject payload = doc.createNestedObject("payload");
-        payload["status"] = getNodeStatus();
+        payload["status"] = getStationStatus();
         payload["uptime_seconds"] = (uint32_t)(millis() / 1000);
         JsonArray devices = payload.createNestedArray("devices");
         for (int i = 0; i < deviceCount; i++) {
@@ -228,18 +228,18 @@ void heartbeatTask(void* param) {
 }
 ```
 
-### Go Server (Heartbeat Monitoring)
+### Controller (Go)
 
 ```go
 // Subscribe and monitor heartbeats
-func (s *Server) MonitorHeartbeats() {
-    sub := s.redis.Subscribe(ctx, "events:heartbeat")
+func (c *Controller) MonitorHeartbeats() {
+    sub := c.redis.Subscribe(ctx, "events:heartbeat")
     for msg := range sub.Channel() {
         var hb HeartbeatMessage
         json.Unmarshal([]byte(msg.Payload), &hb)
 
         instance := hb.Envelope.Source.Instance
-        s.nodes[instance] = NodeState{
+        c.stations[instance] = StationState{
             LastSeen:  time.Now(),
             Status:    hb.Payload.Status,
             Devices:   hb.Payload.Devices,
@@ -257,4 +257,4 @@ func (s *Server) MonitorHeartbeats() {
 - Initial heartbeat definition
 - 30-second interval with 90-second presence key TTL
 - ESP32 hardware diagnostics: heap, RSSI, uptime, counters
-- Four node status values: starting, running, degraded, stopping
+- Four station status values: starting, running, degraded, stopping

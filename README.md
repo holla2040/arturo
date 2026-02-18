@@ -1,17 +1,44 @@
 # Arturo
 
-Industrial test automation system built on ESP32 field devices and a centralized Go server, connected via Redis.
+Industrial test automation system built on ESP32 stations and a centralized Go controller, connected via Redis.
+
+## Terminology
+
+| Term | What it is | Who needs to know |
+|------|-----------|-------------------|
+| **Arturo** | The whole system | Everyone |
+| **Station** | ESP32 + its connected instruments (e.g., "DMM station", "relay station") | Operator + engineer |
+| **Terminal** | Screen, keyboard, barcode scanner — the operator interface | Operator |
+| **Controller** | Go processes that orchestrate tests, manage stations, store data | Engineer |
+| **File server** | Separate network machine where reports are stored | Operator + engineer |
+
+The terminal and controller run on the same Ubuntu machine. The operator sees the terminal and the stations. The controller works behind the scenes.
+
+## Naming Conventions
+
+| Word | Meaning |
+|------|---------|
+| **timestamp** | UTC epoch milliseconds (integer). Always UTC, never local. |
+| **time** | Local time. |
+| **date** | Local date/time. |
+
+Wherever a field or variable is called `timestamp`, it is UTC milliseconds. Wherever it is called `time` or `date`, it is in local time.
 
 ## Architecture
 
 ```
-ESP32 field nodes (up to 6)  <--Redis Streams/PubSub-->  Ubuntu Server (Go)
-       C++ / Arduino                                          Go
-  - SCPI instruments                                   - Test orchestration
-  - Serial devices                                     - Script engine (.art DSL)
-  - Relay control                                      - REST API + WebSocket
-  - Modbus devices                                     - SQLite data storage
-  - Safety interlocks                                  - Web dashboard
+Stations (up to 6)          <--Redis Streams/PubSub-->     Controller (Go)
+  C++ / Arduino                                              │
+  - SCPI instruments                                    arturo-server
+  - Serial devices                                       - Device registry
+  - Relay control                                        - REST API + WebSocket
+  - Modbus devices                                       - SQLite data storage
+  - Safety interlocks                                    - Health monitoring
+                                                         arturo-engine
+         Terminal                                        - Script engine (.art DSL)
+  - Screen + keyboard                                    - Test orchestration
+  - Barcode scanner
+  - Web dashboard
 ```
 
 ## Project Structure
@@ -26,17 +53,17 @@ arturo/
 │   └── v1.0.0/
 │       ├── envelope/                   # Shared message envelope
 │       ├── error/                      # Shared error object
-│       ├── device-command-request/     # Server -> ESP32 command
-│       ├── device-command-response/    # ESP32 -> Server result
-│       ├── service-heartbeat/          # ESP32 health report (30s interval)
+│       ├── device-command-request/     # Controller -> Station command
+│       ├── device-command-response/    # Station -> Controller result
+│       ├── service-heartbeat/          # Station health report (30s interval)
 │       ├── system-emergency-stop/      # E-stop broadcast
 │       └── system-ota-request/         # OTA firmware update
-├── server/                             # Go server
+├── server/                             # Controller (Go processes)
 │   └── cmd/
-│       ├── arturo-server/              # Main server (API, device registry, data, health)
+│       ├── arturo-server/              # Main process (API, device registry, data, health)
 │       ├── arturo-engine/              # Script parser + executor
 │       └── arturo-monitor/             # Redis traffic monitor (debugging)
-├── firmware/                           # ESP32 Arduino project
+├── firmware/                           # Station firmware (ESP32 Arduino)
 │   ├── README.md                       # Firmware architecture decisions
 │   ├── src/
 │   │   ├── network/                    # WiFi, Redis client
@@ -50,26 +77,26 @@ arturo/
 
 ## Key Decisions
 
-- **Go** on server, **C++** on ESP32, **Redis** in the middle
+- **Go** on the controller, **C++** on stations, **Redis** in the middle
 - **Arduino framework** with Arduino CLI (not IDE), FreeRTOS tasks for concurrency
-- **Redis Streams** for reliable command/response delivery (per-device channels)
+- **Redis Streams** for reliable command/response delivery (per-station channels)
 - **Redis Pub/Sub** for heartbeats and emergency stop (fire-and-forget)
-- **Protocol v1.0.0 envelope** on every message (JSON, same format on ESP32 and server)
+- **Protocol v1.0.0 envelope** on every message (JSON, same format on stations and controller)
 - **5 message types**: `device.command.request`, `device.command.response`, `service.heartbeat`, `system.emergency_stop`, `system.ota.request`
-- **Direct ESP32-to-Redis** connection (no MQTT broker, no middleware)
-- **2 server processes** (not 39)
+- **Direct station-to-Redis** connection (no MQTT broker, no middleware)
+- **2 controller processes** (not 39)
 - **OTA firmware updates** via ESP-IDF dual-partition with automatic rollback
 - **Schemas as single source of truth** — code implements what the schemas define
 
 ## Message Flow
 
 ```
-Server                          Redis                         ESP32
+Controller                      Redis                        Station
   │                               │                             │
-  │── XADD commands:node-01 ─────>│                             │
+  │── XADD commands:station-01 ──>│                             │
   │                               │──── XREAD BLOCK ───────────>│
   │                               │                             │── execute on device
-  │                               │<──── XADD responses:orch ───│
+  │                               │<──── XADD responses:ctrl ───│
   │<── XREAD ────────────────────-│                             │
   │                               │                             │
   │                               │<── PUBLISH events:heartbeat │  (every 30s)
@@ -79,7 +106,7 @@ Server                          Redis                         ESP32
 ## Getting Started
 
 1. Read [schemas/v1.0.0/README.md](schemas/v1.0.0/README.md) — the protocol definitions
-2. Read [firmware/README.md](firmware/README.md) — ESP32 architecture decisions
+2. Read [firmware/README.md](firmware/README.md) — station firmware architecture
 3. Read [docs/architecture/MIGRATION_PLAN.md](docs/architecture/MIGRATION_PLAN.md) — full build plan
 
 ## Related

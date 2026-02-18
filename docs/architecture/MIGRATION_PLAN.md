@@ -9,8 +9,8 @@
 
 | Layer | Count | Language | Role |
 |-------|-------|---------|------|
-| ESP32 field nodes | up to 6 | C++ (Arduino/PlatformIO) | Bridge hardware to Redis |
-| Ubuntu server | 1 | Go | Orchestration, UI, data, scripting |
+| Stations | up to 6 | C++ (Arduino/PlatformIO) | Bridge hardware to Redis |
+| The Ubuntu machine | 1 | Go | Controller, UI, data, scripting |
 | Redis | 1 | - | Message backbone |
 
 All on a single LAN. No cloud. No MQTT (for now).
@@ -38,7 +38,7 @@ Every message between any component uses this structure:
     "schema_version": "v1.0.0",
     "type": "device.command.response",
     "correlation_id": "corr-456",
-    "reply_to": "responses/orchestrator/orch-01"
+    "reply_to": "responses/controller/ctrl-01"
   },
   "payload": { }
 }
@@ -64,10 +64,10 @@ Every message between any component uses this structure:
 
 Nothing else until these four work end-to-end:
 
-**1. `device.command.request`** (server -> ESP32)
+**1. `device.command.request`** (Controller -> Station)
 ```json
 {
-  "envelope": { "type": "device.command.request", "reply_to": "stream:responses/orchestrator/orch-01", "..." : "..." },
+  "envelope": { "type": "device.command.request", "reply_to": "stream:responses/controller/ctrl-01", "..." : "..." },
   "payload": {
     "device_id": "fluke-8846a",
     "command": "measure_dc_voltage",
@@ -77,7 +77,7 @@ Nothing else until these four work end-to-end:
 }
 ```
 
-**2. `device.command.response`** (ESP32 -> server)
+**2. `device.command.response`** (Station -> Controller)
 ```json
 {
   "envelope": { "type": "device.command.response", "correlation_id": "corr-456", "..." : "..." },
@@ -90,7 +90,7 @@ Nothing else until these four work end-to-end:
 }
 ```
 
-**3. `service.heartbeat`** (ESP32 -> server, every 30s)
+**3. `service.heartbeat`** (Station -> Controller, every 30s)
 ```json
 {
   "envelope": { "type": "service.heartbeat", "..." : "..." },
@@ -122,15 +122,15 @@ Nothing else until these four work end-to-end:
 
 | Channel | Redis Type | Direction | Purpose |
 |---------|-----------|-----------|---------|
-| `commands:{device-instance}` | **Stream** | Server -> ESP32 | Reliable command delivery |
-| `responses:{requester-instance}` | **Stream** | ESP32 -> Server | Reliable response delivery |
-| `events:heartbeat` | Pub/Sub | ESP32 -> Server | Heartbeat telemetry |
+| `commands:{device-instance}` | **Stream** | Controller -> Station | Reliable command delivery |
+| `responses:{requester-instance}` | **Stream** | Station -> Controller | Reliable response delivery |
+| `events:heartbeat` | Pub/Sub | Station -> Controller | Heartbeat telemetry |
 | `events:emergency_stop` | **Both** | Any -> All | E-stop (Pub/Sub for speed + Stream for audit) |
 
 Why Streams for commands:
 - At-least-once delivery (messages persist until acknowledged)
 - Consumer groups for multiple readers
-- Replay capability if server restarts
+- Replay capability if controller restarts
 - Built-in message IDs and ordering
 
 Why Pub/Sub for heartbeats:
@@ -141,11 +141,11 @@ Why Pub/Sub for heartbeats:
 **Redis key for device presence:**
 - `device:{instance-id}:alive` with 90-second TTL
 - ESP32 refreshes on each heartbeat
-- Server checks key existence for liveness
+- Controller checks key existence for liveness
 
 ### 2.4 Device Profiles
 
-YAML definitions describing each instrument's protocol, connection parameters, and command vocabulary. These get compiled into ESP32 firmware or served from the server.
+YAML definitions describing each instrument's protocol, connection parameters, and command vocabulary. These get compiled into ESP32 firmware or served from the controller.
 
 Profiles to carry forward from the original project:
 
@@ -188,12 +188,12 @@ TEST "Measure DC Voltage"
 END TEST
 ```
 
-The parser and executor are the most complex server components. Carry forward the grammar from `src/domains/automation/19_script_parser/` as the language spec. Rewrite the implementation in Go.
+The parser and executor are the most complex controller components. Carry forward the grammar from `src/domains/automation/19_script_parser/` as the language spec. Rewrite the implementation in Go.
 
 ### 2.7 Safety Interlock Concepts
 
 - Physical E-stop button on ESP32 -> instant local power cut via GPIO
-- E-stop message broadcast to all nodes via Redis
+- E-stop message broadcast to all stations via Redis
 - Local interlocks that don't depend on network (temperature, over-current)
 - Recovery requires explicit operator acknowledgment
 - All E-stop events are logged to persistent Stream
@@ -214,10 +214,10 @@ user relay-board-01 on >password123
   ~device:relay-board-01:*       # Own presence keys
 ```
 
-Server gets broader permissions:
+Controller gets broader permissions:
 
 ```
-user orchestrator on >serverpass
+user controller on >serverpass
   ~commands:*      # Write commands to any device
   ~responses:*     # Read all responses
   ~events:*        # Read all events
@@ -238,7 +238,7 @@ This prevents a compromised ESP32 from reading other devices' commands or writin
 | TCP bridge | ESP32-S3 + W5500 Ethernet | SCPI instruments | Ethernet to instrument, WiFi to Redis |
 | Serial bridge | ESP32-S3 + MAX3232 or MAX485 | Serial devices | UART to instrument, WiFi to Redis |
 | Relay controller | ESP32-S3 + relay board | Power switching | GPIO to relays, WiFi to Redis |
-| E-stop node | ESP32-S3 + button + LED | Safety | GPIO button input, LED output, WiFi to Redis |
+| E-stop station | ESP32-S3 + button + LED | Safety | GPIO button input, LED output, WiFi to Redis |
 
 The ESP32-S3 is recommended for all variants: dual-core 240MHz, 512KB SRAM, WiFi, plenty of GPIO.
 
@@ -345,7 +345,7 @@ XACK the command (mark as processed)
 
 ---
 
-## 5. Go Server Architecture
+## 5. Controller Architecture
 
 ### 5.1 Two Processes, Not Thirty-Nine
 
@@ -365,7 +365,7 @@ XACK the command (mark as processed)
 │                                          │
 │  Script Parser (.art DSL)                │
 │  Script Executor (sends commands via     │
-│    Redis Streams to ESP32 nodes)         │
+│    Redis Streams to stations)            │
 │  Variable System                         │
 │  Test Result Aggregator                  │
 └──────────────────────────────────────────┘
@@ -381,27 +381,27 @@ Optional standalone tools (keep small, run when needed):
 
 ### 5.2 Device Registry (core new concept)
 
-The server needs to know which ESP32 node owns which device:
+The controller needs to know which station owns which device:
 
 ```go
-// Device registry maps device IDs to ESP32 instances
+// Device registry maps device IDs to station instances
 type DeviceEntry struct {
-    DeviceID    string    // "fluke-8846a"
-    NodeInstance string   // "dmm-station-01"
-    CommandStream string  // "commands:dmm-station-01"
-    Protocol    string    // "scpi"
-    LastSeen    time.Time
-    Status      string    // "online", "offline", "error"
+    DeviceID       string    // "fluke-8846a"
+    StationInstance string   // "dmm-station-01"
+    CommandStream  string    // "commands:dmm-station-01"
+    Protocol       string    // "scpi"
+    LastSeen       time.Time
+    Status         string    // "online", "offline", "error"
 }
 ```
 
 When the script executor needs to send a command to `fluke-8846a`:
 1. Look up `fluke-8846a` in registry -> `dmm-station-01`
 2. XADD to `commands:dmm-station-01`
-3. XREAD from `responses:orchestrator:orch-01` with correlation filter
+3. XREAD from `responses:controller:ctrl-01` with correlation filter
 4. Return result to script
 
-ESP32 nodes self-register by including their device list in heartbeats.
+Stations self-register by including their device list in heartbeats.
 
 ### 5.3 Script Executor Adaptation
 
@@ -411,15 +411,15 @@ The script executor's device interaction changes from "call local Go function" t
 // Old (direct local call):
 result, err := tcpManager.SendCommand(deviceID, "MEAS:VOLT:DC?")
 
-// New (via Redis to ESP32):
+// New (via Redis to station):
 corrID := uuid.New()
 cmd := buildCommandRequest(deviceID, "measure_dc_voltage", corrID)
-node := registry.GetNode(deviceID)
-redis.XAdd(ctx, node.CommandStream, cmd)
+station := registry.GetStation(deviceID)
+redis.XAdd(ctx, station.CommandStream, cmd)
 response := redis.XReadBlock(ctx, myResponseStream, corrID, timeout)
 ```
 
-This is the single biggest change in the server code. Everything else (parser, variables, data storage, API) works the same.
+This is the single biggest change in the controller code. Everything else (parser, variables, data storage, API) works the same.
 
 ---
 
@@ -437,11 +437,11 @@ $ arturo-monitor
 ┌─ STREAMS ──────────────────────────────────────────────────────────────────┐
 │ 12:04:01.123 commands:relay-board-01     → device.command.request         │
 │              corr=a1b2c3  cmd=set_relay  params={channel:3,state:on}      │
-│ 12:04:01.187 responses:orchestrator:o1   ← device.command.response        │
+│ 12:04:01.187 responses:controller:ctrl-01 ← device.command.response      │
 │              corr=a1b2c3  success=true   duration=64ms                    │
 │ 12:04:05.001 commands:dmm-station-01     → device.command.request         │
 │              corr=d4e5f6  cmd=measure_dc_voltage  timeout=5000ms          │
-│ 12:04:05.048 responses:orchestrator:o1   ← device.command.response        │
+│ 12:04:05.048 responses:controller:ctrl-01 ← device.command.response      │
 │              corr=d4e5f6  success=true   response="1.23456789" dur=47ms   │
 ├─ PUB/SUB ──────────────────────────────────────────────────────────────────┤
 │ 12:04:00.000 events:heartbeat            relay-board-01    up=3600s       │
@@ -463,19 +463,19 @@ $ arturo-monitor
 - Color-coded: green=success, red=error/offline, yellow=warning/slow, cyan=heartbeat
 - Correlates requests with responses (matches `correlation_id`, shows round-trip time)
 - Flags anomalies: missing responses (timeout), unexpected message types, malformed JSON
-- Filterable: `arturo-monitor --node relay-board-01` or `arturo-monitor --type heartbeat`
+- Filterable: `arturo-monitor --station relay-board-01` or `arturo-monitor --type heartbeat`
 
 **Modes:**
 ```bash
-arturo-monitor                          # Everything, default view
-arturo-monitor --streams                # Command/response streams only
-arturo-monitor --pubsub                 # Pub/Sub only
-arturo-monitor --presence               # Presence keys only
-arturo-monitor --node dmm-station-01    # Filter to one ESP32
-arturo-monitor --type device.command.*  # Filter by message type
-arturo-monitor --corr a1b2c3            # Track one correlation chain
-arturo-monitor --json                   # Raw JSON output (pipe to jq)
-arturo-monitor --log /tmp/debug.jsonl   # Log all messages to file (JSONL)
+arturo-monitor                             # Everything, default view
+arturo-monitor --streams                   # Command/response streams only
+arturo-monitor --pubsub                    # Pub/Sub only
+arturo-monitor --presence                  # Presence keys only
+arturo-monitor --station dmm-station-01    # Filter to one station
+arturo-monitor --type device.command.*     # Filter by message type
+arturo-monitor --corr a1b2c3              # Track one correlation chain
+arturo-monitor --json                      # Raw JSON output (pipe to jq)
+arturo-monitor --log /tmp/debug.jsonl      # Log all messages to file (JSONL)
 ```
 
 **This is ~300-400 lines of Go.** It's the single most valuable debugging tool in the system.
@@ -494,7 +494,7 @@ Every ESP32 prints structured debug logs to its USB serial port (115200 baud). C
 [12:04:01.124] [CMD]   device=relay-8ch command=set_relay params={ch:3,on}
 [12:04:01.125] [RELAY] GPIO 17 -> HIGH (channel 3 ON)
 [12:04:01.126] [CMD] Response: success=true duration=2ms
-[12:04:01.130] [REDIS] XADD responses:orchestrator:o1 ...
+[12:04:01.130] [REDIS] XADD responses:controller:ctrl-01 ...
 [12:04:01.135] [REDIS] XACK commands:relay-board-01 ...
 [12:04:30.000] [HEARTBEAT] Published heartbeat #2 heap=244KB
 [12:04:45.000] [WIFI] *** DISCONNECTED *** reason=beacon_timeout
@@ -549,24 +549,24 @@ redis-cli XREAD BLOCK 0 STREAMS \
   $ $ $
 
 # Watch all responses
-redis-cli XREAD BLOCK 0 STREAMS responses:orchestrator:orch-01 $
+redis-cli XREAD BLOCK 0 STREAMS responses:controller:ctrl-01 $
 
 # Nuclear option: see EVERY Redis command from EVERY client
 redis-cli MONITOR
 
 # === INSPECTION ===
 
-# Check which ESP32s are alive
+# Check which stations are alive
 redis-cli KEYS "device:*:alive"
 
 # Check TTL on a presence key
 redis-cli TTL device:relay-board-01:alive
 
-# Read last 10 commands sent to a node
+# Read last 10 commands sent to a station
 redis-cli XREVRANGE commands:relay-board-01 + - COUNT 10
 
 # Read last 10 responses
-redis-cli XREVRANGE responses:orchestrator:orch-01 + - COUNT 10
+redis-cli XREVRANGE responses:controller:ctrl-01 + - COUNT 10
 
 # Count messages in a stream
 redis-cli XLEN commands:relay-board-01
@@ -582,7 +582,7 @@ redis-cli XPENDING commands:relay-board-01 esp32-group - + 10
 
 # === MANUAL TESTING (inject commands by hand) ===
 
-# Send a command to an ESP32 manually
+# Send a command to a station manually
 redis-cli XADD commands:relay-board-01 '*' \
   message '{"envelope":{"id":"test-001","timestamp":"2026-02-17T12:00:00.000Z","source":{"service":"manual","instance":"cli","version":"0.0.0"},"schema_version":"v1","type":"device.command.request","correlation_id":"manual-test-001","reply_to":"responses:manual:cli"},"payload":{"device_id":"relay-8ch","command":"set_relay","parameters":{"channel":"3","state":"on"},"timeout_ms":5000}}'
 
@@ -600,7 +600,7 @@ redis-cli PUBLISH events:emergency_stop \
 
 ```json
 {"ts":"2026-02-17T12:04:01.123Z","channel":"commands:relay-board-01","redis_type":"stream","stream_id":"1708171441123-0","message":{...}}
-{"ts":"2026-02-17T12:04:01.187Z","channel":"responses:orchestrator:o1","redis_type":"stream","stream_id":"1708171441187-0","message":{...}}
+{"ts":"2026-02-17T12:04:01.187Z","channel":"responses:controller:ctrl-01","redis_type":"stream","stream_id":"1708171441187-0","message":{...}}
 {"ts":"2026-02-17T12:04:30.001Z","channel":"events:heartbeat","redis_type":"pubsub","message":{...}}
 ```
 
@@ -615,7 +615,7 @@ grep '"success":false' /var/log/arturo/messages.jsonl | jq .
 # Find all commands to a specific device
 grep '"device_id":"fluke-8846a"' /var/log/arturo/messages.jsonl | jq .
 
-# Count messages per ESP32 node per hour
+# Count messages per station per hour
 grep "commands:" /var/log/arturo/messages.jsonl | \
   jq -r '.channel' | sort | uniq -c | sort -rn
 
@@ -626,7 +626,7 @@ grep "corr-456" /var/log/arturo/messages.jsonl | head -1 | \
 
 ### 6.5 ESP32 Health Diagnostics
 
-Each ESP32 heartbeat includes diagnostic fields the server and monitor display:
+Each ESP32 heartbeat includes diagnostic fields the controller and monitor display:
 
 ```json
 {
@@ -680,8 +680,8 @@ Each ESP32 heartbeat includes diagnostic fields the server and monitor display:
 
 **Command sent but no response:**
 1. `arturo-monitor --corr <id>` - did the command reach the stream?
-2. `redis-cli XLEN commands:<node>` - is the stream growing?
-3. `redis-cli XPENDING commands:<node> esp32-group` - is the message pending (read but not ACKed)?
+2. `redis-cli XLEN commands:<station>` - is the stream growing?
+3. `redis-cli XPENDING commands:<station> esp32-group` - is the message pending (read but not ACKed)?
 4. Check ESP32 serial output - did it receive and parse the command?
 5. Check ESP32 serial output - did the device respond?
 6. Check ESP32 serial output at TRACE level - what went over the wire?
@@ -725,8 +725,8 @@ ESP32:
 - Status LED (blinking = connecting, solid = connected)
 - Serial debug output at INFO level from day one
 
-Server:
-- **Build `arturo-monitor` first** (before any other server code)
+Controller:
+- **Build `arturo-monitor` first** (before any other controller code)
 - Verify ESP32 heartbeats appear in monitor with color coding
 - Verify presence key TTL works, OFFLINE detection triggers
 
@@ -734,7 +734,7 @@ Server:
 
 ### Phase 2: First Command Round-Trip (Weeks 3-5)
 
-**Goal:** Server sends a command, ESP32 executes it on a real instrument, response comes back. You see the full round-trip in the monitor.
+**Goal:** Controller sends a command, ESP32 executes it on a real instrument, response comes back. You see the full round-trip in the monitor.
 
 ESP32:
 - Redis Stream reader (XREAD BLOCK on `commands:{instance}`)
@@ -744,7 +744,7 @@ ESP32:
 - Response publisher (XADD to reply_to stream)
 - Serial debug at TRACE level showing raw SCPI bytes on the wire
 
-Server:
+Controller:
 - Device registry (populated from heartbeats)
 - Command sender (XADD to device's command stream)
 - Response reader (XREAD on own response stream, match correlation_id)
@@ -763,19 +763,19 @@ Server:
 - Test with real hardware
 - All three variants use the same messaging/heartbeat/safety modules
 
-### Phase 4: Server Core (Weeks 7-10)
+### Phase 4: Controller Core (Weeks 7-10)
 
-**Goal:** Consolidated Go server with REST API, WebSocket, data storage.
+**Goal:** Consolidated controller with REST API, WebSocket, data storage.
 
 - REST API: device list, device status, send command, system status
 - WebSocket: push heartbeats and command results to browser
 - SQLite: store test results, measurements, device history
-- Health monitor: track ESP32 heartbeats, alert on missing nodes
+- Health monitor: track ESP32 heartbeats, alert on missing stations
 - E-stop coordinator: listen for E-stop events, broadcast to all, log
 
 ### Phase 5: Script Engine (Weeks 10-13)
 
-**Goal:** Parse and execute .art scripts that control devices via ESP32 nodes.
+**Goal:** Parse and execute .art scripts that control devices via stations.
 
 - Reimplement Arturo DSL parser in Go (use original grammar as spec)
 - Script executor routes device commands through Redis Streams
@@ -788,7 +788,7 @@ Server:
 **Goal:** Operator-facing UI.
 
 - Vue.js or simple HTML dashboard showing:
-  - ESP32 node status (online/offline, connected devices)
+  - Station status (online/offline, connected devices)
   - Active test progress
   - Recent measurements
   - E-stop status
@@ -801,7 +801,7 @@ Server:
 - Redis connection loss and recovery
 - Power failure recovery (ESP32 boots to safe state)
 - Watchdog timer verification
-- E-stop end-to-end test (button press -> all nodes stop)
+- E-stop end-to-end test (button press -> all stations stop)
 - OTA firmware update mechanism
 - Documentation
 
@@ -838,7 +838,7 @@ Lessons from the original 39-component system:
 | Risk | Impact | Likelihood | Mitigation |
 |------|--------|-----------|------------|
 | ESP32 JSON parsing too slow/big | Medium | Low | ArduinoJson v7 with static allocation; messages are small (~500 bytes) |
-| WiFi drops during test | High | Medium | Streams persist; ESP32 reconnects and resumes reading; server detects timeout and pauses test |
+| WiFi drops during test | High | Medium | Streams persist; ESP32 reconnects and resumes reading; controller detects timeout and pauses test |
 | Redis single point of failure | Medium | Low | Redis persistence (AOF); for v1 this is acceptable |
 | Learning Go slows progress | Medium | Medium | Go is small and C-like; budget 1-2 weeks for ramp-up |
 | Scope creep back to 39 services | High | Medium | Enforce "function, not service" rule; resist premature abstraction |

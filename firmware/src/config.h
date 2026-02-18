@@ -1,0 +1,53 @@
+#pragma once
+
+// Credentials injected from .env via build flags — these are fallbacks
+#ifndef WIFI_SSID
+#define WIFI_SSID          "not-configured"
+#endif
+#ifndef WIFI_PASSWORD
+#define WIFI_PASSWORD      "not-configured"
+#endif
+#ifndef REDIS_HOST
+#define REDIS_HOST         "127.0.0.1"
+#endif
+#ifndef REDIS_PORT
+#define REDIS_PORT         6379
+#endif
+#ifndef REDIS_USERNAME
+#define REDIS_USERNAME     ""
+#endif
+#ifndef REDIS_PASSWORD
+#define REDIS_PASSWORD     ""
+#endif
+#ifndef STATION_INSTANCE
+#define STATION_INSTANCE   "station-01"
+#endif
+
+// Station identity
+#define STATION_SERVICE    "arturo-station"
+#define STATION_VERSION    "1.0.0"
+#define FIRMWARE_VERSION   "1.0.0"
+
+// Devices managed by this station
+#define DEVICE_COUNT       1
+static const char* DEVICE_IDS[] = {"DMM-01"};
+
+// Heartbeat
+#define HEARTBEAT_INTERVAL_MS  30000
+#define PRESENCE_TTL_SECONDS   90
+
+// Redis channels (from MIGRATION_PLAN.md section 2.3)
+#define CHANNEL_HEARTBEAT      "events:heartbeat"
+#define PRESENCE_KEY_PREFIX     "device:"
+#define PRESENCE_KEY_SUFFIX     ":alive"
+
+// Debug levels (compile-time, from MIGRATION_PLAN.md section 6.2)
+#define DEBUG_LEVEL_NONE   0
+#define DEBUG_LEVEL_ERROR  1
+#define DEBUG_LEVEL_INFO   2
+#define DEBUG_LEVEL_DEBUG  3
+#define DEBUG_LEVEL_TRACE  4
+
+#ifndef DEBUG_LEVEL
+#define DEBUG_LEVEL        DEBUG_LEVEL_INFO
+#endif

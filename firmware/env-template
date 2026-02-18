@@ -1,0 +1,15 @@
+# Copy to .env and fill in your values
+# WiFi
+WIFI_SSID=your-wifi-ssid
+WIFI_PASSWORD=your-wifi-password
+
+# Redis
+REDIS_HOST=192.168.1.10
+REDIS_PORT=6379
+
+# Redis AUTH (leave empty if no ACL configured)
+REDIS_USERNAME=
+REDIS_PASSWORD=
+
+# Station
+STATION_INSTANCE=station-01

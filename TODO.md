@@ -73,7 +73,7 @@ Read first: `docs/reference/SCRIPTING_LANGUAGE_ORIGINAL.md`, `docs/architecture/
 
 ## Phase 6: Dashboard and Reports — UNBLOCKED
 
-- [ ] Web dashboard — Station status, active test progress, recent measurements, E-stop status
+- [x] Web dashboard — Station status, active test progress, recent measurements, E-stop status
 - [ ] PDF report generation
 - [ ] CSV export
 

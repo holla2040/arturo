@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/holla2040/arturo/internal/api"
+	"github.com/holla2040/arturo/internal/dashboard"
 	"github.com/holla2040/arturo/internal/estop"
 	"github.com/holla2040/arturo/internal/protocol"
 	"github.com/holla2040/arturo/internal/registry"
@@ -90,6 +91,7 @@ func main() {
 	mux := http.NewServeMux()
 	handler.RegisterRoutes(mux)
 	mux.HandleFunc("GET /ws", wsHub.HandleWebSocket)
+	mux.Handle("GET /", dashboard.Handler())
 
 	server := &http.Server{
 		Addr:    *listenAddr,

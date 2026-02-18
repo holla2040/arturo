@@ -1,0 +1,1558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arturo - Industrial Test Automation</title>
+<style>
+/* =====================================================================
+   Arturo Dashboard - Dark Industrial Theme
+   ===================================================================== */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+:root {
+    --bg-primary: #1a1a2e;
+    --bg-secondary: #16213e;
+    --bg-card: #1e2a47;
+    --bg-card-hover: #243352;
+    --bg-input: #0f1629;
+    --border-color: #2a3a5c;
+    --border-light: #354a70;
+    --text-primary: #e0e6f0;
+    --text-secondary: #8a95a8;
+    --text-muted: #5a6578;
+    --accent-blue: #4a9eff;
+    --accent-blue-dim: #2a6ecc;
+    --status-online: #22c55e;
+    --status-online-bg: rgba(34, 197, 94, 0.12);
+    --status-stale: #eab308;
+    --status-stale-bg: rgba(234, 179, 8, 0.12);
+    --status-offline: #ef4444;
+    --status-offline-bg: rgba(239, 68, 68, 0.12);
+    --estop-red: #dc2626;
+    --estop-red-bg: #450a0a;
+    --success-green: #22c55e;
+    --fail-red: #ef4444;
+    --warning-yellow: #eab308;
+    --font-mono: 'Courier New', Courier, monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+}
+
+html {
+    font-size: 14px;
+}
+
+body {
+    font-family: var(--font-sans);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    line-height: 1.5;
+}
+
+/* =====================================================================
+   E-Stop Banner
+   ===================================================================== */
+#estop-banner {
+    display: none;
+    background: var(--estop-red);
+    color: #fff;
+    padding: 16px 24px;
+    text-align: center;
+    font-size: 1.2rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    box-shadow: 0 4px 20px rgba(220, 38, 38, 0.6);
+    animation: estop-pulse 1.5s ease-in-out infinite;
+}
+
+#estop-banner.active {
+    display: block;
+}
+
+#estop-banner .estop-icon {
+    font-size: 1.4rem;
+    margin-right: 8px;
+}
+
+#estop-banner .estop-details {
+    font-size: 0.85rem;
+    font-weight: 400;
+    opacity: 0.9;
+    margin-top: 4px;
+}
+
+@keyframes estop-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.85; }
+}
+
+/* =====================================================================
+   Header / Status Bar
+   ===================================================================== */
+.header {
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 900;
+    box-shadow: var(--shadow-sm);
+}
+
+#estop-banner.active ~ .header {
+    position: relative;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.header-logo {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--accent-blue);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.header-subtitle {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    border-left: 1px solid var(--border-color);
+    padding-left: 16px;
+}
+
+.status-bar {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+}
+
+.status-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+}
+
+.status-item .label {
+    color: var(--text-secondary);
+}
+
+.status-item .value {
+    font-weight: 600;
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+}
+
+.ws-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--status-offline);
+    transition: background 0.3s;
+}
+
+.ws-indicator.connected {
+    background: var(--status-online);
+    box-shadow: 0 0 6px var(--status-online);
+}
+
+.estop-status-badge {
+    padding: 3px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.estop-status-badge.safe {
+    background: var(--status-online-bg);
+    color: var(--status-online);
+    border: 1px solid var(--status-online);
+}
+
+.estop-status-badge.active {
+    background: var(--status-offline-bg);
+    color: var(--status-offline);
+    border: 1px solid var(--status-offline);
+    animation: badge-pulse 1s ease-in-out infinite;
+}
+
+@keyframes badge-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+/* =====================================================================
+   Main Layout
+   ===================================================================== */
+.main {
+    padding: 20px 24px;
+    max-width: 1920px;
+    margin: 0 auto;
+}
+
+.grid-2col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.grid-full {
+    margin-bottom: 20px;
+}
+
+/* =====================================================================
+   Panels / Cards
+   ===================================================================== */
+.panel {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+
+.panel-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.panel-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.panel-title .icon {
+    font-size: 1.1rem;
+    opacity: 0.7;
+}
+
+.panel-badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    padding: 2px 8px;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    font-family: var(--font-mono);
+}
+
+.panel-body {
+    padding: 16px 20px;
+}
+
+.panel-body.no-pad {
+    padding: 0;
+}
+
+/* =====================================================================
+   Station Cards
+   ===================================================================== */
+.station-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 14px;
+}
+
+.station-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.station-card:hover {
+    border-color: var(--border-light);
+    box-shadow: var(--shadow-md);
+}
+
+.station-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.station-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+    font-family: var(--font-mono);
+    color: var(--accent-blue);
+}
+
+.status-badge {
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.status-badge.online {
+    background: var(--status-online-bg);
+    color: var(--status-online);
+}
+
+.status-badge.stale {
+    background: var(--status-stale-bg);
+    color: var(--status-stale);
+}
+
+.status-badge.offline {
+    background: var(--status-offline-bg);
+    color: var(--status-offline);
+}
+
+.station-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.station-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.station-stat .stat-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.station-stat .stat-value {
+    font-size: 0.85rem;
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+}
+
+.station-devices {
+    border-top: 1px solid var(--border-color);
+    padding-top: 10px;
+}
+
+.station-devices-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+}
+
+.device-chip {
+    display: inline-block;
+    background: var(--bg-input);
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    margin: 2px 4px 2px 0;
+    border: 1px solid var(--border-color);
+}
+
+/* =====================================================================
+   Data Tables
+   ===================================================================== */
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.data-table thead {
+    background: var(--bg-card);
+}
+
+.data-table th {
+    text-align: left;
+    padding: 10px 16px;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-color);
+    white-space: nowrap;
+}
+
+.data-table td {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary);
+    vertical-align: middle;
+}
+
+.data-table tbody tr:hover {
+    background: var(--bg-card-hover);
+}
+
+.data-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.data-table .mono {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+}
+
+.data-table .success {
+    color: var(--success-green);
+}
+
+.data-table .fail {
+    color: var(--fail-red);
+}
+
+/* =====================================================================
+   Test Run Cards
+   ===================================================================== */
+.test-run-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.test-run-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.test-run-item.running {
+    border-left: 3px solid var(--accent-blue);
+}
+
+.test-run-item.passed {
+    border-left: 3px solid var(--success-green);
+}
+
+.test-run-item.failed,
+.test-run-item.error {
+    border-left: 3px solid var(--fail-red);
+}
+
+.test-run-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.test-run-script {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.test-run-meta {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    display: flex;
+    gap: 12px;
+}
+
+.test-run-status {
+    padding: 3px 10px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.test-run-status.running {
+    background: rgba(74, 158, 255, 0.15);
+    color: var(--accent-blue);
+    animation: running-pulse 2s ease-in-out infinite;
+}
+
+.test-run-status.passed {
+    background: var(--status-online-bg);
+    color: var(--status-online);
+}
+
+.test-run-status.failed,
+.test-run-status.error {
+    background: var(--status-offline-bg);
+    color: var(--status-offline);
+}
+
+@keyframes running-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* =====================================================================
+   Measurements Table
+   ===================================================================== */
+.measurement-response {
+    max-width: 280px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+}
+
+.duration-badge {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    background: var(--bg-input);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+}
+
+/* =====================================================================
+   Empty States
+   ===================================================================== */
+.empty-state {
+    text-align: center;
+    padding: 32px 16px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.empty-state .empty-icon {
+    font-size: 2rem;
+    margin-bottom: 8px;
+    opacity: 0.4;
+}
+
+/* =====================================================================
+   Scrollable Panel Body
+   ===================================================================== */
+.panel-body.scrollable {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.panel-body.scrollable::-webkit-scrollbar {
+    width: 6px;
+}
+
+.panel-body.scrollable::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+}
+
+.panel-body.scrollable::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 3px;
+}
+
+.panel-body.scrollable::-webkit-scrollbar-thumb:hover {
+    background: var(--border-light);
+}
+
+/* =====================================================================
+   Responsive
+   ===================================================================== */
+@media (max-width: 1200px) {
+    .grid-2col {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 800px) {
+    .header {
+        flex-direction: column;
+        gap: 12px;
+    }
+    .status-bar {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+    .station-grid {
+        grid-template-columns: 1fr;
+    }
+    .main {
+        padding: 12px;
+    }
+}
+
+/* =====================================================================
+   Utility
+   ===================================================================== */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+}
+
+.timestamp {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+}
+</style>
+</head>
+<body>
+
+<!-- E-Stop Banner -->
+<div id="estop-banner">
+    <div>
+        <span class="estop-icon">EMERGENCY STOP</span>
+        <span id="estop-reason"></span>
+    </div>
+    <div class="estop-details">
+        <span id="estop-description"></span>
+        &mdash; Initiated by: <span id="estop-initiator"></span>
+        at <span id="estop-time"></span>
+    </div>
+</div>
+
+<!-- Header / Status Bar -->
+<header class="header">
+    <div class="header-left">
+        <div class="header-logo">Arturo</div>
+        <div class="header-subtitle">Industrial Test Automation Controller</div>
+    </div>
+    <div class="status-bar">
+        <div class="status-item">
+            <div class="ws-indicator" id="ws-indicator" title="WebSocket disconnected"></div>
+            <span class="label">WS</span>
+        </div>
+        <div class="status-item">
+            <span class="label">Stations:</span>
+            <span class="value" id="stat-stations">0</span>
+        </div>
+        <div class="status-item">
+            <span class="label">Devices:</span>
+            <span class="value" id="stat-devices">0</span>
+        </div>
+        <div class="status-item">
+            <span id="estop-status-badge" class="estop-status-badge safe">SAFE</span>
+        </div>
+    </div>
+</header>
+
+<!-- Main Content -->
+<main class="main">
+
+    <!-- Stations Panel (full width) -->
+    <section class="grid-full">
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <span class="icon">S</span>
+                    Stations
+                </div>
+                <span class="panel-badge" id="station-count-badge">0</span>
+            </div>
+            <div class="panel-body">
+                <div class="station-grid" id="station-grid">
+                    <div class="empty-state">
+                        <div class="empty-icon">--</div>
+                        <div>No stations reporting</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Active Tests + Recent Measurements (2 col) -->
+    <section class="grid-2col">
+        <!-- Active Tests -->
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <span class="icon">T</span>
+                    Active Tests
+                </div>
+                <span class="panel-badge" id="active-test-count">0</span>
+            </div>
+            <div class="panel-body scrollable">
+                <div class="test-run-list" id="active-tests">
+                    <div class="empty-state">
+                        <div class="empty-icon">--</div>
+                        <div>No tests running</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Test Runs -->
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <span class="icon">R</span>
+                    Recent Test Runs
+                </div>
+                <span class="panel-badge" id="test-run-count">0</span>
+            </div>
+            <div class="panel-body scrollable">
+                <div class="test-run-list" id="recent-tests">
+                    <div class="empty-state">
+                        <div class="empty-icon">--</div>
+                        <div>No test runs recorded</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Device Table (full width) -->
+    <section class="grid-full">
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <span class="icon">D</span>
+                    Devices
+                </div>
+                <span class="panel-badge" id="device-count-badge">0</span>
+            </div>
+            <div class="panel-body no-pad scrollable">
+                <table class="data-table" id="device-table">
+                    <thead>
+                        <tr>
+                            <th>Device ID</th>
+                            <th>Station</th>
+                            <th>Status</th>
+                            <th>Command Stream</th>
+                            <th>Last Seen</th>
+                        </tr>
+                    </thead>
+                    <tbody id="device-tbody">
+                        <tr>
+                            <td colspan="5">
+                                <div class="empty-state">
+                                    <div>No devices registered</div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- Recent Measurements (full width) -->
+    <section class="grid-full">
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <span class="icon">M</span>
+                    Recent Measurements
+                </div>
+                <span class="panel-badge" id="measurement-count">0</span>
+            </div>
+            <div class="panel-body no-pad scrollable">
+                <table class="data-table" id="measurement-table">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Device</th>
+                            <th>Command</th>
+                            <th>Result</th>
+                            <th>Response</th>
+                            <th>Duration</th>
+                        </tr>
+                    </thead>
+                    <tbody id="measurement-tbody">
+                        <tr>
+                            <td colspan="6">
+                                <div class="empty-state">
+                                    <div>No measurements recorded</div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+</main>
+
+<script>
+/* =====================================================================
+   Arturo Dashboard - Application Logic
+   ===================================================================== */
+(function() {
+    'use strict';
+
+    // =====================================================================
+    // State
+    // =====================================================================
+    var state = {
+        stations: {},    // instance -> StationEntry
+        devices: {},     // deviceID -> DeviceEntry
+        testRuns: [],    // Array of TestRun
+        measurements: [], // Array of recent command responses (max 100)
+        estop: {
+            active: false,
+            reason: '',
+            description: '',
+            initiator: '',
+            triggered_at: ''
+        },
+        wsConnected: false
+    };
+
+    var MAX_MEASUREMENTS = 100;
+
+    // =====================================================================
+    // DOM References
+    // =====================================================================
+    var dom = {
+        estopBanner: document.getElementById('estop-banner'),
+        estopReason: document.getElementById('estop-reason'),
+        estopDescription: document.getElementById('estop-description'),
+        estopInitiator: document.getElementById('estop-initiator'),
+        estopTime: document.getElementById('estop-time'),
+        estopStatusBadge: document.getElementById('estop-status-badge'),
+        wsIndicator: document.getElementById('ws-indicator'),
+        statStations: document.getElementById('stat-stations'),
+        statDevices: document.getElementById('stat-devices'),
+        stationCountBadge: document.getElementById('station-count-badge'),
+        stationGrid: document.getElementById('station-grid'),
+        activeTestCount: document.getElementById('active-test-count'),
+        activeTests: document.getElementById('active-tests'),
+        testRunCount: document.getElementById('test-run-count'),
+        recentTests: document.getElementById('recent-tests'),
+        deviceCountBadge: document.getElementById('device-count-badge'),
+        deviceTbody: document.getElementById('device-tbody'),
+        measurementCount: document.getElementById('measurement-count'),
+        measurementTbody: document.getElementById('measurement-tbody')
+    };
+
+    // =====================================================================
+    // Utility Functions
+    // =====================================================================
+    function formatUptime(seconds) {
+        if (seconds == null || seconds <= 0) return '--';
+        var d = Math.floor(seconds / 86400);
+        var h = Math.floor((seconds % 86400) / 3600);
+        var m = Math.floor((seconds % 3600) / 60);
+        var s = seconds % 60;
+        if (d > 0) return d + 'd ' + h + 'h ' + m + 'm';
+        if (h > 0) return h + 'h ' + m + 'm ' + s + 's';
+        if (m > 0) return m + 'm ' + s + 's';
+        return s + 's';
+    }
+
+    function formatBytes(bytes) {
+        if (bytes == null) return '--';
+        if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
+        if (bytes >= 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return bytes + ' B';
+    }
+
+    function formatRSSI(rssi) {
+        if (rssi == null || rssi === 0) return '--';
+        var label;
+        if (rssi >= -50) label = 'Excellent';
+        else if (rssi >= -60) label = 'Good';
+        else if (rssi >= -70) label = 'Fair';
+        else label = 'Weak';
+        return rssi + ' dBm (' + label + ')';
+    }
+
+    function formatTime(isoString) {
+        if (!isoString) return '--';
+        try {
+            var d = new Date(isoString);
+            if (isNaN(d.getTime())) return '--';
+            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        } catch (e) {
+            return '--';
+        }
+    }
+
+    function formatDateTime(isoString) {
+        if (!isoString) return '--';
+        try {
+            var d = new Date(isoString);
+            if (isNaN(d.getTime())) return '--';
+            return d.toLocaleString([], {
+                month: 'short', day: 'numeric',
+                hour: '2-digit', minute: '2-digit', second: '2-digit'
+            });
+        } catch (e) {
+            return '--';
+        }
+    }
+
+    function timeAgo(isoString) {
+        if (!isoString) return '--';
+        try {
+            var d = new Date(isoString);
+            if (isNaN(d.getTime())) return '--';
+            var secs = Math.floor((Date.now() - d.getTime()) / 1000);
+            if (secs < 5) return 'just now';
+            if (secs < 60) return secs + 's ago';
+            if (secs < 3600) return Math.floor(secs / 60) + 'm ago';
+            if (secs < 86400) return Math.floor(secs / 3600) + 'h ago';
+            return Math.floor(secs / 86400) + 'd ago';
+        } catch (e) {
+            return '--';
+        }
+    }
+
+    function escapeHtml(str) {
+        if (str == null) return '';
+        var div = document.createElement('div');
+        div.appendChild(document.createTextNode(String(str)));
+        return div.innerHTML;
+    }
+
+    function elapsed(startISO) {
+        if (!startISO) return '--';
+        try {
+            var start = new Date(startISO);
+            if (isNaN(start.getTime())) return '--';
+            var secs = Math.floor((Date.now() - start.getTime()) / 1000);
+            if (secs < 0) secs = 0;
+            return formatUptime(secs);
+        } catch (e) {
+            return '--';
+        }
+    }
+
+    // =====================================================================
+    // Rendering
+    // =====================================================================
+    function renderStatusBar() {
+        var stationKeys = Object.keys(state.stations);
+        var deviceKeys = Object.keys(state.devices);
+        dom.statStations.textContent = stationKeys.length;
+        dom.statDevices.textContent = deviceKeys.length;
+    }
+
+    function renderEstop() {
+        var es = state.estop;
+        if (es.active) {
+            dom.estopBanner.classList.add('active');
+            dom.estopReason.textContent = es.reason || 'Unknown reason';
+            dom.estopDescription.textContent = es.description || '';
+            dom.estopInitiator.textContent = es.initiator || 'unknown';
+            dom.estopTime.textContent = formatDateTime(es.triggered_at);
+            dom.estopStatusBadge.textContent = 'E-STOP';
+            dom.estopStatusBadge.className = 'estop-status-badge active';
+        } else {
+            dom.estopBanner.classList.remove('active');
+            dom.estopStatusBadge.textContent = 'SAFE';
+            dom.estopStatusBadge.className = 'estop-status-badge safe';
+        }
+    }
+
+    function renderWSStatus() {
+        if (state.wsConnected) {
+            dom.wsIndicator.classList.add('connected');
+            dom.wsIndicator.title = 'WebSocket connected';
+        } else {
+            dom.wsIndicator.classList.remove('connected');
+            dom.wsIndicator.title = 'WebSocket disconnected';
+        }
+    }
+
+    function renderStations() {
+        var stationKeys = Object.keys(state.stations).sort();
+        dom.stationCountBadge.textContent = stationKeys.length;
+
+        if (stationKeys.length === 0) {
+            dom.stationGrid.innerHTML =
+                '<div class="empty-state">' +
+                '<div class="empty-icon">--</div>' +
+                '<div>No stations reporting</div>' +
+                '</div>';
+            return;
+        }
+
+        var html = '';
+        for (var i = 0; i < stationKeys.length; i++) {
+            var s = state.stations[stationKeys[i]];
+            var statusClass = s.Status || 'offline';
+            var statusLabel = statusClass.charAt(0).toUpperCase() + statusClass.slice(1);
+
+            html += '<div class="station-card">';
+            html += '<div class="station-card-header">';
+            html += '<span class="station-name">' + escapeHtml(s.Instance) + '</span>';
+            html += '<span class="status-badge ' + statusClass + '">' + statusLabel + '</span>';
+            html += '</div>';
+
+            html += '<div class="station-stats">';
+            html += '<div class="station-stat"><span class="stat-label">Firmware</span><span class="stat-value">' + escapeHtml(s.FirmwareVersion || '--') + '</span></div>';
+            html += '<div class="station-stat"><span class="stat-label">Uptime</span><span class="stat-value">' + formatUptime(s.UptimeSeconds) + '</span></div>';
+            html += '<div class="station-stat"><span class="stat-label">WiFi RSSI</span><span class="stat-value">' + formatRSSI(s.WifiRSSI) + '</span></div>';
+            html += '<div class="station-stat"><span class="stat-label">Free Heap</span><span class="stat-value">' + formatBytes(s.FreeHeap) + '</span></div>';
+            html += '</div>';
+
+            var devices = s.Devices || [];
+            html += '<div class="station-devices">';
+            html += '<div class="station-devices-label">Devices (' + devices.length + ')</div>';
+            if (devices.length > 0) {
+                for (var j = 0; j < devices.length; j++) {
+                    html += '<span class="device-chip">' + escapeHtml(devices[j]) + '</span>';
+                }
+            } else {
+                html += '<span class="device-chip">none</span>';
+            }
+            html += '</div>';
+
+            html += '</div>';
+        }
+
+        dom.stationGrid.innerHTML = html;
+    }
+
+    function renderDevices() {
+        var deviceKeys = Object.keys(state.devices).sort();
+        dom.deviceCountBadge.textContent = deviceKeys.length;
+
+        if (deviceKeys.length === 0) {
+            dom.deviceTbody.innerHTML =
+                '<tr><td colspan="5"><div class="empty-state"><div>No devices registered</div></div></td></tr>';
+            return;
+        }
+
+        var html = '';
+        for (var i = 0; i < deviceKeys.length; i++) {
+            var d = state.devices[deviceKeys[i]];
+            var statusClass = d.Status || 'offline';
+            var statusLabel = statusClass.charAt(0).toUpperCase() + statusClass.slice(1);
+
+            html += '<tr>';
+            html += '<td class="mono">' + escapeHtml(d.DeviceID) + '</td>';
+            html += '<td class="mono">' + escapeHtml(d.StationInstance) + '</td>';
+            html += '<td><span class="status-badge ' + statusClass + '">' + statusLabel + '</span></td>';
+            html += '<td class="mono">' + escapeHtml(d.CommandStream) + '</td>';
+            html += '<td class="timestamp">' + timeAgo(d.LastSeen) + '</td>';
+            html += '</tr>';
+        }
+
+        dom.deviceTbody.innerHTML = html;
+    }
+
+    function renderTestRuns() {
+        var runs = state.testRuns;
+        var activeRuns = [];
+        var completedRuns = [];
+
+        for (var i = 0; i < runs.length; i++) {
+            if (runs[i].Status === 'running') {
+                activeRuns.push(runs[i]);
+            } else {
+                completedRuns.push(runs[i]);
+            }
+        }
+
+        // Active tests
+        dom.activeTestCount.textContent = activeRuns.length;
+        if (activeRuns.length === 0) {
+            dom.activeTests.innerHTML =
+                '<div class="empty-state">' +
+                '<div class="empty-icon">--</div>' +
+                '<div>No tests running</div>' +
+                '</div>';
+        } else {
+            var activeHtml = '';
+            for (var a = 0; a < activeRuns.length; a++) {
+                var ar = activeRuns[a];
+                activeHtml += '<div class="test-run-item running">';
+                activeHtml += '<div class="test-run-info">';
+                activeHtml += '<div class="test-run-script">' + escapeHtml(ar.ScriptName) + '</div>';
+                activeHtml += '<div class="test-run-meta">';
+                activeHtml += '<span>Started: ' + formatDateTime(ar.StartedAt) + '</span>';
+                activeHtml += '<span>Elapsed: ' + elapsed(ar.StartedAt) + '</span>';
+                activeHtml += '</div>';
+                activeHtml += '</div>';
+                activeHtml += '<span class="test-run-status running">Running</span>';
+                activeHtml += '</div>';
+            }
+            dom.activeTests.innerHTML = activeHtml;
+        }
+
+        // Recent completed tests (up to 20)
+        var displayCompleted = completedRuns.slice(0, 20);
+        dom.testRunCount.textContent = completedRuns.length;
+        if (displayCompleted.length === 0) {
+            dom.recentTests.innerHTML =
+                '<div class="empty-state">' +
+                '<div class="empty-icon">--</div>' +
+                '<div>No completed test runs</div>' +
+                '</div>';
+        } else {
+            var completedHtml = '';
+            for (var c = 0; c < displayCompleted.length; c++) {
+                var cr = displayCompleted[c];
+                var statusClass = cr.Status || 'error';
+                var statusLabel = statusClass.charAt(0).toUpperCase() + statusClass.slice(1);
+                completedHtml += '<div class="test-run-item ' + escapeHtml(statusClass) + '">';
+                completedHtml += '<div class="test-run-info">';
+                completedHtml += '<div class="test-run-script">' + escapeHtml(cr.ScriptName) + '</div>';
+                completedHtml += '<div class="test-run-meta">';
+                completedHtml += '<span>' + formatDateTime(cr.StartedAt) + '</span>';
+                if (cr.Summary) {
+                    completedHtml += '<span>' + escapeHtml(cr.Summary) + '</span>';
+                }
+                completedHtml += '</div>';
+                completedHtml += '</div>';
+                completedHtml += '<span class="test-run-status ' + escapeHtml(statusClass) + '">' + statusLabel + '</span>';
+                completedHtml += '</div>';
+            }
+            dom.recentTests.innerHTML = completedHtml;
+        }
+    }
+
+    function renderMeasurements() {
+        var measurements = state.measurements;
+        dom.measurementCount.textContent = measurements.length;
+
+        if (measurements.length === 0) {
+            dom.measurementTbody.innerHTML =
+                '<tr><td colspan="6"><div class="empty-state"><div>No measurements recorded</div></div></td></tr>';
+            return;
+        }
+
+        var html = '';
+        for (var i = 0; i < measurements.length; i++) {
+            var m = measurements[i];
+            var resultClass = m.success ? 'success' : 'fail';
+            var resultLabel = m.success ? 'OK' : 'FAIL';
+
+            html += '<tr>';
+            html += '<td class="timestamp">' + formatTime(m.timestamp) + '</td>';
+            html += '<td class="mono">' + escapeHtml(m.device_id) + '</td>';
+            html += '<td class="mono">' + escapeHtml(m.command_name) + '</td>';
+            html += '<td><span class="' + resultClass + '">' + resultLabel + '</span></td>';
+            html += '<td><div class="measurement-response" title="' + escapeHtml(m.response || m.error || '') + '">' + escapeHtml(m.response || m.error || '--') + '</div></td>';
+            html += '<td><span class="duration-badge">' + (m.duration_ms != null ? m.duration_ms + ' ms' : '--') + '</span></td>';
+            html += '</tr>';
+        }
+
+        dom.measurementTbody.innerHTML = html;
+    }
+
+    function renderAll() {
+        renderStatusBar();
+        renderEstop();
+        renderWSStatus();
+        renderStations();
+        renderDevices();
+        renderTestRuns();
+        renderMeasurements();
+    }
+
+    // =====================================================================
+    // API Fetching
+    // =====================================================================
+    function fetchJSON(url, callback) {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', url, true);
+        xhr.setRequestHeader('Accept', 'application/json');
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4) {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        var data = JSON.parse(xhr.responseText);
+                        callback(null, data);
+                    } catch (e) {
+                        callback(e, null);
+                    }
+                } else {
+                    callback(new Error('HTTP ' + xhr.status), null);
+                }
+            }
+        };
+        xhr.send();
+    }
+
+    function loadInitialData() {
+        // Fetch stations
+        fetchJSON('/stations', function(err, data) {
+            if (!err && Array.isArray(data)) {
+                state.stations = {};
+                for (var i = 0; i < data.length; i++) {
+                    var s = data[i];
+                    state.stations[s.Instance] = s;
+                }
+                renderStations();
+                renderStatusBar();
+            }
+        });
+
+        // Fetch devices
+        fetchJSON('/devices', function(err, data) {
+            if (!err && Array.isArray(data)) {
+                state.devices = {};
+                for (var i = 0; i < data.length; i++) {
+                    var d = data[i];
+                    state.devices[d.DeviceID] = d;
+                }
+                renderDevices();
+                renderStatusBar();
+            }
+        });
+
+        // Fetch system status
+        fetchJSON('/system/status', function(err, data) {
+            if (!err && data) {
+                if (data.estop_state) {
+                    state.estop = data.estop_state;
+                }
+                renderEstop();
+                renderStatusBar();
+            }
+        });
+
+        // Fetch test runs
+        fetchJSON('/test-runs', function(err, data) {
+            if (!err && Array.isArray(data)) {
+                state.testRuns = data;
+                renderTestRuns();
+            }
+        });
+    }
+
+    // =====================================================================
+    // WebSocket
+    // =====================================================================
+    var ws = null;
+    var wsReconnectDelay = 1000;
+    var wsMaxReconnectDelay = 30000;
+    var wsReconnectTimer = null;
+
+    function getWSUrl() {
+        var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        return protocol + '//' + window.location.host + '/ws';
+    }
+
+    function connectWebSocket() {
+        if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
+            return;
+        }
+
+        var url = getWSUrl();
+        try {
+            ws = new WebSocket(url);
+        } catch (e) {
+            scheduleReconnect();
+            return;
+        }
+
+        ws.onopen = function() {
+            state.wsConnected = true;
+            wsReconnectDelay = 1000;
+            renderWSStatus();
+            // Refresh all data on reconnect to sync state
+            loadInitialData();
+        };
+
+        ws.onclose = function() {
+            state.wsConnected = false;
+            renderWSStatus();
+            scheduleReconnect();
+        };
+
+        ws.onerror = function() {
+            // onclose will fire after onerror
+        };
+
+        ws.onmessage = function(event) {
+            try {
+                var msg = JSON.parse(event.data);
+                handleWSMessage(msg);
+            } catch (e) {
+                // Ignore unparsable messages
+            }
+        };
+    }
+
+    function scheduleReconnect() {
+        if (wsReconnectTimer) {
+            clearTimeout(wsReconnectTimer);
+        }
+        wsReconnectTimer = setTimeout(function() {
+            wsReconnectTimer = null;
+            connectWebSocket();
+        }, wsReconnectDelay);
+
+        // Exponential backoff with jitter
+        wsReconnectDelay = Math.min(wsReconnectDelay * 1.5, wsMaxReconnectDelay);
+        wsReconnectDelay += Math.random() * 500;
+    }
+
+    function handleWSMessage(msg) {
+        if (!msg || !msg.type) return;
+
+        switch (msg.type) {
+            case 'heartbeat':
+                handleHeartbeat(msg.payload);
+                break;
+            case 'command_response':
+                handleCommandResponse(msg.payload);
+                break;
+            case 'estop':
+                handleEstop(msg.payload);
+                break;
+        }
+    }
+
+    function handleHeartbeat(payload) {
+        if (!payload) return;
+
+        // The heartbeat payload does not include the source instance.
+        // We update any existing stations whose device list or stats
+        // match, but primarily rely on periodic /stations refresh
+        // for accurate mapping. For now, update device statuses if we
+        // can match by devices array.
+        //
+        // Since the WS heartbeat does not carry instance info, we
+        // attempt to match by comparing the devices array to known stations.
+        var matchedInstance = null;
+        var stationKeys = Object.keys(state.stations);
+
+        // Try to find the station by matching device lists
+        if (payload.devices && payload.devices.length > 0) {
+            for (var i = 0; i < stationKeys.length; i++) {
+                var s = state.stations[stationKeys[i]];
+                if (arraysEqual(s.Devices, payload.devices)) {
+                    matchedInstance = stationKeys[i];
+                    break;
+                }
+            }
+
+            // If no exact match, try to find by any overlapping device
+            if (!matchedInstance) {
+                var deviceSet = {};
+                for (var d = 0; d < payload.devices.length; d++) {
+                    deviceSet[payload.devices[d]] = true;
+                }
+                for (var k = 0; k < stationKeys.length; k++) {
+                    var st = state.stations[stationKeys[k]];
+                    if (st.Devices) {
+                        for (var dd = 0; dd < st.Devices.length; dd++) {
+                            if (deviceSet[st.Devices[dd]]) {
+                                matchedInstance = stationKeys[k];
+                                break;
+                            }
+                        }
+                    }
+                    if (matchedInstance) break;
+                }
+            }
+        }
+
+        // If we still cannot match, try by firmware version + unique stats
+        // as a last resort, pick the station with the closest uptime
+        if (!matchedInstance && stationKeys.length === 1) {
+            matchedInstance = stationKeys[0];
+        }
+
+        if (matchedInstance) {
+            var station = state.stations[matchedInstance];
+            station.Status = payload.status || 'online';
+            station.FreeHeap = payload.free_heap != null ? payload.free_heap : station.FreeHeap;
+            station.WifiRSSI = payload.wifi_rssi != null ? payload.wifi_rssi : station.WifiRSSI;
+            station.FirmwareVersion = payload.firmware_version || station.FirmwareVersion;
+            station.UptimeSeconds = payload.uptime_seconds != null ? payload.uptime_seconds : station.UptimeSeconds;
+            station.LastHeartbeat = new Date().toISOString();
+            if (payload.devices) {
+                station.Devices = payload.devices;
+                // Update device registry
+                for (var di = 0; di < payload.devices.length; di++) {
+                    var devId = payload.devices[di];
+                    if (!state.devices[devId]) {
+                        state.devices[devId] = {
+                            DeviceID: devId,
+                            StationInstance: matchedInstance,
+                            CommandStream: 'commands:' + matchedInstance,
+                            Status: 'online',
+                            LastSeen: new Date().toISOString()
+                        };
+                    } else {
+                        state.devices[devId].Status = 'online';
+                        state.devices[devId].LastSeen = new Date().toISOString();
+                    }
+                }
+            }
+
+            renderStations();
+            renderDevices();
+            renderStatusBar();
+        }
+    }
+
+    function arraysEqual(a, b) {
+        if (!a && !b) return true;
+        if (!a || !b) return false;
+        if (a.length !== b.length) return false;
+        var sortedA = a.slice().sort();
+        var sortedB = b.slice().sort();
+        for (var i = 0; i < sortedA.length; i++) {
+            if (sortedA[i] !== sortedB[i]) return false;
+        }
+        return true;
+    }
+
+    function handleCommandResponse(payload) {
+        if (!payload) return;
+
+        var measurement = {
+            timestamp: new Date().toISOString(),
+            device_id: payload.device_id,
+            command_name: payload.command_name,
+            success: payload.success,
+            response: payload.response,
+            error: payload.error,
+            duration_ms: payload.duration_ms
+        };
+
+        // Add to front of array (most recent first)
+        state.measurements.unshift(measurement);
+        if (state.measurements.length > MAX_MEASUREMENTS) {
+            state.measurements = state.measurements.slice(0, MAX_MEASUREMENTS);
+        }
+
+        renderMeasurements();
+    }
+
+    function handleEstop(payload) {
+        if (!payload) return;
+        state.estop = {
+            active: !!payload.active,
+            reason: payload.reason || '',
+            description: payload.description || '',
+            initiator: payload.initiator || '',
+            triggered_at: payload.triggered_at || new Date().toISOString()
+        };
+        renderEstop();
+    }
+
+    // =====================================================================
+    // Periodic Refresh
+    // =====================================================================
+
+    // Refresh station/device data periodically to catch health check changes
+    // (stale/offline transitions happen server-side on a timer).
+    var REFRESH_INTERVAL = 15000; // 15 seconds
+
+    function periodicRefresh() {
+        fetchJSON('/stations', function(err, data) {
+            if (!err && Array.isArray(data)) {
+                state.stations = {};
+                for (var i = 0; i < data.length; i++) {
+                    var s = data[i];
+                    state.stations[s.Instance] = s;
+                }
+                renderStations();
+                renderStatusBar();
+            }
+        });
+
+        fetchJSON('/devices', function(err, data) {
+            if (!err && Array.isArray(data)) {
+                state.devices = {};
+                for (var i = 0; i < data.length; i++) {
+                    var d = data[i];
+                    state.devices[d.DeviceID] = d;
+                }
+                renderDevices();
+                renderStatusBar();
+            }
+        });
+
+        fetchJSON('/system/status', function(err, data) {
+            if (!err && data) {
+                if (data.estop_state) {
+                    state.estop = data.estop_state;
+                    renderEstop();
+                }
+            }
+        });
+
+        fetchJSON('/test-runs', function(err, data) {
+            if (!err && Array.isArray(data)) {
+                state.testRuns = data;
+                renderTestRuns();
+            }
+        });
+    }
+
+    // Update elapsed times for running tests every second
+    function updateRunningElapsed() {
+        var hasRunning = false;
+        for (var i = 0; i < state.testRuns.length; i++) {
+            if (state.testRuns[i].Status === 'running') {
+                hasRunning = true;
+                break;
+            }
+        }
+        if (hasRunning) {
+            renderTestRuns();
+        }
+    }
+
+    // Update "time ago" displays periodically
+    function updateTimeAgo() {
+        renderDevices();
+    }
+
+    // =====================================================================
+    // Initialization
+    // =====================================================================
+    function init() {
+        renderAll();
+        loadInitialData();
+        connectWebSocket();
+
+        setInterval(periodicRefresh, REFRESH_INTERVAL);
+        setInterval(updateRunningElapsed, 1000);
+        setInterval(updateTimeAgo, 10000);
+    }
+
+    // Start when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();
+</script>
+</body>
+</html>

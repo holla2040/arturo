@@ -48,7 +48,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /devices", h.listDevices)
 	mux.HandleFunc("GET /devices/{id}", h.getDevice)
 	mux.HandleFunc("POST /devices/{id}/command", h.sendCommand)
+	mux.HandleFunc("GET /stations", h.listStations)
 	mux.HandleFunc("GET /system/status", h.getSystemStatus)
+	mux.HandleFunc("GET /test-runs", h.listTestRuns)
 	mux.HandleFunc("GET /reports/{id}/csv", h.exportCSV)
 	mux.HandleFunc("GET /reports/{id}/json", h.exportJSON)
 }
@@ -130,6 +132,20 @@ func (h *Handler) sendCommand(w http.ResponseWriter, r *http.Request) {
 		h.Dispatcher.Deregister(msg.Envelope.CorrelationID)
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "request cancelled"})
 	}
+}
+
+func (h *Handler) listStations(w http.ResponseWriter, r *http.Request) {
+	stations := h.Registry.ListStations()
+	writeJSON(w, http.StatusOK, stations)
+}
+
+func (h *Handler) listTestRuns(w http.ResponseWriter, r *http.Request) {
+	runs, err := h.Store.QueryTestRuns()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("failed to query test runs: %v", err)})
+		return
+	}
+	writeJSON(w, http.StatusOK, runs)
 }
 
 func (h *Handler) getSystemStatus(w http.ResponseWriter, r *http.Request) {

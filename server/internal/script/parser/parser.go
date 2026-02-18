@@ -110,6 +110,19 @@ func (p *Parser) expect(tt token.TokenType) token.Token {
 	return tok
 }
 
+// expectDeviceID consumes an IDENT or STRING token and returns its literal.
+// Device IDs like "PUMP-01" contain hyphens that the lexer cannot represent
+// as a single identifier, so we accept a quoted string as well.
+func (p *Parser) expectDeviceID() string {
+	tok := p.peek()
+	if tok.Type == token.TOKEN_IDENT || tok.Type == token.TOKEN_STRING {
+		p.advance()
+		return tok.Literal
+	}
+	p.addError(tok.Pos, fmt.Sprintf("expected device ID (IDENT or STRING), got %s", tok.Type))
+	return tok.Literal
+}
+
 func (p *Parser) match(types ...token.TokenType) bool {
 	for _, tt := range types {
 		if p.peekType() == tt {
@@ -587,7 +600,7 @@ func (p *Parser) parseParallelStmt() *ast.ParallelStmt {
 
 func (p *Parser) parseConnectStmt() *ast.ConnectStmt {
 	tok := p.advance() // consume CONNECT
-	deviceTok := p.expect(token.TOKEN_IDENT)
+	deviceID := p.expectDeviceID()
 
 	// Protocol: TCP or SERIAL
 	var protocol string
@@ -610,7 +623,7 @@ func (p *Parser) parseConnectStmt() *ast.ConnectStmt {
 	}
 
 	return &ast.ConnectStmt{
-		DeviceID: deviceTok.Literal,
+		DeviceID: deviceID,
 		Protocol: strings.ToUpper(protocol),
 		Address:  address,
 		Options:  options,
@@ -629,20 +642,20 @@ func (p *Parser) parseDisconnectStmt() *ast.DisconnectStmt {
 		}
 	}
 
-	deviceTok := p.expect(token.TOKEN_IDENT)
+	deviceID := p.expectDeviceID()
 	return &ast.DisconnectStmt{
-		DeviceID: deviceTok.Literal,
+		DeviceID: deviceID,
 		Position: tok.Pos,
 	}
 }
 
 func (p *Parser) parseSendStmt() *ast.SendStmt {
 	tok := p.advance() // consume SEND
-	deviceTok := p.expect(token.TOKEN_IDENT)
+	deviceID := p.expectDeviceID()
 	command := p.parseExpression()
 
 	return &ast.SendStmt{
-		DeviceID: deviceTok.Literal,
+		DeviceID: deviceID,
 		Command:  command,
 		Position: tok.Pos,
 	}
@@ -650,12 +663,12 @@ func (p *Parser) parseSendStmt() *ast.SendStmt {
 
 func (p *Parser) parseQueryStmt() *ast.QueryStmt {
 	tok := p.advance() // consume QUERY
-	deviceTok := p.expect(token.TOKEN_IDENT)
+	deviceID := p.expectDeviceID()
 	command := p.parseExpression()
 	resultTok := p.expect(token.TOKEN_IDENT)
 
 	node := &ast.QueryStmt{
-		DeviceID:  deviceTok.Literal,
+		DeviceID:  deviceID,
 		Command:   command,
 		ResultVar: resultTok.Literal,
 		Position:  tok.Pos,
@@ -672,7 +685,7 @@ func (p *Parser) parseQueryStmt() *ast.QueryStmt {
 
 func (p *Parser) parseRelayStmt() *ast.RelayStmt {
 	tok := p.advance() // consume RELAY
-	deviceTok := p.expect(token.TOKEN_IDENT)
+	deviceID := p.expectDeviceID()
 
 	// Action: SET, GET, or TOGGLE
 	var action string
@@ -694,7 +707,7 @@ func (p *Parser) parseRelayStmt() *ast.RelayStmt {
 	channel := p.parseExpression()
 
 	node := &ast.RelayStmt{
-		DeviceID: deviceTok.Literal,
+		DeviceID: deviceID,
 		Action:   action,
 		Channel:  channel,
 		Position: tok.Pos,

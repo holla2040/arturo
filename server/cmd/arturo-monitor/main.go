@@ -62,12 +62,6 @@ func main() {
 		defer logWriter.Close()
 	}
 
-	// Correlation tracking: map correlation_id -> request timestamp
-	corrTracker := struct {
-		sync.Mutex
-		m map[string]time.Time
-	}{m: make(map[string]time.Time)}
-
 	// Shared channel for all display messages
 	displayCh := make(chan *DisplayMessage, 256)
 
@@ -275,20 +269,7 @@ func main() {
 			continue
 		}
 
-		// Track correlation IDs
-		if dm.Message.Envelope.CorrelationID != "" {
-			corrTracker.Lock()
-			if dm.Message.Envelope.Type == protocol.TypeDeviceCommandRequest {
-				corrTracker.m[dm.Message.Envelope.CorrelationID] = dm.Timestamp
-			} else if dm.Message.Envelope.Type == protocol.TypeDeviceCommandResponse {
-				if reqTime, ok := corrTracker.m[dm.Message.Envelope.CorrelationID]; ok {
-					elapsed := dm.Timestamp.Sub(reqTime)
-					fmt.Fprintf(os.Stderr, "  [corr %s round-trip: %s]\n", dm.Message.Envelope.CorrelationID[:8], elapsed.Round(time.Millisecond))
-					delete(corrTracker.m, dm.Message.Envelope.CorrelationID)
-				}
-			}
-			corrTracker.Unlock()
-		}
+
 
 		// Output
 		if *jsonOut {

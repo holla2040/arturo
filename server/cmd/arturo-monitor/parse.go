@@ -47,8 +47,7 @@ func FormatMessage(dm *DisplayMessage) string {
 		tag = "command"
 		req, err := protocol.ParseCommandRequest(dm.Message)
 		if err == nil {
-			params := formatParams(req.Parameters)
-			detail = fmt.Sprintf("corr=%s  cmd=%s  params=%s", corrID, req.CommandName, params)
+			detail = fmt.Sprintf("cmd=%s  device=%s", req.CommandName, req.DeviceID)
 		} else {
 			detail = fmt.Sprintf("corr=%s  (parse error)", corrID)
 		}
@@ -57,11 +56,11 @@ func FormatMessage(dm *DisplayMessage) string {
 		tag = "response"
 		resp, err := protocol.ParseCommandResponse(dm.Message)
 		if err == nil {
-			durationMs := 0
-			if resp.DurationMs != nil {
-				durationMs = *resp.DurationMs
+			respVal := ""
+			if resp.Response != nil {
+				respVal = *resp.Response
 			}
-			detail = fmt.Sprintf("corr=%s  success=%t  duration=%dms", corrID, resp.Success, durationMs)
+			detail = fmt.Sprintf("success=%t  response=%q", resp.Success, respVal)
 			if resp.Success {
 				color = colorGreen
 			} else {

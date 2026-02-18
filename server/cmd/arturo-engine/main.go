@@ -14,12 +14,15 @@ import (
 	"os"
 	"strings"
 
+	"github.com/holla2040/arturo/internal/protocol"
 	"github.com/holla2040/arturo/internal/script/executor"
 	"github.com/holla2040/arturo/internal/script/lexer"
 	"github.com/holla2040/arturo/internal/script/parser"
 	"github.com/holla2040/arturo/internal/script/profile"
+	"github.com/holla2040/arturo/internal/script/redisrouter"
 	"github.com/holla2040/arturo/internal/script/result"
 	"github.com/holla2040/arturo/internal/script/validate"
+	"github.com/redis/go-redis/v9"
 )
 
 func main() {
@@ -44,9 +47,9 @@ func main() {
 
 func usage() {
 	fmt.Fprintln(os.Stderr, "Usage:")
-	fmt.Fprintln(os.Stderr, "  arturo-engine validate <file.art>         Validate a script")
-	fmt.Fprintln(os.Stderr, "  arturo-engine devices --profiles <dir>    List device profiles")
-	fmt.Fprintln(os.Stderr, "  arturo-engine run <file.art>              Execute a script")
+	fmt.Fprintln(os.Stderr, "  arturo-engine validate <file.art>                           Validate a script")
+	fmt.Fprintln(os.Stderr, "  arturo-engine devices --profiles <dir>                      List device profiles")
+	fmt.Fprintln(os.Stderr, "  arturo-engine run [--redis addr] [--station id] <file.art>  Execute a script")
 }
 
 // ---------------------------------------------------------------------------
@@ -109,12 +112,37 @@ func cmdDevices(args []string) {
 // ---------------------------------------------------------------------------
 
 func cmdRun(args []string) {
-	if len(args) < 1 {
+	// Parse flags: --redis <addr> --station <id> <file.art>
+	redisAddr := "localhost:6379"
+	station := "station-01"
+	var scriptPath string
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--redis":
+			if i+1 >= len(args) {
+				fmt.Fprintln(os.Stderr, "--redis requires an address")
+				os.Exit(1)
+			}
+			i++
+			redisAddr = args[i]
+		case "--station":
+			if i+1 >= len(args) {
+				fmt.Fprintln(os.Stderr, "--station requires an id")
+				os.Exit(1)
+			}
+			i++
+			station = args[i]
+		default:
+			scriptPath = args[i]
+		}
+	}
+
+	if scriptPath == "" {
 		fmt.Fprintln(os.Stderr, "run requires a file path")
 		os.Exit(1)
 	}
 
-	scriptPath := args[0]
 	source, err := os.ReadFile(scriptPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error reading file: %v\n", err)
@@ -143,11 +171,24 @@ func cmdRun(args []string) {
 		os.Exit(1)
 	}
 
+	// Connect to Redis and create router.
+	rdb := redis.NewClient(&redis.Options{Addr: redisAddr})
+	defer rdb.Close()
+
+	engineSource := protocol.Source{
+		Service:  "arturo-engine",
+		Instance: "engine-01",
+		Version:  "1.0.0",
+	}
+	router := redisrouter.New(rdb, engineSource, station)
+
 	// Execute.
 	collector := result.NewCollector(scriptPath)
 	exec := executor.New(
 		context.Background(),
 		executor.WithCollector(collector),
+		executor.WithRouter(router),
+		executor.WithLogger(os.Stderr),
 	)
 
 	if err := exec.Execute(program); err != nil {

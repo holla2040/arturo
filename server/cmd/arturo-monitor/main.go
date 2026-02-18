@@ -341,7 +341,7 @@ func pollPresence(ctx context.Context, rdb *redis.Client, tracker *StationTracke
 		}
 
 		state, lastSeen := tracker.GetState(instance, ttl)
-		fmt.Printf("[presence] %s\n", FormatPresence(key, int64(ttl.Seconds()), state, lastSeen))
+		fmt.Println(FormatPresence(key, int64(ttl.Seconds()), state, lastSeen))
 	}
 
 	// Print OFFLINE for stations known to tracker but missing from SCAN

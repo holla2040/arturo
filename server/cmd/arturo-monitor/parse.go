@@ -32,73 +32,75 @@ func extractInstance(key string) string {
 }
 
 // FormatMessage formats a DisplayMessage for terminal output with ANSI color coding.
-// Line 1: timestamp, channel, direction, message type.
-// Line 2 (indented): correlation_id (first 8 chars) + type-specific fields.
+// Format: [tag]  instance  detail fields
 func FormatMessage(dm *DisplayMessage) string {
-	ts := dm.Timestamp.Format("15:04:05.000")
-	line1 := fmt.Sprintf("%s  %s %s %s", ts, dm.Channel, dm.Direction, dm.Message.Envelope.Type)
+	instance := dm.Message.Envelope.Source.Instance
 
 	corrID := dm.Message.Envelope.CorrelationID
 	if len(corrID) > 8 {
 		corrID = corrID[:8]
 	}
 
-	var detail string
-	var color string
+	var tag, detail, color string
 	switch dm.Message.Envelope.Type {
 	case protocol.TypeDeviceCommandRequest:
+		tag = "command"
 		req, err := protocol.ParseCommandRequest(dm.Message)
 		if err == nil {
 			params := formatParams(req.Parameters)
-			detail = fmt.Sprintf("corr=%s cmd=%s params=%s", corrID, req.CommandName, params)
+			detail = fmt.Sprintf("corr=%s  cmd=%s  params=%s", corrID, req.CommandName, params)
 		} else {
-			detail = fmt.Sprintf("corr=%s (parse error)", corrID)
+			detail = fmt.Sprintf("corr=%s  (parse error)", corrID)
 		}
 
 	case protocol.TypeDeviceCommandResponse:
+		tag = "response"
 		resp, err := protocol.ParseCommandResponse(dm.Message)
 		if err == nil {
 			durationMs := 0
 			if resp.DurationMs != nil {
 				durationMs = *resp.DurationMs
 			}
-			detail = fmt.Sprintf("corr=%s success=%t duration=%dms", corrID, resp.Success, durationMs)
+			detail = fmt.Sprintf("corr=%s  success=%t  duration=%dms", corrID, resp.Success, durationMs)
 			if resp.Success {
 				color = colorGreen
 			} else {
 				color = colorRed
 			}
 		} else {
-			detail = fmt.Sprintf("corr=%s (parse error)", corrID)
+			detail = fmt.Sprintf("corr=%s  (parse error)", corrID)
 		}
 
 	case protocol.TypeServiceHeartbeat:
+		tag = "heartbeat"
 		color = colorCyan
 		hb, err := protocol.ParseHeartbeat(dm.Message)
 		if err == nil {
-			detail = fmt.Sprintf("status=%s heap=%d rssi=%d", hb.Status, hb.FreeHeap, hb.WifiRSSI)
+			detail = fmt.Sprintf("%s  heap=%d  rssi=%d", hb.Status, hb.FreeHeap, hb.WifiRSSI)
 			warnings := HealthWarnings(hb)
 			if len(warnings) > 0 {
-				detail += fmt.Sprintf(" %s[%s]%s", colorYellow, strings.Join(warnings, ", "), colorCyan)
+				detail += fmt.Sprintf("  %s[%s]%s", colorYellow, strings.Join(warnings, ", "), colorCyan)
 			}
 		} else {
 			detail = "(parse error)"
 		}
 
 	case protocol.TypeSystemEmergencyStop:
+		tag = "estop"
 		color = colorRed
 		estop, err := protocol.ParseEmergencyStop(dm.Message)
 		if err == nil {
-			detail = fmt.Sprintf("reason=%s initiator=%s", estop.Reason, estop.Initiator)
+			detail = fmt.Sprintf("reason=%s  initiator=%s", estop.Reason, estop.Initiator)
 		} else {
 			detail = "(parse error)"
 		}
 
 	default:
+		tag = "message"
 		detail = fmt.Sprintf("corr=%s", corrID)
 	}
 
-	body := fmt.Sprintf("%s\n    %s", line1, detail)
+	body := fmt.Sprintf("[%-9s]  %-12s  %s", tag, instance, detail)
 	if color != "" {
 		return color + body + colorReset
 	}
@@ -132,15 +134,16 @@ func FormatPresence(key string, ttl int64, state StationState, lastSeen time.Tim
 		color = colorRed
 	}
 
-	line := fmt.Sprintf("%-20s TTL=%-4d %s", instance, ttl, state.String())
+	detail := fmt.Sprintf("TTL=%-4d  %s", ttl, state.String())
 
 	if state == StateStale || state == StateOffline {
 		if !lastSeen.IsZero() {
 			ago := time.Since(lastSeen).Round(time.Second)
-			line += fmt.Sprintf("  (last seen %s ago)", ago)
+			detail += fmt.Sprintf("  (last seen %s ago)", ago)
 		}
 	}
 
+	line := fmt.Sprintf("[%-9s]  %-12s  %s", "presence", instance, detail)
 	return color + line + colorReset
 }
 

@@ -57,10 +57,8 @@ func TestFormatMessage(t *testing.T) {
 				},
 			},
 			contains: []string{
-				"14:30:45.123",
-				"commands:station-01",
-				"\u2192",
-				"device.command.request",
+				"[command  ]",
+				"ctrl-01",
 				"corr=7c9e6679",
 				"cmd=measure_dc_voltage",
 				"range:10V",
@@ -83,10 +81,8 @@ func TestFormatMessage(t *testing.T) {
 				},
 			},
 			contains: []string{
-				"14:30:45.123",
-				"responses:ctrl-01",
-				"\u2190",
-				"device.command.response",
+				"[response ]",
+				"ctrl-01",
 				"corr=7c9e6679",
 				"success=true",
 				"duration=47ms",
@@ -113,10 +109,9 @@ func TestFormatMessage(t *testing.T) {
 				},
 			},
 			contains: []string{
-				"14:30:45.123",
-				"events:heartbeat",
-				"service.heartbeat",
-				"status=running",
+				"[heartbeat]",
+				"ctrl-01",
+				"running",
 				"heap=245000",
 				"rssi=-42",
 			},
@@ -136,9 +131,8 @@ func TestFormatMessage(t *testing.T) {
 				},
 			},
 			contains: []string{
-				"14:30:45.123",
-				"events:emergency_stop",
-				"system.emergency_stop",
+				"[estop    ]",
+				"ctrl-01",
 				"reason=button_press",
 				"initiator=estop-01",
 			},
@@ -315,7 +309,7 @@ func TestFormatPresence(t *testing.T) {
 			ttl:      85,
 			state:    StateOnline,
 			lastSeen: now,
-			contains: []string{"dmm-station-01", "85", "ONLINE"},
+			contains: []string{"[presence ]", "dmm-station-01", "85", "ONLINE"},
 		},
 		{
 			name:     "stale station",
@@ -323,7 +317,7 @@ func TestFormatPresence(t *testing.T) {
 			ttl:      30,
 			state:    StateStale,
 			lastSeen: now.Add(-90 * time.Second),
-			contains: []string{"relay-station-02", "STALE", "last seen"},
+			contains: []string{"[presence ]", "relay-station-02", "STALE", "last seen"},
 		},
 		{
 			name:     "offline station TTL 0",
@@ -331,7 +325,7 @@ func TestFormatPresence(t *testing.T) {
 			ttl:      0,
 			state:    StateOffline,
 			lastSeen: now.Add(-5 * time.Minute),
-			contains: []string{"relay-station-02", "OFFLINE", "last seen"},
+			contains: []string{"[presence ]", "relay-station-02", "OFFLINE", "last seen"},
 		},
 		{
 			name:     "offline station no lastSeen",
@@ -339,7 +333,7 @@ func TestFormatPresence(t *testing.T) {
 			ttl:      -1,
 			state:    StateOffline,
 			lastSeen: time.Time{},
-			contains: []string{"station-03", "OFFLINE"},
+			contains: []string{"[presence ]", "station-03", "OFFLINE"},
 		},
 	}
 

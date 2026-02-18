@@ -198,6 +198,26 @@ The parser and executor are the most complex controller components. Carry forwar
 - Recovery requires explicit operator acknowledgment
 - All E-stop events are logged to persistent Stream
 
+### 2.8 Scripts as the Unit of Orchestration
+
+A test definition **is** an `.art` script file. Scripts are the single source of truth for what a test does — there is no separate "test configuration" layer, no GUI-only test builder, no database-stored test definition. If you want to know what a test does, you read the `.art` file.
+
+This means scripts must be **authored by humans and LLMs equally well:**
+
+- The `.art` DSL is plain text with a simple, deterministic grammar — no ambiguous syntax, no context-dependent parsing
+- Device profiles (`profiles/`) provide a machine-readable vocabulary of available commands per instrument
+- A test run is stateless: parse the script, execute it, produce a report. No hidden state between runs
+- Scripts are stored as files, versioned in git, diffable, reviewable
+
+**Design constraint for the script engine:** every interface that a human uses to create, validate, or run a script must also work for an LLM. Specifically:
+
+1. **Validation without execution** — parse a script and return structured pass/fail with line-level error details, without touching any hardware
+2. **Structured error output** — parse and runtime errors as JSON (not just stderr text), so an LLM can read failures and fix its own script
+3. **Device capability introspection** — query "what commands does device X support?" from profiles, so an LLM knows the vocabulary before writing a script
+4. **No implicit context** — a script contains everything needed to run. No ambient state that a human "just knows" but an LLM wouldn't
+
+This is not a feature to bolt on later. It shapes how the parser reports errors, how the executor surfaces failures, and how device profiles are exposed.
+
 ---
 
 ## 3. Redis Security (Even on LAN)
@@ -775,13 +795,19 @@ Controller:
 
 ### Phase 5: Script Engine (Weeks 10-13)
 
-**Goal:** Parse and execute .art scripts that control devices via stations.
+**Goal:** Parse and execute .art scripts that control devices via stations. Scripts are the orchestration layer — authorable by humans and LLMs alike (see Section 2.8).
 
 - Reimplement Arturo DSL parser in Go (use original grammar as spec)
 - Script executor routes device commands through Redis Streams
 - Variable system for test parameters
 - Test result aggregation and pass/fail reporting
 - Run a real multi-step test script end-to-end
+
+LLM-readiness (build into the engine, not bolted on after):
+- `arturo-engine validate <script.art>` — parse-only mode, no hardware contact. Returns JSON: `{"valid": true}` or `{"valid": false, "errors": [{"line": 12, "col": 5, "message": "unknown command QUERR, did you mean QUERY?"}]}`
+- `arturo-engine devices` — dump available device profiles as JSON (device ID, protocol, supported commands with parameter schemas). This is the vocabulary an LLM needs before writing a script
+- All runtime errors (device timeout, assertion failure, connection refused) surface as structured JSON in the test report, not just log lines
+- Script directory convention: `scripts/` at project root, one `.art` file per test, with a `scripts/lib/` for shared `.artlib` libraries
 
 ### Phase 6: Dashboard and Reports (Weeks 13-15)
 

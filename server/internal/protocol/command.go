@@ -1,0 +1,33 @@
+package protocol
+
+import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/google/uuid"
+)
+
+// BuildCommandRequest creates a device.command.request message ready to send to a station.
+// It generates a correlation_id and sets reply_to to "responses:{source.Instance}".
+func BuildCommandRequest(source Source, deviceID, cmdName string, params map[string]string, timeoutMs int) (*Message, error) {
+	env := NewEnvelope(source, TypeDeviceCommandRequest)
+	env.CorrelationID = uuid.New().String()
+	env.ReplyTo = "responses:" + source.Instance
+
+	payload := CommandRequestPayload{
+		DeviceID:    deviceID,
+		CommandName: cmdName,
+		Parameters:  params,
+		TimeoutMs:   &timeoutMs,
+	}
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshal command request payload: %w", err)
+	}
+
+	return &Message{
+		Envelope: env,
+		Payload:  json.RawMessage(payloadBytes),
+	}, nil
+}

@@ -8,10 +8,12 @@
 #include "messaging/heartbeat.h"
 #include "network/wifi_manager.h"
 #include "network/redis_client.h"
+#include "commands/command_handler.h"
 
 // Globals
 arturo::WifiManager wifi;
 arturo::RedisClient redis(REDIS_HOST, REDIS_PORT);
+arturo::CommandHandler* cmdHandler = nullptr;
 
 unsigned long lastHeartbeatMs = 0;
 int heartbeatCount = 0;
@@ -84,8 +86,8 @@ bool publishHeartbeat(const char* status) {
     data.wifiRssi = wifi.rssi();
     data.wifiReconnects = wifi.reconnectCount();
     data.redisReconnects = redis.reconnectCount();
-    data.commandsProcessed = 0;
-    data.commandsFailed = 0;
+    data.commandsProcessed = cmdHandler ? cmdHandler->commandsProcessed() : 0;
+    data.commandsFailed = cmdHandler ? cmdHandler->commandsFailed() : 0;
     data.lastError = nullptr;
     data.watchdogResets = 0;
     data.firmwareVersion = FIRMWARE_VERSION;
@@ -140,10 +142,14 @@ void setup() {
     // 3. Set presence key
     refreshPresence();
 
-    // 4. First heartbeat (status="starting")
+    // 4. Create command handler
+    static arturo::CommandHandler handler(redis, STATION_INSTANCE);
+    cmdHandler = &handler;
+
+    // 5. First heartbeat (status="starting")
     publishHeartbeat("starting");
 
-    // 5. Log free heap
+    // 6. Log free heap
     LOG_INFO("MAIN", "Boot complete. Free heap: %lu bytes", (unsigned long)ESP.getFreeHeap());
 
     lastHeartbeatMs = millis();
@@ -166,6 +172,11 @@ void loop() {
     if (!redis.isConnected()) {
         LOG_ERROR("MAIN", "Redis disconnected, reconnecting...");
         connectRedis();
+    }
+
+    // Poll for incoming commands (100ms block inside)
+    if (cmdHandler && redis.isConnected()) {
+        cmdHandler->poll();
     }
 
     delay(100);

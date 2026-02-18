@@ -38,6 +38,7 @@ static const char* DEVICE_IDS[] = {"DMM-01"};
 
 // Redis channels (from MIGRATION_PLAN.md section 2.3)
 #define CHANNEL_HEARTBEAT      "events:heartbeat"
+#define CHANNEL_COMMANDS_PREFIX "commands:"
 #define PRESENCE_KEY_PREFIX     "device:"
 #define PRESENCE_KEY_SUFFIX     ":alive"
 

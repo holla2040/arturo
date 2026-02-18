@@ -1,0 +1,28 @@
+{
+  "envelope": {
+    "id": "d3e4f5a6-b7c8-4d9e-0f1a-2b3c4d5e6f7a",
+    "timestamp": "2026-02-17T12:05:00.000Z",
+    "source": {
+      "service": "esp32_tcp_bridge",
+      "instance": "dmm-station-01",
+      "version": "1.0.0"
+    },
+    "schema_version": "v1.0.0",
+    "type": "service.heartbeat"
+  },
+  "payload": {
+    "status": "degraded",
+    "uptime_seconds": 7200,
+    "devices": ["fluke-8846a"],
+    "free_heap": 98000,
+    "min_free_heap": 85000,
+    "wifi_rssi": -78,
+    "wifi_reconnects": 3,
+    "redis_reconnects": 1,
+    "commands_processed": 3210,
+    "commands_failed": 47,
+    "last_error": "E_DEVICE_TIMEOUT on fluke-8846a at 12:04:45",
+    "watchdog_resets": 0,
+    "firmware_version": "1.0.0"
+  }
+}

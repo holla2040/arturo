@@ -1,0 +1,28 @@
+{
+  "envelope": {
+    "id": "c2d3e4f5-a6b7-4c8d-9e0f-1a2b3c4d5e6f",
+    "timestamp": "2026-02-17T12:04:30.000Z",
+    "source": {
+      "service": "esp32_tcp_bridge",
+      "instance": "dmm-station-01",
+      "version": "1.0.0"
+    },
+    "schema_version": "v1.0.0",
+    "type": "service.heartbeat"
+  },
+  "payload": {
+    "status": "running",
+    "uptime_seconds": 3600,
+    "devices": ["fluke-8846a"],
+    "free_heap": 245000,
+    "min_free_heap": 180000,
+    "wifi_rssi": -42,
+    "wifi_reconnects": 0,
+    "redis_reconnects": 0,
+    "commands_processed": 1547,
+    "commands_failed": 3,
+    "last_error": null,
+    "watchdog_resets": 0,
+    "firmware_version": "1.0.0"
+  }
+}

@@ -1,16 +1,32 @@
-# Message Schemas
+# Arturo Protocol Schemas
 
-JSON Schema definitions for Arturo Protocol v1.0.0 messages.
+JSON Schema definitions for the Arturo messaging protocol. These are the single source of truth for all messages exchanged between the Go server and ESP32 field devices over Redis.
 
-Phase 0 deliverable: define these four schemas before writing any code.
+Schema versions use directory-based versioning:
 
-## Message Types
+```
+schemas/
+└── v1.0.0/                        # Protocol version
+    ├── README.md                   # Schema index and overview
+    ├── envelope/                   # Shared message envelope
+    │   └── schema-definition.md
+    ├── error/                      # Shared error object
+    │   └── schema-definition.md
+    ├── device-command-request/     # Server -> ESP32 command
+    │   ├── schema-definition.md
+    │   └── examples/
+    ├── device-command-response/    # ESP32 -> Server result
+    │   ├── schema-definition.md
+    │   └── examples/
+    ├── service-heartbeat/          # ESP32 health report
+    │   ├── schema-definition.md
+    │   └── examples/
+    ├── system-emergency-stop/      # E-stop broadcast
+    │   ├── schema-definition.md
+    │   └── examples/
+    └── system-ota-request/         # Firmware update request
+        ├── schema-definition.md
+        └── examples/
+```
 
-1. `device.command.request.v1.json` - Server sends command to ESP32
-2. `device.command.response.v1.json` - ESP32 returns result to server
-3. `service.heartbeat.v1.json` - ESP32 periodic health report
-4. `system.emergency_stop.v1.json` - Emergency stop broadcast
-
-## Envelope
-
-All messages share a common envelope defined in `envelope.v1.json`.
+Each `schema-definition.md` contains the complete JSON Schema, field descriptions, usage examples, and implementation details for both Go server and ESP32 firmware.

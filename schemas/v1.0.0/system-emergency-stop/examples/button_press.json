@@ -1,0 +1,18 @@
+{
+  "envelope": {
+    "id": "e4f5a6b7-c8d9-4e0f-1a2b-3c4d5e6f7a8b",
+    "timestamp": "2026-02-17T12:03:15.023Z",
+    "source": {
+      "service": "esp32_estop",
+      "instance": "estop-01",
+      "version": "1.0.0"
+    },
+    "schema_version": "v1.0.0",
+    "type": "system.emergency_stop"
+  },
+  "payload": {
+    "reason": "button_press",
+    "description": "Physical E-stop button pressed on estop-01",
+    "initiator": "estop-01"
+  }
+}

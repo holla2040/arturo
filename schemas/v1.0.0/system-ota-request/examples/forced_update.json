@@ -1,0 +1,21 @@
+{
+  "envelope": {
+    "id": "c8d9e0f1-a2b3-4c4d-5e6f-7a8b9c0d1e2f",
+    "timestamp": "2026-02-17T14:30:00.000Z",
+    "source": {
+      "service": "orchestrator",
+      "instance": "orch-01",
+      "version": "1.0.0"
+    },
+    "schema_version": "v1.0.0",
+    "type": "system.ota.request",
+    "correlation_id": "d9e0f1a2-b3c4-4d5e-6f7a-8b9c0d1e2f3a",
+    "reply_to": "responses:orchestrator:orch-01"
+  },
+  "payload": {
+    "firmware_url": "http://192.168.1.10:8080/firmware/arturo-relay-controller-v1.0.0.bin",
+    "version": "1.0.0",
+    "sha256": "f0e1d2c3b4a5f6e7d8c9b0a1f2e3d4c5b6a7f8e9d0c1b2a3f4e5d6c7b8a9f0e1",
+    "force": true
+  }
+}

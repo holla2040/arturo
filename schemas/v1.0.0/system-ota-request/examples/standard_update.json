@@ -1,0 +1,21 @@
+{
+  "envelope": {
+    "id": "a6b7c8d9-e0f1-4a2b-3c4d-5e6f7a8b9c0d",
+    "timestamp": "2026-02-17T14:00:00.000Z",
+    "source": {
+      "service": "orchestrator",
+      "instance": "orch-01",
+      "version": "1.0.0"
+    },
+    "schema_version": "v1.0.0",
+    "type": "system.ota.request",
+    "correlation_id": "b7c8d9e0-f1a2-4b3c-4d5e-6f7a8b9c0d1e",
+    "reply_to": "responses:orchestrator:orch-01"
+  },
+  "payload": {
+    "firmware_url": "http://192.168.1.10:8080/firmware/arturo-tcp-bridge-v1.1.0.bin",
+    "version": "1.1.0",
+    "sha256": "a3f2b8c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1",
+    "force": false
+  }
+}

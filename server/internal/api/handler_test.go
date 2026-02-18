@@ -13,9 +13,26 @@ import (
 
 	"github.com/holla2040/arturo/internal/estop"
 	"github.com/holla2040/arturo/internal/protocol"
+	"github.com/holla2040/arturo/internal/redishealth"
 	"github.com/holla2040/arturo/internal/registry"
 	"github.com/holla2040/arturo/internal/store"
 )
+
+// mockRedisHealth implements RedisHealthChecker for tests.
+type mockRedisHealth struct {
+	connected bool
+}
+
+func (m *mockRedisHealth) IsConnected() bool {
+	return m.connected
+}
+
+func (m *mockRedisHealth) GetStatus() redishealth.Status {
+	return redishealth.Status{
+		Connected:  m.connected,
+		Reconnects: 0,
+	}
+}
 
 // mockSender implements CommandSender for tests.
 type mockSender struct {
@@ -511,5 +528,459 @@ func TestContentTypeJSON(t *testing.T) {
 	ct := resp.Header.Get("Content-Type")
 	if ct != "application/json" {
 		t.Errorf("expected Content-Type application/json, got %s", ct)
+	}
+}
+
+// --- Redis Health Integration Tests ---
+
+func TestSendCommandRedisUnavailable(t *testing.T) {
+	h, _ := newTestHandler(t)
+	seedRegistry(h.Registry)
+	h.RedisHealth = &mockRedisHealth{connected: false}
+	srv := newTestServer(t, h)
+	defer srv.Close()
+
+	body := `{"command": "measure_dc_voltage"}`
+	resp, err := http.Post(srv.URL+"/devices/fluke-8846a/command", "application/json", bytes.NewBufferString(body))
+	if err != nil {
+		t.Fatalf("POST failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d", resp.StatusCode)
+	}
+
+	var result map[string]string
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result["error"] != "redis unavailable" {
+		t.Errorf("expected error 'redis unavailable', got %q", result["error"])
+	}
+}
+
+func TestSendCommandRedisAvailable(t *testing.T) {
+	h, sender := newTestHandler(t)
+	seedRegistry(h.Registry)
+	h.RedisHealth = &mockRedisHealth{connected: true}
+	srv := newTestServer(t, h)
+	defer srv.Close()
+
+	sender.sendFunc = func(ctx context.Context, stream string, msg *protocol.Message) error {
+		go func() {
+			time.Sleep(10 * time.Millisecond)
+			respStr := "ok"
+			respPayload := protocol.CommandResponsePayload{
+				DeviceID:    "fluke-8846a",
+				CommandName: "identify",
+				Success:     true,
+				Response:    &respStr,
+			}
+			payloadBytes, _ := json.Marshal(respPayload)
+			respMsg := &protocol.Message{
+				Envelope: protocol.Envelope{
+					CorrelationID: msg.Envelope.CorrelationID,
+					Type:          protocol.TypeDeviceCommandResponse,
+				},
+				Payload: json.RawMessage(payloadBytes),
+			}
+			h.Dispatcher.Dispatch(respMsg)
+		}()
+		return nil
+	}
+
+	body := `{"command": "identify", "timeout_ms": 2000}`
+	resp, err := http.Post(srv.URL+"/devices/fluke-8846a/command", "application/json", bytes.NewBufferString(body))
+	if err != nil {
+		t.Fatalf("POST failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestSendCommandNoHealthChecker(t *testing.T) {
+	// When RedisHealth is nil (not configured), commands should proceed normally
+	h, sender := newTestHandler(t)
+	seedRegistry(h.Registry)
+	// h.RedisHealth is nil by default
+	srv := newTestServer(t, h)
+	defer srv.Close()
+
+	sender.sendFunc = func(ctx context.Context, stream string, msg *protocol.Message) error {
+		go func() {
+			time.Sleep(10 * time.Millisecond)
+			respStr := "ok"
+			respPayload := protocol.CommandResponsePayload{
+				DeviceID:    "fluke-8846a",
+				CommandName: "identify",
+				Success:     true,
+				Response:    &respStr,
+			}
+			payloadBytes, _ := json.Marshal(respPayload)
+			respMsg := &protocol.Message{
+				Envelope: protocol.Envelope{
+					CorrelationID: msg.Envelope.CorrelationID,
+					Type:          protocol.TypeDeviceCommandResponse,
+				},
+				Payload: json.RawMessage(payloadBytes),
+			}
+			h.Dispatcher.Dispatch(respMsg)
+		}()
+		return nil
+	}
+
+	body := `{"command": "identify", "timeout_ms": 2000}`
+	resp, err := http.Post(srv.URL+"/devices/fluke-8846a/command", "application/json", bytes.NewBufferString(body))
+	if err != nil {
+		t.Fatalf("POST failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestSystemStatusIncludesRedisHealth(t *testing.T) {
+	h, _ := newTestHandler(t)
+	h.RedisHealth = &mockRedisHealth{connected: true}
+	srv := newTestServer(t, h)
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/system/status")
+	if err != nil {
+		t.Fatalf("GET /system/status failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	rh, ok := result["redis_health"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected redis_health field in response")
+	}
+	if rh["connected"] != true {
+		t.Errorf("expected redis_health.connected=true, got %v", rh["connected"])
+	}
+}
+
+func TestSystemStatusRedisHealthDisconnected(t *testing.T) {
+	h, _ := newTestHandler(t)
+	h.RedisHealth = &mockRedisHealth{connected: false}
+	srv := newTestServer(t, h)
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/system/status")
+	if err != nil {
+		t.Fatalf("GET /system/status failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	rh, ok := result["redis_health"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected redis_health field in response")
+	}
+	if rh["connected"] != false {
+		t.Errorf("expected redis_health.connected=false, got %v", rh["connected"])
+	}
+}
+
+func TestSystemStatusNoRedisHealthChecker(t *testing.T) {
+	h, _ := newTestHandler(t)
+	// RedisHealth is nil
+	srv := newTestServer(t, h)
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/system/status")
+	if err != nil {
+		t.Fatalf("GET /system/status failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	// When no health checker, redis_health should be omitted (null)
+	if _, ok := result["redis_health"]; ok {
+		rh := result["redis_health"]
+		if rh != nil {
+			t.Errorf("expected redis_health to be omitted or null, got %v", rh)
+		}
+	}
+}
+
+// --- OTA Endpoint Tests ---
+
+func TestOTASuccess(t *testing.T) {
+	h, sender := newTestHandler(t)
+	seedRegistry(h.Registry)
+	srv := newTestServer(t, h)
+	defer srv.Close()
+
+	body := `{
+		"station": "station-01",
+		"firmware_url": "http://192.168.1.10:8080/firmware/v1.1.0.bin",
+		"version": "1.1.0",
+		"sha256": "a3f2b8c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1",
+		"force": false
+	}`
+	resp, err := http.Post(srv.URL+"/ota", "application/json", bytes.NewBufferString(body))
+	if err != nil {
+		t.Fatalf("POST /ota failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d", resp.StatusCode)
+	}
+
+	var result map[string]string
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result["status"] != "accepted" {
+		t.Errorf("expected status 'accepted', got %q", result["status"])
+	}
+	if result["station"] != "station-01" {
+		t.Errorf("expected station 'station-01', got %q", result["station"])
+	}
+	if result["version"] != "1.1.0" {
+		t.Errorf("expected version '1.1.0', got %q", result["version"])
+	}
+	if result["correlation_id"] == "" {
+		t.Error("expected non-empty correlation_id")
+	}
+
+	// Verify that a command was sent to the correct stream
+	sender.mu.Lock()
+	defer sender.mu.Unlock()
+	if len(sender.sent) != 1 {
+		t.Fatalf("expected 1 sent command, got %d", len(sender.sent))
+	}
+	if sender.sent[0].Stream != "commands:station-01" {
+		t.Errorf("expected stream 'commands:station-01', got %q", sender.sent[0].Stream)
+	}
+	if sender.sent[0].Msg.Envelope.Type != protocol.TypeSystemOTARequest {
+		t.Errorf("expected type %q, got %q", protocol.TypeSystemOTARequest, sender.sent[0].Msg.Envelope.Type)
+	}
+}
+
+func TestOTAForced(t *testing.T) {
+	h, sender := newTestHandler(t)
+	seedRegistry(h.Registry)
+	srv := newTestServer(t, h)
+	defer srv.Close()
+
+	body := `{
+		"station": "station-01",
+		"firmware_url": "http://192.168.1.10:8080/firmware/v1.0.0.bin",
+		"version": "1.0.0",
+		"sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+		"force": true
+	}`
+	resp, err := http.Post(srv.URL+"/ota", "application/json", bytes.NewBufferString(body))
+	if err != nil {
+		t.Fatalf("POST /ota failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d", resp.StatusCode)
+	}
+
+	// Verify force flag in payload
+	sender.mu.Lock()
+	defer sender.mu.Unlock()
+	if len(sender.sent) != 1 {
+		t.Fatalf("expected 1 sent command, got %d", len(sender.sent))
+	}
+	p, err := protocol.ParseOTARequest(sender.sent[0].Msg)
+	if err != nil {
+		t.Fatalf("ParseOTARequest: %v", err)
+	}
+	if p.Force == nil || *p.Force != true {
+		t.Errorf("expected force=true, got %v", p.Force)
+	}
+}
+
+func TestOTAStationNotFound(t *testing.T) {
+	h, _ := newTestHandler(t)
+	seedRegistry(h.Registry)
+	srv := newTestServer(t, h)
+	defer srv.Close()
+
+	body := `{
+		"station": "nonexistent-station",
+		"firmware_url": "http://192.168.1.10/fw.bin",
+		"version": "1.1.0",
+		"sha256": "a3f2b8c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1"
+	}`
+	resp, err := http.Post(srv.URL+"/ota", "application/json", bytes.NewBufferString(body))
+	if err != nil {
+		t.Fatalf("POST /ota failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", resp.StatusCode)
+	}
+}
+
+func TestOTAMissingStation(t *testing.T) {
+	h, _ := newTestHandler(t)
+	srv := newTestServer(t, h)
+	defer srv.Close()
+
+	body := `{
+		"firmware_url": "http://192.168.1.10/fw.bin",
+		"version": "1.1.0",
+		"sha256": "a3f2b8c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1"
+	}`
+	resp, err := http.Post(srv.URL+"/ota", "application/json", bytes.NewBufferString(body))
+	if err != nil {
+		t.Fatalf("POST /ota failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", resp.StatusCode)
+	}
+}
+
+func TestOTAMissingFirmwareURL(t *testing.T) {
+	h, _ := newTestHandler(t)
+	srv := newTestServer(t, h)
+	defer srv.Close()
+
+	body := `{
+		"station": "station-01",
+		"version": "1.1.0",
+		"sha256": "a3f2b8c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1"
+	}`
+	resp, err := http.Post(srv.URL+"/ota", "application/json", bytes.NewBufferString(body))
+	if err != nil {
+		t.Fatalf("POST /ota failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", resp.StatusCode)
+	}
+}
+
+func TestOTAMissingVersion(t *testing.T) {
+	h, _ := newTestHandler(t)
+	srv := newTestServer(t, h)
+	defer srv.Close()
+
+	body := `{
+		"station": "station-01",
+		"firmware_url": "http://192.168.1.10/fw.bin",
+		"sha256": "a3f2b8c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1"
+	}`
+	resp, err := http.Post(srv.URL+"/ota", "application/json", bytes.NewBufferString(body))
+	if err != nil {
+		t.Fatalf("POST /ota failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", resp.StatusCode)
+	}
+}
+
+func TestOTAMissingSHA256(t *testing.T) {
+	h, _ := newTestHandler(t)
+	srv := newTestServer(t, h)
+	defer srv.Close()
+
+	body := `{
+		"station": "station-01",
+		"firmware_url": "http://192.168.1.10/fw.bin",
+		"version": "1.1.0"
+	}`
+	resp, err := http.Post(srv.URL+"/ota", "application/json", bytes.NewBufferString(body))
+	if err != nil {
+		t.Fatalf("POST /ota failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", resp.StatusCode)
+	}
+}
+
+func TestOTAInvalidBody(t *testing.T) {
+	h, _ := newTestHandler(t)
+	srv := newTestServer(t, h)
+	defer srv.Close()
+
+	resp, err := http.Post(srv.URL+"/ota", "application/json", bytes.NewBufferString("not json"))
+	if err != nil {
+		t.Fatalf("POST /ota failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", resp.StatusCode)
+	}
+}
+
+func TestOTASenderError(t *testing.T) {
+	h, sender := newTestHandler(t)
+	seedRegistry(h.Registry)
+	srv := newTestServer(t, h)
+	defer srv.Close()
+
+	sender.sendFunc = func(ctx context.Context, stream string, msg *protocol.Message) error {
+		return fmt.Errorf("redis connection failed")
+	}
+
+	body := `{
+		"station": "station-01",
+		"firmware_url": "http://192.168.1.10/fw.bin",
+		"version": "1.1.0",
+		"sha256": "a3f2b8c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1"
+	}`
+	resp, err := http.Post(srv.URL+"/ota", "application/json", bytes.NewBufferString(body))
+	if err != nil {
+		t.Fatalf("POST /ota failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", resp.StatusCode)
+	}
+}
+
+func TestOTARedisUnavailable(t *testing.T) {
+	h, _ := newTestHandler(t)
+	seedRegistry(h.Registry)
+	h.RedisHealth = &mockRedisHealth{connected: false}
+	srv := newTestServer(t, h)
+	defer srv.Close()
+
+	body := `{
+		"station": "station-01",
+		"firmware_url": "http://192.168.1.10/fw.bin",
+		"version": "1.1.0",
+		"sha256": "a3f2b8c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1"
+	}`
+	resp, err := http.Post(srv.URL+"/ota", "application/json", bytes.NewBufferString(body))
+	if err != nil {
+		t.Fatalf("POST /ota failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d", resp.StatusCode)
 	}
 }

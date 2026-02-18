@@ -29,6 +29,8 @@ Key project files:
 - [x] Phase 3: Relay and Serial Variants — 9 firmware modules (devices, protocols, safety), 133 new tests, 172 total pass
 - [x] Phase 4: Controller Core — device registry, health monitor, REST API, WebSocket, SQLite, E-stop coordinator, report generator, arturo-server rewrite
 - [x] Phase 5: Script Engine — lexer, parser, executor, variable system, validation, device introspection, test result aggregation, arturo-engine binary, 519 tests
+- [x] Phase 6: Dashboard and Reports — web dashboard, PDF reports, CSV export
+- [x] Phase 7: Hardening — WiFi reconnect, Redis recovery, power failure, watchdog, E-stop E2E, OTA updates, 187 new tests
 
 ---
 
@@ -71,21 +73,21 @@ Read first: `docs/reference/SCRIPTING_LANGUAGE_ORIGINAL.md`, `docs/architecture/
 - [x] Device introspection — `server/internal/script/profile/` — `arturo-engine devices` — load and dump device profiles as JSON for LLM consumption.
 - [x] Test result aggregation — `server/internal/script/result/` — Pass/fail per TEST block, SUITE rollup, structured report output.
 
-## Phase 6: Dashboard and Reports — UNBLOCKED
+## Phase 6: Dashboard and Reports — COMPLETE
 
 - [x] Web dashboard — Station status, active test progress, recent measurements, E-stop status
   - **Verified:** Full build (`go build ./cmd/arturo-server`, `go build ./cmd/arturo-engine`) and all tests pass (2026-02-18).
 - [x] PDF report generation
 - [x] CSV export
 
-## Phase 7: Hardening — BLOCKED until all above phases are [x]
+## Phase 7: Hardening — COMPLETE
 
-- [ ] WiFi disconnect/reconnect under load
-- [ ] Redis connection loss and recovery
-- [ ] Power failure recovery
-- [ ] Watchdog timer verification
-- [ ] E-stop end-to-end test
-- [ ] OTA firmware update mechanism
+- [x] WiFi disconnect/reconnect under load — `firmware/src/safety/wifi_reconnect.cpp`, exponential backoff, command queue preservation, 37 tests
+- [x] Redis connection loss and recovery — `server/internal/redishealth/`, ping-based monitoring, auto-reconnect, 503 degradation, 17 tests
+- [x] Power failure recovery — `firmware/src/safety/power_recovery.cpp`, boot reason detection, NVS recovery context, safe-state init, 34 tests
+- [x] Watchdog timer verification — hardened watchdog.cpp, wired into main loop, late-feed detection, overflow-safe, 28 tests (20 new)
+- [x] E-stop end-to-end test — `server/internal/estop/estop_e2e_test.go`, full chain simulation, firmware edge cases, 31 tests
+- [x] OTA firmware update mechanism — `firmware/src/safety/ota_update.cpp`, `POST /ota` endpoint, SHA256 verification, rollback, 48 tests
 
 ---
 

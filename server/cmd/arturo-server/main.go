@@ -17,6 +17,7 @@ import (
 	"github.com/holla2040/arturo/internal/dashboard"
 	"github.com/holla2040/arturo/internal/estop"
 	"github.com/holla2040/arturo/internal/protocol"
+	"github.com/holla2040/arturo/internal/redishealth"
 	"github.com/holla2040/arturo/internal/registry"
 	"github.com/holla2040/arturo/internal/store"
 	"github.com/redis/go-redis/v9"
@@ -78,14 +79,28 @@ func main() {
 	// Redis command sender
 	sender := &redisCommandSender{rdb: rdb}
 
+	// Redis health monitor
+	redisMon := redishealth.New(rdb,
+		redishealth.WithInterval(5*time.Second),
+		redishealth.WithOnDown(func() {
+			log.Println("Redis connection lost — API commands will return 503")
+			wsHub.BroadcastEvent("redis_health", map[string]string{"status": "disconnected"})
+		}),
+		redishealth.WithOnUp(func() {
+			log.Println("Redis connection restored — API commands available")
+			wsHub.BroadcastEvent("redis_health", map[string]string{"status": "connected"})
+		}),
+	)
+
 	// HTTP handler
 	handler := &api.Handler{
-		Registry:   reg,
-		Store:      db,
-		Estop:      estopCoord,
-		Dispatcher: dispatcher,
-		Sender:     sender,
-		Source:     serverSource,
+		Registry:    reg,
+		Store:       db,
+		Estop:       estopCoord,
+		Dispatcher:  dispatcher,
+		Sender:      sender,
+		Source:      serverSource,
+		RedisHealth: redisMon,
 	}
 
 	mux := http.NewServeMux()
@@ -135,7 +150,14 @@ func main() {
 		wsHub.Run(ctx)
 	}()
 
-	// 6. HTTP server
+	// 6. Redis health monitor
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		redisMon.Run(ctx)
+	}()
+
+	// 7. HTTP server
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -159,57 +181,91 @@ func main() {
 }
 
 // runHeartbeatListener subscribes to heartbeat events and updates the registry.
+// It automatically re-subscribes if the connection drops.
 func runHeartbeatListener(ctx context.Context, rdb *redis.Client, reg *registry.Registry, hub *api.Hub) {
-	sub := rdb.Subscribe(ctx, "events:heartbeat")
-	defer sub.Close()
-
-	ch := sub.Channel()
 	for {
+		if ctx.Err() != nil {
+			return
+		}
+
+		sub := rdb.Subscribe(ctx, "events:heartbeat")
+		ch := sub.Channel()
+
+		func() {
+			defer sub.Close()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case msg, ok := <-ch:
+					if !ok {
+						log.Println("heartbeat: subscription channel closed, reconnecting...")
+						return
+					}
+					parsed, err := protocol.Parse([]byte(msg.Payload))
+					if err != nil {
+						log.Printf("heartbeat: parse error: %v", err)
+						continue
+					}
+					payload, err := protocol.ParseHeartbeat(parsed)
+					if err != nil {
+						log.Printf("heartbeat: payload error: %v", err)
+						continue
+					}
+					reg.UpdateFromHeartbeat(parsed.Envelope.Source.Instance, payload)
+					hub.BroadcastEvent("heartbeat", payload)
+				}
+			}
+		}()
+
+		// Back off before retrying
 		select {
 		case <-ctx.Done():
 			return
-		case msg, ok := <-ch:
-			if !ok {
-				return
-			}
-			parsed, err := protocol.Parse([]byte(msg.Payload))
-			if err != nil {
-				log.Printf("heartbeat: parse error: %v", err)
-				continue
-			}
-			payload, err := protocol.ParseHeartbeat(parsed)
-			if err != nil {
-				log.Printf("heartbeat: payload error: %v", err)
-				continue
-			}
-			reg.UpdateFromHeartbeat(parsed.Envelope.Source.Instance, payload)
-			hub.BroadcastEvent("heartbeat", payload)
+		case <-time.After(2 * time.Second):
 		}
 	}
 }
 
 // runEstopListener subscribes to emergency stop events.
+// It automatically re-subscribes if the connection drops.
 func runEstopListener(ctx context.Context, rdb *redis.Client, coord *estop.Coordinator, hub *api.Hub) {
-	sub := rdb.Subscribe(ctx, "events:emergency_stop")
-	defer sub.Close()
-
-	ch := sub.Channel()
 	for {
+		if ctx.Err() != nil {
+			return
+		}
+
+		sub := rdb.Subscribe(ctx, "events:emergency_stop")
+		ch := sub.Channel()
+
+		func() {
+			defer sub.Close()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case msg, ok := <-ch:
+					if !ok {
+						log.Println("estop: subscription channel closed, reconnecting...")
+						return
+					}
+					parsed, err := protocol.Parse([]byte(msg.Payload))
+					if err != nil {
+						log.Printf("estop: parse error: %v", err)
+						continue
+					}
+					if err := coord.HandleMessage(parsed); err != nil {
+						log.Printf("estop: handle error: %v", err)
+					}
+				}
+			}
+		}()
+
+		// Back off before retrying
 		select {
 		case <-ctx.Done():
 			return
-		case msg, ok := <-ch:
-			if !ok {
-				return
-			}
-			parsed, err := protocol.Parse([]byte(msg.Payload))
-			if err != nil {
-				log.Printf("estop: parse error: %v", err)
-				continue
-			}
-			if err := coord.HandleMessage(parsed); err != nil {
-				log.Printf("estop: handle error: %v", err)
-			}
+		case <-time.After(2 * time.Second):
 		}
 	}
 }

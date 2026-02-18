@@ -155,3 +155,142 @@ func TestBuildCommandRequestRoundTrip(t *testing.T) {
 		t.Errorf("round-trip DeviceID = %q, want %q", p.DeviceID, "fluke-8846a")
 	}
 }
+
+// --- OTA Request Builder Tests ---
+
+func TestBuildOTARequest(t *testing.T) {
+	src := testSource()
+	msg, err := BuildOTARequest(src,
+		"http://192.168.1.10:8080/firmware/v1.1.0.bin",
+		"1.1.0",
+		"a3f2b8c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1",
+		false,
+	)
+	if err != nil {
+		t.Fatalf("BuildOTARequest() error: %v", err)
+	}
+
+	if msg.Envelope.Type != TypeSystemOTARequest {
+		t.Errorf("Type = %q, want %q", msg.Envelope.Type, TypeSystemOTARequest)
+	}
+	if !uuidV4Pattern.MatchString(msg.Envelope.ID) {
+		t.Errorf("ID is not valid UUIDv4: %q", msg.Envelope.ID)
+	}
+	if !uuidV4Pattern.MatchString(msg.Envelope.CorrelationID) {
+		t.Errorf("CorrelationID is not valid UUIDv4: %q", msg.Envelope.CorrelationID)
+	}
+	if msg.Envelope.SchemaVersion != SchemaVersion {
+		t.Errorf("SchemaVersion = %q, want %q", msg.Envelope.SchemaVersion, SchemaVersion)
+	}
+	if !strings.HasPrefix(msg.Envelope.ReplyTo, "responses:") {
+		t.Errorf("ReplyTo should start with 'responses:', got %q", msg.Envelope.ReplyTo)
+	}
+}
+
+func TestBuildOTARequestPayload(t *testing.T) {
+	src := testSource()
+	msg, err := BuildOTARequest(src,
+		"http://192.168.1.10:8080/firmware/v1.1.0.bin",
+		"1.1.0",
+		"a3f2b8c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1",
+		false,
+	)
+	if err != nil {
+		t.Fatalf("BuildOTARequest() error: %v", err)
+	}
+
+	var p OTARequestPayload
+	if err := json.Unmarshal(msg.Payload, &p); err != nil {
+		t.Fatalf("unmarshal payload: %v", err)
+	}
+
+	if p.FirmwareURL != "http://192.168.1.10:8080/firmware/v1.1.0.bin" {
+		t.Errorf("FirmwareURL = %q, want %q", p.FirmwareURL, "http://192.168.1.10:8080/firmware/v1.1.0.bin")
+	}
+	if p.Version != "1.1.0" {
+		t.Errorf("Version = %q, want %q", p.Version, "1.1.0")
+	}
+	if p.SHA256 != "a3f2b8c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1" {
+		t.Errorf("SHA256 = %q, want expected hash", p.SHA256)
+	}
+	if p.Force == nil || *p.Force != false {
+		t.Errorf("Force = %v, want false", p.Force)
+	}
+}
+
+func TestBuildOTARequestForced(t *testing.T) {
+	src := testSource()
+	msg, err := BuildOTARequest(src,
+		"http://example.com/fw.bin",
+		"2.0.0",
+		"0000000000000000000000000000000000000000000000000000000000000000",
+		true,
+	)
+	if err != nil {
+		t.Fatalf("BuildOTARequest() error: %v", err)
+	}
+
+	var p OTARequestPayload
+	if err := json.Unmarshal(msg.Payload, &p); err != nil {
+		t.Fatalf("unmarshal payload: %v", err)
+	}
+
+	if p.Force == nil || *p.Force != true {
+		t.Errorf("Force = %v, want true", p.Force)
+	}
+}
+
+func TestBuildOTARequestRoundTrip(t *testing.T) {
+	src := testSource()
+	msg, err := BuildOTARequest(src,
+		"http://192.168.1.10:8080/firmware/v1.1.0.bin",
+		"1.1.0",
+		"a3f2b8c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1",
+		false,
+	)
+	if err != nil {
+		t.Fatalf("BuildOTARequest() error: %v", err)
+	}
+
+	data, err := json.Marshal(msg)
+	if err != nil {
+		t.Fatalf("json.Marshal() error: %v", err)
+	}
+
+	parsed, err := Parse(data)
+	if err != nil {
+		t.Fatalf("Parse() error: %v", err)
+	}
+
+	if parsed.Envelope.Type != TypeSystemOTARequest {
+		t.Errorf("round-trip Type = %q, want %q", parsed.Envelope.Type, TypeSystemOTARequest)
+	}
+
+	p, err := ParseOTARequest(parsed)
+	if err != nil {
+		t.Fatalf("ParseOTARequest() error: %v", err)
+	}
+	if p.FirmwareURL != "http://192.168.1.10:8080/firmware/v1.1.0.bin" {
+		t.Errorf("round-trip FirmwareURL = %q", p.FirmwareURL)
+	}
+	if p.Version != "1.1.0" {
+		t.Errorf("round-trip Version = %q", p.Version)
+	}
+}
+
+func TestBuildOTARequestValidates(t *testing.T) {
+	src := testSource()
+	msg, err := BuildOTARequest(src,
+		"http://192.168.1.10:8080/firmware/v1.1.0.bin",
+		"1.1.0",
+		"a3f2b8c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1",
+		false,
+	)
+	if err != nil {
+		t.Fatalf("BuildOTARequest() error: %v", err)
+	}
+
+	if err := Validate(msg); err != nil {
+		t.Errorf("Validate() error on BuildOTARequest message: %v", err)
+	}
+}

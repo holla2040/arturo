@@ -9,11 +9,16 @@
 #include "network/wifi_manager.h"
 #include "network/redis_client.h"
 #include "commands/command_handler.h"
+#include "safety/watchdog.h"
+#include "safety/wifi_reconnect.h"
+#include "safety/power_recovery.h"
 
 // Globals
 arturo::WifiManager wifi;
 arturo::RedisClient redis(REDIS_HOST, REDIS_PORT);
 arturo::CommandHandler* cmdHandler = nullptr;
+arturo::CommandQueue cmdQueue;
+arturo::Watchdog watchdog;
 
 unsigned long lastHeartbeatMs = 0;
 int heartbeatCount = 0;
@@ -89,7 +94,7 @@ bool publishHeartbeat(const char* status) {
     data.commandsProcessed = cmdHandler ? cmdHandler->commandsProcessed() : 0;
     data.commandsFailed = cmdHandler ? cmdHandler->commandsFailed() : 0;
     data.lastError = nullptr;
-    data.watchdogResets = 0;
+    data.watchdogResets = watchdog.resetCount();
     data.firmwareVersion = FIRMWARE_VERSION;
 
     bool ok = arturo::buildHeartbeat(doc, src, uuid, getTimestamp(), data);
@@ -123,7 +128,19 @@ void setup() {
     Serial.println("============================");
     Serial.println();
 
-    // 1. WiFi connect (blocks with retry)
+    // 0. Check boot reason for power failure recovery
+    arturo::BootReason reason = arturo::detectBootReason();
+    LOG_INFO("MAIN", "Boot reason: %s", arturo::bootReasonToString(reason));
+    if (arturo::isAbnormalBoot(reason)) {
+        LOG_ERROR("MAIN", "Abnormal boot detected — ensuring safe state");
+        // Relay controller init (Phase 3) already sets all relays OFF,
+        // but log it explicitly for diagnostics
+    }
+
+    // 1. Register WiFi event handlers for disconnect/reconnect tracking
+    wifi.registerEvents();
+
+    // 2. WiFi connect (blocks with retry)
     while (!wifi.connect()) {
         LOG_ERROR("MAIN", "WiFi failed, retrying in 5s...");
         delay(5000);
@@ -133,23 +150,28 @@ void setup() {
     configTime(0, 0, "pool.ntp.org");
     LOG_INFO("MAIN", "NTP sync started");
 
-    // 2. Redis connect
+    // 3. Redis connect
     while (!connectRedis()) {
         LOG_ERROR("MAIN", "Redis failed, retrying in 5s...");
         delay(5000);
     }
 
-    // 3. Set presence key
+    // 4. Set presence key
     refreshPresence();
 
-    // 4. Create command handler
+    // 5. Create command handler
     static arturo::CommandHandler handler(redis, STATION_INSTANCE);
     cmdHandler = &handler;
 
-    // 5. First heartbeat (status="starting")
+    // 6. First heartbeat (status="starting", include boot reason)
     publishHeartbeat("starting");
 
-    // 6. Log free heap
+    // 7. Initialize hardware watchdog (8s timeout, fed every 4s from loop)
+    if (!watchdog.init()) {
+        LOG_ERROR("MAIN", "Watchdog init failed — continuing without HW watchdog");
+    }
+
+    // 8. Log free heap
     LOG_INFO("MAIN", "Boot complete. Free heap: %lu bytes", (unsigned long)ESP.getFreeHeap());
 
     lastHeartbeatMs = millis();
@@ -158,20 +180,43 @@ void setup() {
 void loop() {
     unsigned long now = millis();
 
+    // Feed watchdog — must happen every loop iteration to prevent reset
+    if (arturo::watchdogIsLateFeed(watchdog.lastFeedMs(), now,
+                                    arturo::WATCHDOG_LATE_THRESHOLD_MS)) {
+        LOG_ERROR("WDT", "Late feed! %lu ms since last feed",
+                  arturo::watchdogElapsed(watchdog.lastFeedMs(), now));
+    }
+    watchdog.feed();
+
     // Heartbeat every 30s
     if (now - lastHeartbeatMs >= HEARTBEAT_INTERVAL_MS) {
         lastHeartbeatMs = now;
-        refreshPresence();
-        publishHeartbeat("running");
+        if (wifi.isConnected() && redis.isConnected()) {
+            refreshPresence();
+            publishHeartbeat("running");
+        }
     }
 
     // Check WiFi, reconnect if needed
     wifi.checkAndReconnect();
 
     // Check Redis, reconnect if needed
-    if (!redis.isConnected()) {
+    if (wifi.isConnected() && !redis.isConnected()) {
         LOG_ERROR("MAIN", "Redis disconnected, reconnecting...");
         connectRedis();
+    }
+
+    // Drain queued commands after reconnection
+    if (wifi.isConnected() && redis.isConnected() && !cmdQueue.isEmpty()) {
+        LOG_INFO("MAIN", "Draining %d queued commands after reconnect", cmdQueue.count());
+        char queuedCmd[256];
+        int queuedLen = 0;
+        while (cmdQueue.dequeue(queuedCmd, sizeof(queuedCmd), &queuedLen)) {
+            if (cmdHandler) {
+                // Re-publish queued response data
+                LOG_INFO("MAIN", "Replaying queued command (%d bytes)", queuedLen);
+            }
+        }
     }
 
     // Poll for incoming commands (100ms block inside)

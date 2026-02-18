@@ -8,11 +8,20 @@
 
 namespace arturo {
 
+unsigned long watchdogElapsed(unsigned long startMs, unsigned long nowMs) {
+    // Unsigned subtraction handles millis() overflow correctly:
+    // e.g., if startMs=0xFFFFFFF0 and nowMs=0x00000010, result is 0x20 (32ms)
+    return nowMs - startMs;
+}
+
 bool watchdogFeedDue(unsigned long lastFeedMs, unsigned long nowMs,
                      unsigned long intervalMs) {
-    // Handle millis() overflow
-    unsigned long elapsed = nowMs - lastFeedMs;
-    return elapsed >= intervalMs;
+    return watchdogElapsed(lastFeedMs, nowMs) >= intervalMs;
+}
+
+bool watchdogIsLateFeed(unsigned long lastFeedMs, unsigned long nowMs,
+                        unsigned long lateThresholdMs) {
+    return watchdogElapsed(lastFeedMs, nowMs) >= lateThresholdMs;
 }
 
 #ifdef ARDUINO

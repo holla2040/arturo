@@ -17,6 +17,9 @@ firmware/.vscode/
 *.swo
 *~
 
+# Python
+__pycache__/
+
 # OS
 .DS_Store
 Thumbs.db

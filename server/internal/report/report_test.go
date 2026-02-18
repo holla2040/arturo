@@ -2,13 +2,54 @@ package report
 
 import (
 	"bytes"
+	"compress/zlib"
 	"encoding/csv"
 	"encoding/json"
+	"io"
 	"strings"
 	"testing"
 
 	"github.com/holla2040/arturo/internal/store"
 )
+
+// extractPDFText decompresses all zlib-compressed streams in raw PDF bytes
+// and returns the concatenated decompressed content for text searching.
+func extractPDFText(data []byte) []byte {
+	var result []byte
+	streamTag := []byte("stream\n")
+	endTag := []byte("\nendstream")
+	for {
+		start := bytes.Index(data, streamTag)
+		if start == -1 {
+			break
+		}
+		data = data[start+len(streamTag):]
+		end := bytes.Index(data, endTag)
+		if end == -1 {
+			break
+		}
+		compressed := bytes.TrimRight(data[:end], "\r\n ")
+		r, err := zlib.NewReader(bytes.NewReader(compressed))
+		if err == nil {
+			decompressed, err := io.ReadAll(r)
+			r.Close()
+			if err == nil {
+				result = append(result, decompressed...)
+			}
+		}
+		data = data[end+len(endTag):]
+	}
+	return result
+}
+
+// seedFinishedTestData creates a test run and marks it finished with measurements.
+func seedFinishedTestData(t *testing.T, s *store.Store) {
+	t.Helper()
+	seedTestData(t, s)
+	if err := s.FinishTestRun("run-1", "passed", "All tests passed"); err != nil {
+		t.Fatalf("failed to finish test run: %v", err)
+	}
+}
 
 func newTestStore(t *testing.T) *store.Store {
 	t.Helper()
@@ -220,5 +261,126 @@ func TestExportJSON_SuccessValues(t *testing.T) {
 	}
 	if records[1].Success != false {
 		t.Errorf("record 1 success: got %v, want false", records[1].Success)
+	}
+}
+
+func TestExportPDF_NoMeasurements(t *testing.T) {
+	s := newTestStore(t)
+	if err := s.CreateTestRun("run-empty", "empty.art"); err != nil {
+		t.Fatalf("failed to create test run: %v", err)
+	}
+
+	var buf bytes.Buffer
+	if err := ExportPDF(&buf, s, "run-empty"); err != nil {
+		t.Fatalf("ExportPDF returned error: %v", err)
+	}
+
+	data := buf.Bytes()
+	if len(data) < 5 || string(data[:5]) != "%PDF-" {
+		t.Fatalf("output does not start with PDF header, got %q", string(data[:min(20, len(data))]))
+	}
+}
+
+func TestExportPDF_WithMeasurements(t *testing.T) {
+	s := newTestStore(t)
+	seedFinishedTestData(t, s)
+
+	var buf bytes.Buffer
+	if err := ExportPDF(&buf, s, "run-1"); err != nil {
+		t.Fatalf("ExportPDF returned error: %v", err)
+	}
+
+	data := buf.Bytes()
+	if len(data) < 5 || string(data[:5]) != "%PDF-" {
+		t.Fatalf("output does not start with PDF header, got %q", string(data[:min(20, len(data))]))
+	}
+	if len(data) < 100 {
+		t.Errorf("PDF output seems too small: %d bytes", len(data))
+	}
+}
+
+func TestExportPDF_ContainsTestRunID(t *testing.T) {
+	s := newTestStore(t)
+	seedFinishedTestData(t, s)
+
+	var buf bytes.Buffer
+	if err := ExportPDF(&buf, s, "run-1"); err != nil {
+		t.Fatalf("ExportPDF returned error: %v", err)
+	}
+
+	text := extractPDFText(buf.Bytes())
+	if !bytes.Contains(text, []byte("run-1")) {
+		t.Error("PDF does not contain test run ID 'run-1'")
+	}
+}
+
+func TestExportPDF_ContainsDeviceIDs(t *testing.T) {
+	s := newTestStore(t)
+	seedFinishedTestData(t, s)
+
+	var buf bytes.Buffer
+	if err := ExportPDF(&buf, s, "run-1"); err != nil {
+		t.Fatalf("ExportPDF returned error: %v", err)
+	}
+
+	text := extractPDFText(buf.Bytes())
+	if !bytes.Contains(text, []byte("fluke-8846a")) {
+		t.Error("PDF does not contain device ID 'fluke-8846a'")
+	}
+	if !bytes.Contains(text, []byte("relay-board-01")) {
+		t.Error("PDF does not contain device ID 'relay-board-01'")
+	}
+}
+
+func TestExportPDF_ContainsPassFail(t *testing.T) {
+	s := newTestStore(t)
+	seedFinishedTestData(t, s)
+
+	var buf bytes.Buffer
+	if err := ExportPDF(&buf, s, "run-1"); err != nil {
+		t.Fatalf("ExportPDF returned error: %v", err)
+	}
+
+	text := extractPDFText(buf.Bytes())
+	if !bytes.Contains(text, []byte("[PASS]")) {
+		t.Error("PDF does not contain '[PASS]'")
+	}
+	if !bytes.Contains(text, []byte("[FAIL]")) {
+		t.Error("PDF does not contain '[FAIL]'")
+	}
+}
+
+func TestExportPDF_NonexistentTestRun(t *testing.T) {
+	s := newTestStore(t)
+
+	var buf bytes.Buffer
+	err := ExportPDF(&buf, s, "no-such-run")
+	if err == nil {
+		t.Fatal("expected error for nonexistent test run, got nil")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("expected 'not found' in error, got: %v", err)
+	}
+}
+
+func TestExportPDF_SizeLargerWithData(t *testing.T) {
+	s := newTestStore(t)
+	if err := s.CreateTestRun("run-empty", "empty.art"); err != nil {
+		t.Fatalf("failed to create test run: %v", err)
+	}
+	seedFinishedTestData(t, s)
+
+	var emptyBuf bytes.Buffer
+	if err := ExportPDF(&emptyBuf, s, "run-empty"); err != nil {
+		t.Fatalf("ExportPDF (empty) returned error: %v", err)
+	}
+
+	var dataBuf bytes.Buffer
+	if err := ExportPDF(&dataBuf, s, "run-1"); err != nil {
+		t.Fatalf("ExportPDF (data) returned error: %v", err)
+	}
+
+	if dataBuf.Len() <= emptyBuf.Len() {
+		t.Errorf("PDF with data (%d bytes) should be larger than empty PDF (%d bytes)", dataBuf.Len(), emptyBuf.Len())
 	}
 }

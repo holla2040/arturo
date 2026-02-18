@@ -53,6 +53,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /test-runs", h.listTestRuns)
 	mux.HandleFunc("GET /reports/{id}/csv", h.exportCSV)
 	mux.HandleFunc("GET /reports/{id}/json", h.exportJSON)
+	mux.HandleFunc("GET /reports/{id}/pdf", h.exportPDF)
 }
 
 func (h *Handler) listDevices(w http.ResponseWriter, r *http.Request) {
@@ -173,6 +174,15 @@ func (h *Handler) exportJSON(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	w.Header().Set("Content-Type", "application/json")
 	if err := report.ExportJSON(w, h.Store, id); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (h *Handler) exportPDF(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s.pdf", id))
+	if err := report.ExportPDF(w, h.Store, id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }

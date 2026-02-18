@@ -3,6 +3,7 @@ module github.com/holla2040/arturo
 go 1.24.0
 
 require (
+	github.com/go-pdf/fpdf v0.9.0
 	github.com/google/uuid v1.6.0
 	github.com/redis/go-redis/v9 v9.18.0
 	gopkg.in/yaml.v3 v3.0.1

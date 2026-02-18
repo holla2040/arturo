@@ -28,6 +28,7 @@ Key project files:
 - [x] Phase 2: Command Round-Trip — SCPI client, Redis streams, CLI sender, 39 Go tests pass
 - [x] Phase 3: Relay and Serial Variants — 9 firmware modules (devices, protocols, safety), 133 new tests, 172 total pass
 - [x] Phase 4: Controller Core — device registry, health monitor, REST API, WebSocket, SQLite, E-stop coordinator, report generator, arturo-server rewrite
+- [x] Phase 5: Script Engine — lexer, parser, executor, variable system, validation, device introspection, test result aggregation, arturo-engine binary, 519 tests
 
 ---
 
@@ -58,19 +59,19 @@ Read first: `server/cmd/arturo-server/main.go` (current stub), `server/internal/
 - [x] Report generator — `server/internal/report/` — CSV/JSON export of test results from SQLite. 8 tests.
 - [x] arturo-server main.go rewrite — HTTP server mode (default) + legacy `send` subcommand. Heartbeat/estop/response listeners, health check ticker, graceful shutdown.
 
-## Phase 5: Script Engine (server/, Go) — UNBLOCKED
+## Phase 5: Script Engine (server/, Go) — COMPLETE
 
 Read first: `docs/reference/SCRIPTING_LANGUAGE_ORIGINAL.md`, `docs/architecture/MIGRATION_PLAN.md` sections 2.6, 2.8, 5.3
 
-- [ ] Lexer — Tokenize .art source files. Port token types from arturo-go-archive `src/domains/automation/19_script_parser/token.go`
-- [ ] Parser — Recursive descent parser producing AST. Port grammar from arturo-go-archive `src/domains/automation/19_script_parser/parser.go`
-- [ ] Executor — Walk AST, route device commands through Redis Streams (not direct calls). See MIGRATION_PLAN.md section 5.3.
-- [ ] Variable system — Scoped variables, constants, loop counters.
-- [ ] Validate mode — `arturo-engine validate <script.art>` — parse-only, structured JSON errors (line/col/message). See MIGRATION_PLAN.md section 2.8.
-- [ ] Device introspection — `arturo-engine devices` — dump profiles as JSON for LLM consumption.
-- [ ] Test result aggregation — Pass/fail per TEST block, SUITE rollup, structured report output.
+- [x] Lexer — `server/internal/script/lexer/` — Tokenize .art source files. 28 token types including keywords, operators, literals.
+- [x] Parser — `server/internal/script/parser/` — Recursive descent parser producing AST. Handles SUITE/TEST/STEP blocks, control flow, expressions.
+- [x] Executor — `server/internal/script/executor/` — Walk AST, route device commands through Redis Streams (not direct calls). Built-in functions (DELAY, MEASURE, PRINT, ASSERT, FAIL).
+- [x] Variable system — `server/internal/script/variable/` — Scoped variables, constants, loop counters. Type system with int, float, string, bool, array, map.
+- [x] Validate mode — `server/internal/script/validate/` — `arturo-engine validate <script.art>` — parse-only, structured JSON errors (line/col/message).
+- [x] Device introspection — `server/internal/script/profile/` — `arturo-engine devices` — load and dump device profiles as JSON for LLM consumption.
+- [x] Test result aggregation — `server/internal/script/result/` — Pass/fail per TEST block, SUITE rollup, structured report output.
 
-## Phase 6: Dashboard and Reports — BLOCKED until Phase 4 REST API and Phase 5 are [x]
+## Phase 6: Dashboard and Reports — UNBLOCKED
 
 - [ ] Web dashboard — Station status, active test progress, recent measurements, E-stop status
 - [ ] PDF report generation

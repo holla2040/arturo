@@ -75,8 +75,8 @@ Read first: `docs/reference/SCRIPTING_LANGUAGE_ORIGINAL.md`, `docs/architecture/
 
 - [x] Web dashboard — Station status, active test progress, recent measurements, E-stop status
   - **Verified:** Full build (`go build ./cmd/arturo-server`, `go build ./cmd/arturo-engine`) and all tests pass (2026-02-18).
-- [ ] PDF report generation
-- [ ] CSV export
+- [x] PDF report generation
+- [x] CSV export
 
 ## Phase 7: Hardening — BLOCKED until all above phases are [x]
 

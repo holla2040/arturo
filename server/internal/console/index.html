@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>arturo-console</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #1a1a2e;
+  color: #e0e0e0;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  height: 100vh;
+  overflow: hidden;
+}
+.layout {
+  display: flex;
+  height: 100vh;
+}
+.panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.panel-left {
+  width: 420px;
+  min-width: 420px;
+  border-right: 1px solid #333;
+  overflow-y: auto;
+}
+.panel-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.panel-header {
+  background: #16213e;
+  padding: 8px 12px;
+  font-weight: bold;
+  font-size: 14px;
+  border-bottom: 1px solid #333;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.panel-header .title { color: #00d4ff; }
+
+/* Station cards */
+.station-card {
+  background: #16213e;
+  border: 1px solid #333;
+  border-radius: 4px;
+  margin: 8px;
+  padding: 10px;
+}
+.station-card h3 {
+  color: #00d4ff;
+  font-size: 13px;
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.station-card .state-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-weight: bold;
+}
+.state-off { background: #444; color: #aaa; }
+.state-cooling { background: #0a3d62; color: #4fc3f7; }
+.state-cold { background: #1b5e20; color: #81c784; }
+.state-regen { background: #b71c1c; color: #ef9a9a; }
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 12px;
+  margin: 6px 0;
+  font-size: 12px;
+}
+.stats-grid .label { color: #888; }
+.stats-grid .value { color: #e0e0e0; text-align: right; }
+
+.btn-row {
+  display: flex;
+  gap: 4px;
+  margin: 6px 0;
+  flex-wrap: wrap;
+}
+.btn {
+  background: #2a2a4a;
+  color: #e0e0e0;
+  border: 1px solid #555;
+  padding: 4px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+}
+.btn:hover { background: #3a3a5a; border-color: #777; }
+.btn-on { border-color: #4fc3f7; color: #4fc3f7; }
+.btn-off { border-color: #ef5350; color: #ef5350; }
+.btn-regen { border-color: #ffa726; color: #ffa726; }
+
+.override-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin: 3px 0;
+  font-size: 11px;
+}
+.override-row label { color: #888; width: 80px; flex-shrink: 0; }
+.override-row input[type="number"] {
+  background: #1a1a2e;
+  color: #e0e0e0;
+  border: 1px solid #555;
+  padding: 2px 4px;
+  width: 70px;
+  font-family: inherit;
+  font-size: 11px;
+  border-radius: 2px;
+}
+.override-row input[type="range"] { flex: 1; }
+.override-row .range-val { width: 36px; text-align: right; color: #aaa; }
+
+/* Monitor panel */
+.filter-bar {
+  background: #16213e;
+  padding: 6px 12px;
+  border-bottom: 1px solid #333;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.filter-bar label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  user-select: none;
+}
+.filter-bar input[type="checkbox"] { accent-color: #00d4ff; }
+.filter-bar input[type="text"] {
+  background: #1a1a2e;
+  color: #e0e0e0;
+  border: 1px solid #555;
+  padding: 2px 6px;
+  font-family: inherit;
+  font-size: 12px;
+  border-radius: 2px;
+  width: 120px;
+}
+.filter-sep { color: #444; }
+
+#monitor-log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.log-entry {
+  white-space: pre;
+  padding: 1px 0;
+}
+.cat-command { color: #e0e0e0; }
+.cat-response-ok { color: #81c784; }
+.cat-response-fail { color: #ef5350; }
+.cat-heartbeat { color: #4fc3f7; }
+.cat-estop { color: #ef5350; font-weight: bold; }
+.cat-presence { color: #ffa726; }
+
+.monitor-footer {
+  background: #16213e;
+  padding: 4px 12px;
+  border-top: 1px solid #333;
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #888;
+  flex-shrink: 0;
+}
+.ws-status { display: flex; align-items: center; gap: 4px; }
+.ws-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #ef5350;
+}
+.ws-dot.connected { background: #81c784; }
+</style>
+</head>
+<body>
+<div class="layout">
+  <!-- Left: Station Control -->
+  <div class="panel panel-left">
+    <div class="panel-header">
+      <span class="title">STATIONS</span>
+    </div>
+    <div id="stations-container"></div>
+  </div>
+
+  <!-- Right: Redis Monitor -->
+  <div class="panel panel-right">
+    <div class="panel-header">
+      <span class="title">MONITOR</span>
+    </div>
+    <div class="filter-bar">
+      <label><input type="checkbox" id="f-command" checked> Commands</label>
+      <label><input type="checkbox" id="f-response" checked> Responses</label>
+      <label><input type="checkbox" id="f-heartbeat" checked> Heartbeats</label>
+      <label><input type="checkbox" id="f-estop" checked> E-Stop</label>
+      <label><input type="checkbox" id="f-presence" checked> Presence</label>
+      <span class="filter-sep">|</span>
+      <input type="text" id="f-station" placeholder="station filter">
+      <label style="margin-left:auto"><input type="checkbox" id="f-autoscroll" checked> Auto-scroll</label>
+    </div>
+    <div id="monitor-log"></div>
+    <div class="monitor-footer">
+      <div class="ws-status">
+        <div class="ws-dot" id="ws-dot"></div>
+        <span id="ws-label">disconnected</span>
+      </div>
+      <div><span id="msg-count">0</span> / 200 messages</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Station Control ──
+const stationsContainer = document.getElementById('stations-container');
+
+function renderStations(stations) {
+  stationsContainer.innerHTML = stations.map(s => {
+    const p = s.pump;
+    const stateClass = 'state-' + p.state_name;
+    return `
+    <div class="station-card" data-instance="${s.instance}">
+      <h3>
+        ${s.instance} <span class="device-id" style="color:#888;font-weight:normal">${s.device_id}</span>
+        <span class="state-badge ${stateClass}">${p.state_name.toUpperCase()}</span>
+      </h3>
+      <div class="stats-grid">
+        <span class="label">1st Stage</span><span class="value">${p.first_stage_k.toFixed(1)} K</span>
+        <span class="label">2nd Stage</span><span class="value">${p.second_stage_k.toFixed(1)} K</span>
+        <span class="label">Pressure</span><span class="value">${p.pressure_atm.toExponential(2)} atm</span>
+        <span class="label">Op Hours</span><span class="value">${p.operating_hours.toFixed(1)} h</span>
+        <span class="label">Regen Step</span><span class="value">${p.regen_step}</span>
+        <span class="label">Fail Rate</span><span class="value">${(p.fail_rate * 100).toFixed(0)}%</span>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-on" onclick="stationAction('${s.instance}','pump-on')">Pump On</button>
+        <button class="btn btn-off" onclick="stationAction('${s.instance}','pump-off')">Pump Off</button>
+        <button class="btn btn-regen" onclick="stationAction('${s.instance}','start-regen')">Start Regen</button>
+        <button class="btn btn-off" onclick="stationAction('${s.instance}','abort-regen')">Abort Regen</button>
+      </div>
+      <div class="override-row">
+        <label>1st Stage K</label>
+        <input type="number" id="t1-${s.instance}" value="${p.first_stage_k.toFixed(0)}" min="4" max="300" step="1">
+        <label>2nd Stage K</label>
+        <input type="number" id="t2-${s.instance}" value="${p.second_stage_k.toFixed(0)}" min="4" max="300" step="1">
+        <button class="btn" onclick="setTemps('${s.instance}')">Set</button>
+      </div>
+      <div class="override-row">
+        <label>Cooldown h</label>
+        <input type="number" id="cd-${s.instance}" value="${p.cooldown_hours}" min="0.5" max="24" step="0.5">
+        <button class="btn" onclick="setCooldown('${s.instance}')">Set</button>
+      </div>
+      <div class="override-row">
+        <label>Fail Rate</label>
+        <input type="range" id="fr-${s.instance}" min="0" max="100" value="${(p.fail_rate*100).toFixed(0)}" oninput="document.getElementById('frv-${s.instance}').textContent=this.value+'%'">
+        <span class="range-val" id="frv-${s.instance}">${(p.fail_rate*100).toFixed(0)}%</span>
+        <button class="btn" onclick="setFailRate('${s.instance}')">Set</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function stationAction(instance, action) {
+  await fetch('/api/stations/' + instance + '/' + action, { method: 'POST' });
+}
+
+async function setTemps(instance) {
+  const first = parseFloat(document.getElementById('t1-' + instance).value);
+  const second = parseFloat(document.getElementById('t2-' + instance).value);
+  await fetch('/api/stations/' + instance + '/temperatures', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ first_stage_k: first, second_stage_k: second })
+  });
+}
+
+async function setCooldown(instance) {
+  const hours = parseFloat(document.getElementById('cd-' + instance).value);
+  await fetch('/api/stations/' + instance + '/cooldown-hours', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hours: hours })
+  });
+}
+
+async function setFailRate(instance) {
+  const rate = parseFloat(document.getElementById('fr-' + instance).value) / 100;
+  await fetch('/api/stations/' + instance + '/fail-rate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rate: rate })
+  });
+}
+
+// Poll stations every 1s
+async function pollStations() {
+  try {
+    const resp = await fetch('/api/stations');
+    if (resp.ok) renderStations(await resp.json());
+  } catch (e) {}
+}
+setInterval(pollStations, 1000);
+pollStations();
+
+// ── Monitor ──
+const MAX_MESSAGES = 200;
+const messageBuffer = [];  // all messages, up to MAX_MESSAGES
+const logEl = document.getElementById('monitor-log');
+const msgCountEl = document.getElementById('msg-count');
+const wsDot = document.getElementById('ws-dot');
+const wsLabel = document.getElementById('ws-label');
+
+// Filter elements
+const filters = {
+  command:   document.getElementById('f-command'),
+  response:  document.getElementById('f-response'),
+  heartbeat: document.getElementById('f-heartbeat'),
+  estop:     document.getElementById('f-estop'),
+  presence:  document.getElementById('f-presence'),
+};
+const stationFilter = document.getElementById('f-station');
+const autoScroll = document.getElementById('f-autoscroll');
+
+// Re-render entire log from buffer when filters change
+function rerenderLog() {
+  const frag = document.createDocumentFragment();
+  for (const msg of messageBuffer) {
+    if (passesFilter(msg)) {
+      frag.appendChild(buildLogEntry(msg));
+    }
+  }
+  logEl.innerHTML = '';
+  logEl.appendChild(frag);
+  msgCountEl.textContent = messageBuffer.length;
+  if (autoScroll.checked) {
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+}
+
+function passesFilter(msg) {
+  // Category checkbox filter
+  if (!filters[msg.category] || !filters[msg.category].checked) return false;
+  // Station text filter
+  const sf = stationFilter.value.trim().toLowerCase();
+  if (sf && msg.instance.toLowerCase().indexOf(sf) === -1) return false;
+  return true;
+}
+
+function cssClass(msg) {
+  if (msg.category === 'command') return 'cat-command';
+  if (msg.category === 'response') {
+    // Check if success or fail from summary
+    if (msg.summary.indexOf('success=true') !== -1) return 'cat-response-ok';
+    return 'cat-response-fail';
+  }
+  if (msg.category === 'heartbeat') return 'cat-heartbeat';
+  if (msg.category === 'estop') return 'cat-estop';
+  if (msg.category === 'presence') return 'cat-presence';
+  return '';
+}
+
+function buildLogEntry(msg) {
+  const el = document.createElement('div');
+  el.className = 'log-entry ' + cssClass(msg);
+  el.textContent = msg.timestamp + '  ' + msg.direction + '  [' + padRight(msg.category, 9) + ']  ' + padRight(msg.instance, 12) + '  ' + msg.summary;
+  return el;
+}
+
+function padRight(s, n) {
+  while (s.length < n) s += ' ';
+  return s;
+}
+
+// When a filter changes, re-render from buffer
+Object.values(filters).forEach(cb => cb.addEventListener('change', rerenderLog));
+stationFilter.addEventListener('input', rerenderLog);
+
+// Add new message to buffer and append to DOM if it passes filter
+function addMessage(msg) {
+  messageBuffer.push(msg);
+  // Trim buffer
+  while (messageBuffer.length > MAX_MESSAGES) {
+    messageBuffer.shift();
+  }
+
+  if (passesFilter(msg)) {
+    logEl.appendChild(buildLogEntry(msg));
+    // Prune visible DOM to avoid unbounded growth if many pass filter
+    while (logEl.children.length > MAX_MESSAGES) {
+      logEl.removeChild(logEl.firstChild);
+    }
+    if (autoScroll.checked) {
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+  }
+  msgCountEl.textContent = messageBuffer.length;
+}
+
+// ── WebSocket ──
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const ws = new WebSocket(proto + '//' + location.host + '/ws');
+
+  ws.onopen = () => {
+    wsDot.classList.add('connected');
+    wsLabel.textContent = 'connected';
+  };
+
+  ws.onclose = () => {
+    wsDot.classList.remove('connected');
+    wsLabel.textContent = 'disconnected';
+    setTimeout(connectWS, 2000);
+  };
+
+  ws.onerror = () => ws.close();
+
+  ws.onmessage = (evt) => {
+    try {
+      const msg = JSON.parse(evt.data);
+      addMessage(msg);
+    } catch (e) {}
+  };
+}
+connectWS();
+</script>
+</body>
+</html>

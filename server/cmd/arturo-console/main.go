@@ -6,12 +6,14 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
 
+	"github.com/holla2040/arturo/internal/console"
 	"github.com/holla2040/arturo/internal/mockpump"
 	"github.com/holla2040/arturo/internal/protocol"
 	"github.com/redis/go-redis/v9"
@@ -23,9 +25,10 @@ func main() {
 	redisAddr := flag.String("redis", "localhost:6379", "Redis address")
 	instance := flag.String("instance", "station-01", "Base station instance ID")
 	deviceID := flag.String("device-id", "PUMP-01", "Base device ID")
-	stations := flag.Int("stations", 1, "Number of mock stations to spawn")
+	stations := flag.Int("stations", 4, "Number of mock stations to spawn (1-4)")
 	failRate := flag.Float64("fail-rate", 0.0, "Probability of random command failure (0.0-1.0)")
 	cooldownHours := flag.Float64("cooldown-hours", 4.0, "Simulated hours to reach base temperature")
+	httpAddr := flag.String("http", ":8081", "HTTP address for web UI")
 	flag.Parse()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -40,7 +43,9 @@ func main() {
 	}
 	log.Printf("Connected to Redis at %s", *redisAddr)
 
+	// Create mock stations
 	var wg sync.WaitGroup
+	stationInfos := make([]*console.StationInfo, 0, *stations)
 
 	for i := 0; i < *stations; i++ {
 		inst := *instance
@@ -58,6 +63,12 @@ func main() {
 			pump:     pump,
 		}
 
+		stationInfos = append(stationInfos, &console.StationInfo{
+			Instance: inst,
+			DeviceID: dev,
+			Pump:     pump,
+		})
+
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -67,11 +78,31 @@ func main() {
 		log.Printf("Started mock station %s with device %s", inst, dev)
 	}
 
+	// Build console handler
+	handler, runMonitor := console.Handler(stationInfos, rdb)
+	runMonitor(ctx)
+
+	// Start HTTP server
+	srv := &http.Server{Addr: *httpAddr, Handler: handler}
+	go func() {
+		log.Printf("Web UI at http://localhost%s", *httpAddr)
+		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+			log.Fatalf("HTTP server error: %v", err)
+		}
+	}()
+
 	<-ctx.Done()
 	log.Println("Shutting down...")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	srv.Shutdown(shutdownCtx)
+
 	wg.Wait()
 	log.Println("All mock stations stopped")
 }
+
+// ── Mock Station (moved from arturo-mock-station) ──
 
 type mockStation struct {
 	rdb      *redis.Client
@@ -86,21 +117,18 @@ func (s *mockStation) run(ctx context.Context) {
 
 	var wg sync.WaitGroup
 
-	// Heartbeat goroutine
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		s.heartbeatLoop(ctx)
 	}()
 
-	// Presence key goroutine
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		s.presenceLoop(ctx)
 	}()
 
-	// Command listener goroutine
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -119,7 +147,6 @@ func (s *mockStation) source() protocol.Source {
 }
 
 func (s *mockStation) heartbeatLoop(ctx context.Context) {
-	// Send initial heartbeat immediately
 	s.sendHeartbeat(ctx)
 
 	ticker := time.NewTicker(30 * time.Second)
@@ -144,7 +171,7 @@ func (s *mockStation) sendHeartbeat(ctx context.Context) {
 		Status:            "online",
 		UptimeSeconds:     uptime,
 		Devices:           []string{s.deviceID},
-		FreeHeap:          245760, // Simulated 240KB free
+		FreeHeap:          245760,
 		WifiRSSI:          -55,
 		CommandsProcessed: &cmdProcessed,
 		CommandsFailed:    &cmdFailed,
@@ -173,8 +200,6 @@ func (s *mockStation) sendHeartbeat(ctx context.Context) {
 
 func (s *mockStation) presenceLoop(ctx context.Context) {
 	key := "device:" + s.instance + ":alive"
-
-	// Set immediately
 	s.rdb.Set(ctx, key, "1", 90*time.Second)
 
 	ticker := time.NewTicker(30 * time.Second)
@@ -192,7 +217,7 @@ func (s *mockStation) presenceLoop(ctx context.Context) {
 
 func (s *mockStation) commandLoop(ctx context.Context) {
 	stream := "commands:" + s.instance
-	lastID := "$" // Only new messages
+	lastID := "$"
 
 	for {
 		select {
@@ -247,7 +272,6 @@ func (s *mockStation) handleCommand(ctx context.Context, msgJSON string) {
 
 	start := time.Now()
 
-	// Check device ID matches
 	if cmdPayload.DeviceID != s.deviceID {
 		s.sendResponse(ctx, parsed, cmdPayload, false, nil,
 			&protocol.Error{Code: "DEVICE_NOT_FOUND", Message: fmt.Sprintf("unknown device: %s", cmdPayload.DeviceID)},
@@ -255,7 +279,6 @@ func (s *mockStation) handleCommand(ctx context.Context, msgJSON string) {
 		return
 	}
 
-	// Execute on mock pump
 	response, success := s.pump.HandleCommand(cmdPayload.CommandName)
 	duration := time.Since(start)
 
@@ -285,7 +308,6 @@ func (s *mockStation) sendResponse(ctx context.Context, req *protocol.Message, c
 		return
 	}
 
-	// Set correlation ID from the request
 	msg.Envelope.CorrelationID = req.Envelope.CorrelationID
 
 	msgJSON, err := json.Marshal(msg)
@@ -294,7 +316,6 @@ func (s *mockStation) sendResponse(ctx context.Context, req *protocol.Message, c
 		return
 	}
 
-	// Send to the reply_to stream
 	replyTo := req.Envelope.ReplyTo
 	if replyTo == "" {
 		log.Printf("[%s] no reply_to in request", s.instance)

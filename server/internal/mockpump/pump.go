@@ -234,6 +234,107 @@ func (p *Pump) statusByte2() string {
 	return "0"
 }
 
+// String returns the human-readable name for a pump state.
+func (s State) String() string {
+	switch s {
+	case StateOff:
+		return "off"
+	case StateCooling:
+		return "cooling"
+	case StateCold:
+		return "cold"
+	case StateRegen:
+		return "regen"
+	default:
+		return "unknown"
+	}
+}
+
+// PumpSnapshot captures a point-in-time view of the pump's state.
+type PumpSnapshot struct {
+	State          State   `json:"state"`
+	StateName      string  `json:"state_name"`
+	FirstStageK    float64 `json:"first_stage_k"`
+	SecondStageK   float64 `json:"second_stage_k"`
+	PressureAtm    float64 `json:"pressure_atm"`
+	RegenStep      int     `json:"regen_step"`
+	CooldownHours  float64 `json:"cooldown_hours"`
+	FailRate       float64 `json:"fail_rate"`
+	OperatingHours float64 `json:"operating_hours"`
+}
+
+// Snapshot returns a point-in-time view of the pump's state.
+func (p *Pump) Snapshot() PumpSnapshot {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.updateTemperatures()
+
+	return PumpSnapshot{
+		State:          p.state,
+		StateName:      p.state.String(),
+		FirstStageK:    p.firstStageK,
+		SecondStageK:   p.secondStageK,
+		PressureAtm:    p.simulatePressure(),
+		RegenStep:      p.regenStep,
+		CooldownHours:  p.cooldownHours,
+		FailRate:       p.failRate,
+		OperatingHours: p.totalOnSeconds / 3600.0,
+	}
+}
+
+// SetState forces the pump to a specific state with proper side effects.
+func (p *Pump) SetState(s State) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.updateTemperatures()
+	now := time.Now()
+
+	switch s {
+	case StateCooling:
+		if p.state == StateOff {
+			p.pumpOnTime = now
+		}
+	case StateRegen:
+		p.regenStart = now
+		p.regenStep = 1
+	case StateOff:
+		p.regenStep = 0
+	}
+
+	p.state = s
+}
+
+// SetTemperatures overrides first and second stage temperatures.
+// Values are clamped to [4, 300].
+func (p *Pump) SetTemperatures(firstK, secondK float64) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.firstStageK = math.Max(4.0, math.Min(300.0, firstK))
+	p.secondStageK = math.Max(4.0, math.Min(300.0, secondK))
+	p.lastUpdate = time.Now()
+}
+
+// SetCooldownHours sets the simulated cooldown time. Rejects zero or negative values.
+func (p *Pump) SetCooldownHours(hours float64) error {
+	if hours <= 0 {
+		return fmt.Errorf("cooldown hours must be positive, got %.2f", hours)
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.cooldownHours = hours
+	return nil
+}
+
+// SetFailRate sets the random failure probability. Clamped to [0.0, 1.0].
+func (p *Pump) SetFailRate(rate float64) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.failRate = math.Max(0.0, math.Min(1.0, rate))
+}
+
 // exponentialDecay returns the next value decaying toward target.
 func exponentialDecay(current, target, dt, tau float64) float64 {
 	return target + (current-target)*math.Exp(-dt/tau)

@@ -275,6 +275,163 @@ func TestFailRate(t *testing.T) {
 	}
 }
 
+func TestStateString(t *testing.T) {
+	tests := []struct {
+		state State
+		want  string
+	}{
+		{StateOff, "off"},
+		{StateCooling, "cooling"},
+		{StateCold, "cold"},
+		{StateRegen, "regen"},
+		{State(99), "unknown"},
+	}
+	for _, tt := range tests {
+		got := tt.state.String()
+		if got != tt.want {
+			t.Errorf("State(%d).String() = %q, want %q", tt.state, got, tt.want)
+		}
+	}
+}
+
+func TestSnapshot(t *testing.T) {
+	p := NewPump(4.0, 0.05)
+	snap := p.Snapshot()
+
+	if snap.State != StateOff {
+		t.Errorf("expected StateOff, got %d", snap.State)
+	}
+	if snap.StateName != "off" {
+		t.Errorf("expected state_name 'off', got %q", snap.StateName)
+	}
+	if snap.FirstStageK < 290.0 || snap.FirstStageK > 300.0 {
+		t.Errorf("expected room temp 1st stage, got %.1f", snap.FirstStageK)
+	}
+	if snap.SecondStageK < 290.0 || snap.SecondStageK > 300.0 {
+		t.Errorf("expected room temp 2nd stage, got %.1f", snap.SecondStageK)
+	}
+	if snap.CooldownHours != 4.0 {
+		t.Errorf("expected cooldown 4.0, got %.1f", snap.CooldownHours)
+	}
+	if snap.FailRate != 0.05 {
+		t.Errorf("expected fail rate 0.05, got %.2f", snap.FailRate)
+	}
+	if snap.OperatingHours > 0.1 {
+		t.Errorf("expected ~0 operating hours, got %.1f", snap.OperatingHours)
+	}
+}
+
+func TestSetState(t *testing.T) {
+	p := NewPump(4.0, 0.0)
+
+	// Off -> Cooling
+	p.SetState(StateCooling)
+	snap := p.Snapshot()
+	if snap.State != StateCooling {
+		t.Errorf("expected StateCooling, got %d", snap.State)
+	}
+
+	// Cooling -> Regen
+	p.SetState(StateRegen)
+	snap = p.Snapshot()
+	if snap.State != StateRegen {
+		t.Errorf("expected StateRegen, got %d", snap.State)
+	}
+	if snap.RegenStep != 1 {
+		t.Errorf("expected regen step 1, got %d", snap.RegenStep)
+	}
+
+	// Regen -> Off
+	p.SetState(StateOff)
+	snap = p.Snapshot()
+	if snap.State != StateOff {
+		t.Errorf("expected StateOff, got %d", snap.State)
+	}
+	if snap.RegenStep != 0 {
+		t.Errorf("expected regen step 0 after off, got %d", snap.RegenStep)
+	}
+}
+
+func TestSetTemperatures(t *testing.T) {
+	p := NewPump(4.0, 0.0)
+
+	p.SetTemperatures(100.0, 50.0)
+	snap := p.Snapshot()
+	// Allow some drift from updateTemperatures() called in Snapshot
+	if snap.FirstStageK < 95.0 || snap.FirstStageK > 300.0 {
+		t.Errorf("expected ~100K 1st stage, got %.1f", snap.FirstStageK)
+	}
+
+	// Test clamping low
+	p.SetTemperatures(1.0, 1.0)
+	snap = p.Snapshot()
+	if snap.FirstStageK < 4.0 {
+		t.Errorf("expected clamped to >= 4K, got %.1f", snap.FirstStageK)
+	}
+	if snap.SecondStageK < 4.0 {
+		t.Errorf("expected clamped to >= 4K, got %.1f", snap.SecondStageK)
+	}
+
+	// Test clamping high
+	p.SetTemperatures(500.0, 500.0)
+	snap = p.Snapshot()
+	if snap.FirstStageK > 300.0 {
+		t.Errorf("expected clamped to <= 300K, got %.1f", snap.FirstStageK)
+	}
+	if snap.SecondStageK > 300.0 {
+		t.Errorf("expected clamped to <= 300K, got %.1f", snap.SecondStageK)
+	}
+}
+
+func TestSetCooldownHours(t *testing.T) {
+	p := NewPump(4.0, 0.0)
+
+	err := p.SetCooldownHours(6.0)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	snap := p.Snapshot()
+	if snap.CooldownHours != 6.0 {
+		t.Errorf("expected 6.0, got %.1f", snap.CooldownHours)
+	}
+
+	// Zero should fail
+	err = p.SetCooldownHours(0)
+	if err == nil {
+		t.Error("expected error for zero cooldown hours")
+	}
+
+	// Negative should fail
+	err = p.SetCooldownHours(-1.0)
+	if err == nil {
+		t.Error("expected error for negative cooldown hours")
+	}
+}
+
+func TestSetFailRate(t *testing.T) {
+	p := NewPump(4.0, 0.0)
+
+	p.SetFailRate(0.5)
+	snap := p.Snapshot()
+	if snap.FailRate != 0.5 {
+		t.Errorf("expected 0.5, got %.2f", snap.FailRate)
+	}
+
+	// Clamp above 1.0
+	p.SetFailRate(2.0)
+	snap = p.Snapshot()
+	if snap.FailRate != 1.0 {
+		t.Errorf("expected clamped to 1.0, got %.2f", snap.FailRate)
+	}
+
+	// Clamp below 0.0
+	p.SetFailRate(-0.5)
+	snap = p.Snapshot()
+	if snap.FailRate != 0.0 {
+		t.Errorf("expected clamped to 0.0, got %.2f", snap.FailRate)
+	}
+}
+
 func TestDuplicatePumpOn(t *testing.T) {
 	p := NewPump(4.0, 0.0)
 

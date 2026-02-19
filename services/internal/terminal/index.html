@@ -474,9 +474,9 @@ textarea { resize: vertical; min-height: 60px; }
     flex-wrap: wrap;
 }
 .pump-indicator {
-    font-size: 0.7rem;
+    font-size: 2.1rem;
     font-weight: 700;
-    padding: 2px 8px;
+    padding: 6px 18px;
     border-radius: var(--radius-sm);
     letter-spacing: 0.5px;
 }
@@ -502,6 +502,9 @@ textarea { resize: vertical; min-height: 60px; }
     color: var(--status-online);
 }
 .pump-flag.regen {
+    font-size: 1.95rem;
+    font-weight: 700;
+    padding: 6px 18px;
     background: var(--status-paused-bg);
     color: var(--status-paused);
 }
@@ -1444,6 +1447,8 @@ var App = (function() {
             if (ps) {
                 html += '<div class="station-pump-status">';
                 html += '<span class="pump-indicator ' + (ps.pump_on ? 'on' : 'off') + '">' + (ps.pump_on ? 'PUMP ON' : 'PUMP OFF') + '</span>';
+                html += '<span class="pump-indicator ' + (ps.rough_valve_open ? 'off' : 'on') + '">' + (ps.rough_valve_open ? 'ROUGH OPEN' : 'ROUGH CLOSED') + '</span>';
+                html += '<span class="pump-indicator ' + (ps.purge_valve_open ? 'off' : 'on') + '">' + (ps.purge_valve_open ? 'PURGE OPEN' : 'PURGE CLOSED') + '</span>';
                 if (ps.at_temp) html += '<span class="pump-flag at-temp">AT TEMP</span>';
                 if (ps.regen) html += '<span class="pump-flag regen">REGEN</span>';
                 html += '</div>';
@@ -1517,6 +1522,8 @@ var App = (function() {
         if (ps) {
             pumpHtml += '<div class="station-pump-status">';
             pumpHtml += '<span class="pump-indicator ' + (ps.pump_on ? 'on' : 'off') + '">' + (ps.pump_on ? 'PUMP ON' : 'PUMP OFF') + '</span>';
+            pumpHtml += '<span class="pump-indicator ' + (ps.rough_valve_open ? 'off' : 'on') + '">' + (ps.rough_valve_open ? 'ROUGH OPEN' : 'ROUGH CLOSED') + '</span>';
+            pumpHtml += '<span class="pump-indicator ' + (ps.purge_valve_open ? 'off' : 'on') + '">' + (ps.purge_valve_open ? 'PURGE OPEN' : 'PURGE CLOSED') + '</span>';
             if (ps.at_temp) pumpHtml += '<span class="pump-flag at-temp">AT TEMP</span>';
             if (ps.regen) pumpHtml += '<span class="pump-flag regen">REGEN</span>';
             pumpHtml += '</div>';

@@ -90,6 +90,16 @@ func (p *StationPoller) pollDevice(ctx context.Context, stationInstance, deviceI
 			status3, _ = strconv.Atoi(*s3)
 		}
 
+		// Poll valve states
+		roughValveOpen := false
+		if rv := p.queryCommand(ctx, deviceID, "get_rough_valve", commandStream); rv != nil {
+			roughValveOpen = *rv == "1"
+		}
+		purgeValveOpen := false
+		if pv := p.queryCommand(ctx, deviceID, "get_purge_valve", commandStream); pv != nil {
+			purgeValveOpen = *pv == "1"
+		}
+
 		p.hub.BroadcastEvent("pump_status", map[string]interface{}{
 			"station_instance": stationInstance,
 			"device_id":        deviceID,
@@ -99,6 +109,8 @@ func (p *StationPoller) pollDevice(ctx context.Context, stationInstance, deviceI
 			"pump_on":          status1&1 != 0,
 			"at_temp":          status1&2 != 0,
 			"regen":            status1&4 != 0,
+			"rough_valve_open": roughValveOpen,
+			"purge_valve_open": purgeValveOpen,
 			"timestamp":        now,
 		})
 	}

@@ -413,6 +413,26 @@ func (p *Pump) SetFailRate(rate float64) {
 	p.failRate = math.Max(0.0, math.Min(1.0, rate))
 }
 
+// AdvanceRegenStep increments the regen step by one if in regen state.
+// It adjusts regenStart so the elapsed-time logic in updateTemperatures agrees.
+func (p *Pump) AdvanceRegenStep() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.state != StateRegen {
+		return
+	}
+	p.regenStep++
+	if p.regenStep > 6 {
+		p.state = StateOff
+		p.regenStep = 0
+		return
+	}
+	// Set regenStart so elapsed time lands in the new step's range.
+	// Steps: 1=0m, 2=30m, 3=60m, 4=80m, 5=100m, 6=120m
+	offsets := []float64{0, 0, 31, 61, 81, 101, 121}
+	p.regenStart = time.Now().Add(-time.Duration(offsets[p.regenStep] * float64(time.Minute)))
+}
+
 // exponentialDecay returns the next value decaying toward target.
 func exponentialDecay(current, target, dt, tau float64) float64 {
 	return target + (current-target)*math.Exp(-dt/tau)

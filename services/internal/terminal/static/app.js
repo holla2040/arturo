@@ -44,27 +44,27 @@ var App = (function() {
             case 't': case 'u': case 'v': case "'":
                 return 'Warmup';
             case 'D': case 'F': case 'G': case 'Q': case 'R':
-                return 'Purge gas failure';
-            case 'H': return 'Extended purge';
-            case 'S': return 'Repurge cycle';
+                return 'Purge Gas Failure';
+            case 'H': return 'Extended Purge';
+            case 'S': return 'Repurge Cycle';
             case 'I': case 'J': case 'K': case 'T':
             case 'a': case 'b': case 'j': case 'n':
-                return 'Rough to base pressure';
-            case 'L': return 'Rate of rise';
+                return 'Rough to Base Pressure';
+            case 'L': return 'Rate of Rise';
             case 'M': case 'N': case 'c': case 'd': case 'o':
                 return 'Cooldown';
-            case 'P': return 'Regen complete';
-            case 'U': return 'FastRegen start';
-            case 'V': return 'Regen aborted';
-            case 'W': return 'Delay restart';
-            case 'X': case 'Y': return 'Power failure';
-            case 'Z': return 'Delay start';
-            case 'O': case '[': return 'Zeroing TC gauge';
-            case 'f': return 'Share regen wait';
+            case 'P': return 'Regen Complete';
+            case 'U': return 'FastRegen Start';
+            case 'V': return 'Regen Aborted';
+            case 'W': return 'Delay Restart';
+            case 'X': case 'Y': return 'Power Failure';
+            case 'Z': return 'Delay Start';
+            case 'O': case '[': return 'Zeroing TC Gauge';
+            case 'f': return 'Share Regen Wait';
             case 'e': return 'Repurge (FastRegen)';
-            case 'h': return 'Purge coordinate wait';
-            case 'i': return 'Rough coordinate wait';
-            case 'k': return 'Purge gas fail recovery';
+            case 'h': return 'Purge Coordinate Wait';
+            case 'i': return 'Rough Coordinate Wait';
+            case 'k': return 'Purge Gas Fail Recovery';
             default: return 'Unknown (' + ch + ')';
         }
     }

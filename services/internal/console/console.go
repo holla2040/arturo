@@ -118,6 +118,11 @@ func Handler(stations []*StationInfo, rdb *redis.Client) (http.Handler, func(ctx
 			writeJSON(w, map[string]string{"status": "ok"})
 		})
 
+		mux.HandleFunc("POST "+prefix+"/advance-regen", func(w http.ResponseWriter, r *http.Request) {
+			st.Pump.AdvanceRegenStep()
+			writeJSON(w, map[string]string{"status": "ok"})
+		})
+
 		mux.HandleFunc("POST "+prefix+"/temperatures", func(w http.ResponseWriter, r *http.Request) {
 			var body struct {
 				FirstStageK  float64 `json:"first_stage_k"`

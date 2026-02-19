@@ -641,11 +641,11 @@ func (s *Store) ListRMAs(status string) ([]RMA, error) {
 	if status != "" {
 		rows, err = s.db.Query(
 			`SELECT id, rma_number, pump_serial_number, customer_name, pump_model, employee_id, status, created_at, closed_at, notes
-			 FROM rmas WHERE status = ? ORDER BY created_at DESC`, status)
+			 FROM rmas WHERE status = ? ORDER BY rma_number ASC`, status)
 	} else {
 		rows, err = s.db.Query(
 			`SELECT id, rma_number, pump_serial_number, customer_name, pump_model, employee_id, status, created_at, closed_at, notes
-			 FROM rmas ORDER BY created_at DESC`)
+			 FROM rmas ORDER BY rma_number ASC`)
 	}
 	if err != nil {
 		return nil, err
@@ -682,7 +682,7 @@ func (s *Store) SearchRMAs(query string) ([]RMA, error) {
 	rows, err := s.db.Query(
 		`SELECT id, rma_number, pump_serial_number, customer_name, pump_model, employee_id, status, created_at, closed_at, notes
 		 FROM rmas WHERE rma_number LIKE ? OR pump_serial_number LIKE ? OR customer_name LIKE ?
-		 ORDER BY created_at DESC`,
+		 ORDER BY rma_number ASC`,
 		like, like, like,
 	)
 	if err != nil {

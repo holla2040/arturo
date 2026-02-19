@@ -6,7 +6,7 @@
 <title>Arturo - Cryo Test System</title>
 <style>
 /* =====================================================================
-   Arturo Dashboard - Dark Industrial Theme
+   Arturo Terminal - Dark Industrial Theme
    ===================================================================== */
 *,
 *::before,
@@ -853,7 +853,7 @@ textarea { resize: vertical; min-height: 60px; }
 <!-- Header -->
 <header class="header" id="app-header" style="display:none">
     <div class="header-left">
-        <div class="header-logo" onclick="App.showView('dashboard')">Arturo</div>
+        <div class="header-logo" onclick="App.showView('stations')">Arturo</div>
         <div class="header-subtitle">Cryo Test System</div>
     </div>
     <div class="status-bar">
@@ -893,9 +893,9 @@ textarea { resize: vertical; min-height: 60px; }
 </div>
 
 <!-- =====================================================================
-     DASHBOARD VIEW
+     STATIONS VIEW
      ===================================================================== -->
-<div id="view-dashboard" class="view">
+<div id="view-stations" class="view">
     <main class="main">
         <!-- Station Grid -->
         <div class="panel">
@@ -946,7 +946,7 @@ textarea { resize: vertical; min-height: 60px; }
 <div id="view-station-detail" class="view">
     <main class="main">
         <div class="detail-header">
-            <button class="back-btn" onclick="App.showView('dashboard')">&larr;</button>
+            <button class="back-btn" onclick="App.showView('stations')">&larr;</button>
             <span class="detail-title" id="detail-station-name">station-01</span>
             <div class="detail-status">
                 <span class="status-badge" id="detail-station-status">--</span>
@@ -1051,7 +1051,7 @@ textarea { resize: vertical; min-height: 60px; }
 <div id="view-rma-list" class="view">
     <main class="main">
         <div class="detail-header">
-            <button class="back-btn" onclick="App.showView('dashboard')">&larr;</button>
+            <button class="back-btn" onclick="App.showView('stations')">&larr;</button>
             <span class="detail-title">RMAs</span>
             <div class="detail-status">
                 <button class="btn btn-sm btn-primary" onclick="App.showView('rma-new')">New RMA</button>
@@ -1180,7 +1180,7 @@ textarea { resize: vertical; min-height: 60px; }
 
 <script>
 /* =====================================================================
-   Arturo Dashboard Application
+   Arturo Terminal Application
    ===================================================================== */
 var App = (function() {
     'use strict';
@@ -1308,7 +1308,7 @@ var App = (function() {
         var hdr = document.getElementById('app-header');
         hdr.style.display = (name === 'login') ? 'none' : 'flex';
 
-        if (name === 'dashboard') {
+        if (name === 'stations') {
             loadStations();
         } else if (name === 'station-detail' && state.detailStation) {
             loadStationDetail(state.detailStation);
@@ -1336,7 +1336,7 @@ var App = (function() {
             }
             state.employee = { id: empId, name: name };
             document.getElementById('employee-name').textContent = name;
-            showView('dashboard');
+            showView('stations');
             connectWebSocket();
         });
     }
@@ -1355,7 +1355,7 @@ var App = (function() {
     }
 
     // =================================================================
-    // Stations / Dashboard
+    // Stations
     // =================================================================
     function loadStations() {
         api('GET', '/stations', null, function(err, data) {
@@ -2128,7 +2128,7 @@ var App = (function() {
             }
         }
 
-        if (state.currentView === 'dashboard') renderStationGrid();
+        if (state.currentView === 'stations') renderStationGrid();
     }
 
     function arraysEqual(a, b) {
@@ -2153,7 +2153,7 @@ var App = (function() {
         if (state.measurements.length > MAX_MEASUREMENTS) {
             state.measurements = state.measurements.slice(0, MAX_MEASUREMENTS);
         }
-        if (state.currentView === 'dashboard') renderMeasurements();
+        if (state.currentView === 'stations') renderMeasurements();
     }
 
     function handleEstop(payload) {
@@ -2172,7 +2172,7 @@ var App = (function() {
         if (!payload || !payload.instance) return;
         state.stationStates[payload.instance] = payload;
 
-        if (state.currentView === 'dashboard') renderStationGrid();
+        if (state.currentView === 'stations') renderStationGrid();
         if (state.currentView === 'station-detail' && state.detailStation === payload.instance) {
             renderStationDetail(payload.instance);
         }
@@ -2213,7 +2213,7 @@ var App = (function() {
             renderTempChart();
         }
 
-        if (state.currentView === 'dashboard') renderStationGrid();
+        if (state.currentView === 'stations') renderStationGrid();
     }
 
     function handleTestEvent(payload) {
@@ -2248,7 +2248,7 @@ var App = (function() {
     // Periodic Updates
     // =================================================================
     setInterval(function() {
-        if (state.currentView === 'dashboard' && state.employee) {
+        if (state.currentView === 'stations' && state.employee) {
             loadStations();
         }
     }, 15000);

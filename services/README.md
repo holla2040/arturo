@@ -8,6 +8,7 @@ Go services that run on the controller machine. These are the processes that mus
 |---------|-------------|------|
 | **arturo-controller** | REST API, WebSocket, device registry, health monitor, E-stop coordinator, SQLite data store | Always |
 | **arturo-console** | Spawns mock stations with simulated pumps, serves web UI for control and Redis monitoring | Development |
+| **arturo-terminal** | Operator web UI; serves HTML and reverse-proxies API/WebSocket to the controller | Always |
 
 ## Build
 
@@ -15,6 +16,7 @@ Go services that run on the controller machine. These are the processes that mus
 cd services
 go build -o arturo-controller ./cmd/arturo-controller
 go build -o arturo-console ./cmd/arturo-console
+go build -o arturo-terminal ./cmd/arturo-terminal
 ```
 
 ## Run
@@ -41,12 +43,13 @@ The module root is this directory. All import paths use `github.com/holla2040/ar
 services/
 ├── cmd/
 │   ├── arturo-controller/       # Main service entry point
-│   └── arturo-console/          # Mock stations + web console entry point
+│   ├── arturo-console/          # Mock stations + web console entry point
+│   └── arturo-terminal/         # Operator web UI entry point
 ├── internal/
 │   ├── api/                     # REST API handlers, WebSocket hub, response dispatcher
 │   ├── artifact/                # Test artifact storage (PDF reports, data files)
 │   ├── console/                 # Mock station web console
-│   ├── dashboard/               # Embedded web dashboard (operator UI)
+│   ├── terminal/                # Operator web UI (reverse proxy to controller)
 │   ├── estop/                   # Emergency stop coordinator
 │   ├── mockpump/                # Mock CTI cryopump simulator
 │   ├── protocol/                # Protocol v1.0.0 envelope builder/parser

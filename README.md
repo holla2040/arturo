@@ -38,7 +38,7 @@ Stations (up to 6)          <--Redis Streams/PubSub-->     Controller (Go)
          Terminal                                        - Script engine (.art DSL)
   - Screen + keyboard                                    - Test orchestration
   - Barcode scanner                                      - LLM-assisted script generation
-  - Web dashboard
+  - Web terminal
 ```
 
 ## Project Structure

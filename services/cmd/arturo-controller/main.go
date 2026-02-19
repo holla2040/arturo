@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/holla2040/arturo/internal/api"
-	"github.com/holla2040/arturo/internal/dashboard"
 	"github.com/holla2040/arturo/internal/estop"
 	"github.com/holla2040/arturo/internal/protocol"
 	"github.com/holla2040/arturo/internal/redishealth"
@@ -113,7 +112,10 @@ func main() {
 	mux := http.NewServeMux()
 	handler.RegisterRoutes(mux)
 	mux.HandleFunc("GET /ws", wsHub.HandleWebSocket)
-	mux.Handle("GET /", dashboard.Handler())
+	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"service":"arturo-controller","version":"` + serverVersion + `"}`))
+	})
 
 	server := &http.Server{
 		Addr:    *listenAddr,

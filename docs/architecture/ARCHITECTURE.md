@@ -809,11 +809,11 @@ LLM-readiness (build into the engine, not bolted on after):
 - All runtime errors (device timeout, assertion failure, connection refused) surface as structured JSON in the test report, not just log lines
 - Script directory convention: `scripts/` at project root, one `.art` file per test, with a `scripts/lib/` for shared `.artlib` libraries
 
-### Phase 6: Dashboard and Reports (Weeks 13-15)
+### Phase 6: Terminal and Reports (Weeks 13-15)
 
 **Goal:** Operator-facing UI.
 
-- Vue.js or simple HTML dashboard showing:
+- Vue.js or simple HTML terminal showing:
   - Station status (online/offline, connected devices)
   - Active test progress
   - Recent measurements

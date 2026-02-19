@@ -7,7 +7,7 @@ Arturo is an industrial test automation system with ESP32 stations and a central
 **Terminology:** Stations (ESP32 + instruments), Terminal (operator UI), Controller (Go processes), File server (report storage).
 
 - **Station firmware**: C++ with Arduino in `firmware/`
-- **Services**: Go processes in `services/` — arturo-controller, arturo-console
+- **Services**: Go processes in `services/` — arturo-controller, arturo-console, arturo-terminal
 - **Tools**: Go tools in `tools/` — arturo-engine, arturo-monitor
 - **Redis**: Streams for commands/responses, Pub/Sub for heartbeats/E-stop
 - **Profiles**: Device YAML profiles in `profiles/`
@@ -38,6 +38,7 @@ cd services && go build -o arturo-controller ./cmd/arturo-controller
 cd tools/arturo-engine && go build -o arturo-engine
 cd tools/arturo-monitor && go build -o arturo-monitor
 cd services && go build -o arturo-console ./cmd/arturo-console
+cd services && go build -o arturo-terminal ./cmd/arturo-terminal
 ```
 
 ### Station Firmware (ESP32)

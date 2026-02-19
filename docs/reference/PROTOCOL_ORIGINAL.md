@@ -210,7 +210,7 @@ Each service publishes a heartbeat to the system channel every 30 seconds.
 ```
 
 **Monitoring Services:**
-- Services that monitor health (e.g., `terminal_dashboard`) subscribe to `system/heartbeat`
+- Services that monitor health (e.g., `arturo-terminal`) subscribe to `system/heartbeat`
 - Services are considered unhealthy if no heartbeat is received within 2 minutes
 - The heartbeat payload is defined in `/schemas/service.heartbeat/v1.json`
 
@@ -268,7 +268,7 @@ When a service shuts down, it publishes a stopped event.
 ```
 
 **Monitoring Services:**
-- Services that monitor lifecycle (e.g., `terminal_dashboard`) subscribe to `events/service/*`
+- Services that monitor lifecycle (e.g., `arturo-terminal`) subscribe to `events/service/*`
 - Service payloads are defined in `/schemas/service.started/v1.json` and `/schemas/service.stopped/v1.json`
 - Services should publish the stopped event before shutting down Redis connections
 

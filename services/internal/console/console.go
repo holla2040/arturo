@@ -1,4 +1,4 @@
-// Package console provides a web-based dashboard for mock station control
+// Package console provides a web-based console for mock station control
 // and Redis traffic monitoring.
 package console
 

@@ -3,6 +3,8 @@ services/arturo-console
 services/arturo-controller
 services/arturo-engine
 services/arturo-monitor
+services/arturo-terminal
+services/arturo.db
 *.exe
 *.test
 *.out

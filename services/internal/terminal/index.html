@@ -490,6 +490,14 @@ textarea { resize: vertical; min-height: 60px; }
     color: var(--status-offline);
     border: 1px solid var(--status-offline);
 }
+button.pump-indicator {
+    cursor: pointer;
+    font-family: inherit;
+    border: none;
+}
+button.pump-indicator:hover {
+    filter: brightness(1.3);
+}
 .pump-flag {
     font-size: 0.65rem;
     font-weight: 600;
@@ -1445,10 +1453,19 @@ var App = (function() {
 
             var ps = state.stationPumpStatus[keys[i]];
             if (ps) {
+                var canControl = stateStr !== 'testing' && stateStr !== 'paused';
+                var pDevId = escapeHtml(ps.device_id || '');
+                var pInst = escapeHtml(keys[i]);
                 html += '<div class="station-pump-status">';
-                html += '<span class="pump-indicator ' + (ps.pump_on ? 'on' : 'off') + '">' + (ps.pump_on ? 'PUMP ON' : 'PUMP OFF') + '</span>';
-                html += '<span class="pump-indicator ' + (ps.rough_valve_open ? 'off' : 'on') + '">' + (ps.rough_valve_open ? 'ROUGH OPEN' : 'ROUGH CLOSED') + '</span>';
-                html += '<span class="pump-indicator ' + (ps.purge_valve_open ? 'off' : 'on') + '">' + (ps.purge_valve_open ? 'PURGE OPEN' : 'PURGE CLOSED') + '</span>';
+                if (canControl) {
+                    html += '<button class="pump-indicator ' + (ps.pump_on ? 'on' : 'off') + '" onclick="event.stopPropagation(); App.togglePump(\'' + pInst + '\', \'' + pDevId + '\')">' + (ps.pump_on ? 'PUMP ON' : 'PUMP OFF') + '</button>';
+                    html += '<button class="pump-indicator ' + (ps.rough_valve_open ? 'off' : 'on') + '" onclick="event.stopPropagation(); App.toggleRoughValve(\'' + pInst + '\', \'' + pDevId + '\')">' + (ps.rough_valve_open ? 'ROUGH OPEN' : 'ROUGH CLOSED') + '</button>';
+                    html += '<button class="pump-indicator ' + (ps.purge_valve_open ? 'off' : 'on') + '" onclick="event.stopPropagation(); App.togglePurgeValve(\'' + pInst + '\', \'' + pDevId + '\')">' + (ps.purge_valve_open ? 'PURGE OPEN' : 'PURGE CLOSED') + '</button>';
+                } else {
+                    html += '<span class="pump-indicator ' + (ps.pump_on ? 'on' : 'off') + '">' + (ps.pump_on ? 'PUMP ON' : 'PUMP OFF') + '</span>';
+                    html += '<span class="pump-indicator ' + (ps.rough_valve_open ? 'off' : 'on') + '">' + (ps.rough_valve_open ? 'ROUGH OPEN' : 'ROUGH CLOSED') + '</span>';
+                    html += '<span class="pump-indicator ' + (ps.purge_valve_open ? 'off' : 'on') + '">' + (ps.purge_valve_open ? 'PURGE OPEN' : 'PURGE CLOSED') + '</span>';
+                }
                 if (ps.at_temp) html += '<span class="pump-flag at-temp">AT TEMP</span>';
                 if (ps.regen) html += '<span class="pump-flag regen">REGEN</span>';
                 html += '</div>';
@@ -1520,10 +1537,19 @@ var App = (function() {
         var ps = state.stationPumpStatus[instance];
         var pumpHtml = '';
         if (ps) {
+            var canControl = stateStr !== 'testing' && stateStr !== 'paused';
+            var pDevId = escapeHtml(ps.device_id || '');
+            var pInst = escapeHtml(instance);
             pumpHtml += '<div class="station-pump-status">';
-            pumpHtml += '<span class="pump-indicator ' + (ps.pump_on ? 'on' : 'off') + '">' + (ps.pump_on ? 'PUMP ON' : 'PUMP OFF') + '</span>';
-            pumpHtml += '<span class="pump-indicator ' + (ps.rough_valve_open ? 'off' : 'on') + '">' + (ps.rough_valve_open ? 'ROUGH OPEN' : 'ROUGH CLOSED') + '</span>';
-            pumpHtml += '<span class="pump-indicator ' + (ps.purge_valve_open ? 'off' : 'on') + '">' + (ps.purge_valve_open ? 'PURGE OPEN' : 'PURGE CLOSED') + '</span>';
+            if (canControl) {
+                pumpHtml += '<button class="pump-indicator ' + (ps.pump_on ? 'on' : 'off') + '" onclick="App.togglePump(\'' + pInst + '\', \'' + pDevId + '\')">' + (ps.pump_on ? 'PUMP ON' : 'PUMP OFF') + '</button>';
+                pumpHtml += '<button class="pump-indicator ' + (ps.rough_valve_open ? 'off' : 'on') + '" onclick="App.toggleRoughValve(\'' + pInst + '\', \'' + pDevId + '\')">' + (ps.rough_valve_open ? 'ROUGH OPEN' : 'ROUGH CLOSED') + '</button>';
+                pumpHtml += '<button class="pump-indicator ' + (ps.purge_valve_open ? 'off' : 'on') + '" onclick="App.togglePurgeValve(\'' + pInst + '\', \'' + pDevId + '\')">' + (ps.purge_valve_open ? 'PURGE OPEN' : 'PURGE CLOSED') + '</button>';
+            } else {
+                pumpHtml += '<span class="pump-indicator ' + (ps.pump_on ? 'on' : 'off') + '">' + (ps.pump_on ? 'PUMP ON' : 'PUMP OFF') + '</span>';
+                pumpHtml += '<span class="pump-indicator ' + (ps.rough_valve_open ? 'off' : 'on') + '">' + (ps.rough_valve_open ? 'ROUGH OPEN' : 'ROUGH CLOSED') + '</span>';
+                pumpHtml += '<span class="pump-indicator ' + (ps.purge_valve_open ? 'off' : 'on') + '">' + (ps.purge_valve_open ? 'PURGE OPEN' : 'PURGE CLOSED') + '</span>';
+            }
             if (ps.at_temp) pumpHtml += '<span class="pump-flag at-temp">AT TEMP</span>';
             if (ps.regen) pumpHtml += '<span class="pump-flag regen">REGEN</span>';
             pumpHtml += '</div>';
@@ -1851,6 +1877,33 @@ var App = (function() {
             if (err) alert('Abort failed: ' + err.message);
             else loadStationDetail(instance);
         });
+    }
+
+    function togglePump(instance, deviceId) {
+        var ps = state.stationPumpStatus[instance];
+        var cmd = ps && ps.pump_on ? 'pump_off' : 'pump_on';
+        if (ps) { ps.pump_on = !ps.pump_on; handlePumpStatus(ps); }
+        api('POST', '/stations/' + encodeURIComponent(instance) + '/command', {
+            device_id: deviceId, command: cmd
+        }, function(){});
+    }
+
+    function toggleRoughValve(instance, deviceId) {
+        var ps = state.stationPumpStatus[instance];
+        var cmd = ps && ps.rough_valve_open ? 'close_rough_valve' : 'open_rough_valve';
+        if (ps) { ps.rough_valve_open = !ps.rough_valve_open; handlePumpStatus(ps); }
+        api('POST', '/stations/' + encodeURIComponent(instance) + '/command', {
+            device_id: deviceId, command: cmd
+        }, function(){});
+    }
+
+    function togglePurgeValve(instance, deviceId) {
+        var ps = state.stationPumpStatus[instance];
+        var cmd = ps && ps.purge_valve_open ? 'close_purge_valve' : 'open_purge_valve';
+        if (ps) { ps.purge_valve_open = !ps.purge_valve_open; handlePumpStatus(ps); }
+        api('POST', '/stations/' + encodeURIComponent(instance) + '/command', {
+            device_id: deviceId, command: cmd
+        }, function(){});
     }
 
     function sendManualCommand() {
@@ -2318,6 +2371,9 @@ var App = (function() {
         terminateTest: terminateTest,
         confirmTerminate: confirmTerminate,
         abortTest: abortTest,
+        togglePump: togglePump,
+        toggleRoughValve: toggleRoughValve,
+        togglePurgeValve: togglePurgeValve,
         sendManualCommand: sendManualCommand,
         loadRMAs: loadRMAs,
         searchRMAs: searchRMAs,

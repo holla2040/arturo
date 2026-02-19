@@ -232,6 +232,36 @@ body {
 </div>
 
 <script>
+function regenDesc(ch) {
+  if (!ch) return '--';
+  switch (ch) {
+    case 'A': case '\\': return 'Pump OFF';
+    case 'B': case 'C': case 'E': case '^': case ']':
+    case 'l': case 'm': case '_': case 'r': case 's':
+    case 't': case 'u': case 'v': case "'": return 'Warmup';
+    case 'D': case 'F': case 'G': case 'Q': case 'R': return 'Purge gas failure';
+    case 'H': return 'Extended purge';
+    case 'S': return 'Repurge cycle';
+    case 'I': case 'J': case 'K': case 'T':
+    case 'a': case 'b': case 'j': case 'n': return 'Rough to base pressure';
+    case 'L': return 'Rate of rise';
+    case 'M': case 'N': case 'c': case 'd': case 'o': return 'Cooldown';
+    case 'P': return 'Regen complete';
+    case 'U': return 'FastRegen start';
+    case 'V': return 'Regen aborted';
+    case 'W': return 'Delay restart';
+    case 'X': case 'Y': return 'Power failure';
+    case 'Z': return 'Delay start';
+    case 'O': case '[': return 'Zeroing TC gauge';
+    case 'f': return 'Share regen wait';
+    case 'e': return 'Repurge (FastRegen)';
+    case 'h': return 'Purge coordinate wait';
+    case 'i': return 'Rough coordinate wait';
+    case 'k': return 'Purge gas fail recovery';
+    default: return 'Unknown (' + ch + ')';
+  }
+}
+
 // ── Station Control ──
 const stationsContainer = document.getElementById('stations-container');
 
@@ -257,6 +287,7 @@ function renderStations(stations) {
         <span class="label">Pressure</span><span class="value">${p.pressure_atm.toExponential(2)} atm</span>
         <span class="label">Op Hours</span><span class="value">${p.operating_hours.toFixed(1)} h</span>
         <span class="label">Regen Step</span><span class="value">${p.regen_step}</span>
+        <span class="label">Regen Status</span><span class="value">${regenDesc(p.regen_status)}</span>
         <span class="label">Fail Rate</span><span class="value">${(p.fail_rate * 100).toFixed(0)}%</span>
       </div>
       <div class="btn-row">

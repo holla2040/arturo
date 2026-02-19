@@ -316,6 +316,7 @@ type PumpSnapshot struct {
 	SecondStageK   float64 `json:"second_stage_k"`
 	PressureAtm    float64 `json:"pressure_atm"`
 	RegenStep      int     `json:"regen_step"`
+	RegenStatus    string  `json:"regen_status"`
 	CooldownHours  float64 `json:"cooldown_hours"`
 	FailRate       float64 `json:"fail_rate"`
 	OperatingHours float64 `json:"operating_hours"`
@@ -337,6 +338,7 @@ func (p *Pump) Snapshot() PumpSnapshot {
 		SecondStageK:   p.secondStageK,
 		PressureAtm:    p.simulatePressure(),
 		RegenStep:      p.regenStep,
+		RegenStatus:    string(p.regenStatusChar()),
 		CooldownHours:  p.cooldownHours,
 		FailRate:       p.failRate,
 		OperatingHours: p.totalOnSeconds / 3600.0,

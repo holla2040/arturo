@@ -60,11 +60,12 @@ arturo/
 │       └── system-ota-request/         # OTA firmware update
 ├── services/                            # Go services that run on the controller machine
 │   ├── README.md                       # Service architecture and build instructions
-│   └── cmd/
-│       ├── arturo-controller/           # API, device registry, health, data storage
+│   ├── cmd/
+│   │   ├── arturo-controller/           # API, device registry, health, data storage
+│   │   └── arturo-console/             # Mock stations + web console (development)
+│   └── cli/
 │       ├── arturo-engine/              # Script parser + executor
-│       ├── arturo-monitor/             # Redis traffic monitor (debugging)
-│       └── arturo-console/             # Mock stations + web console (development)
+│       └── arturo-monitor/             # Redis traffic monitor (debugging)
 ├── firmware/                           # Station firmware (ESP32 Arduino)
 │   ├── README.md                       # Firmware architecture decisions
 │   ├── src/

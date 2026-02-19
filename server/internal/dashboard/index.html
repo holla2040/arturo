@@ -35,6 +35,10 @@
     --status-stale-bg: rgba(234, 179, 8, 0.12);
     --status-offline: #ef4444;
     --status-offline-bg: rgba(239, 68, 68, 0.12);
+    --status-testing: #a855f7;
+    --status-testing-bg: rgba(168, 85, 247, 0.12);
+    --status-paused: #f97316;
+    --status-paused-bg: rgba(249, 115, 22, 0.12);
     --estop-red: #dc2626;
     --estop-red-bg: #450a0a;
     --success-green: #22c55e;
@@ -50,9 +54,7 @@
     --radius-lg: 12px;
 }
 
-html {
-    font-size: 14px;
-}
+html { font-size: 14px; }
 
 body {
     font-family: var(--font-sans);
@@ -80,30 +82,20 @@ body {
     box-shadow: 0 4px 20px rgba(220, 38, 38, 0.6);
     animation: estop-pulse 1.5s ease-in-out infinite;
 }
-
-#estop-banner.active {
-    display: block;
-}
-
-#estop-banner .estop-icon {
-    font-size: 1.4rem;
-    margin-right: 8px;
-}
-
+#estop-banner.active { display: block; }
 #estop-banner .estop-details {
     font-size: 0.85rem;
     font-weight: 400;
     opacity: 0.9;
     margin-top: 4px;
 }
-
 @keyframes estop-pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.85; }
 }
 
 /* =====================================================================
-   Header / Status Bar
+   Header
    ===================================================================== */
 .header {
     background: var(--bg-secondary);
@@ -117,55 +109,43 @@ body {
     z-index: 900;
     box-shadow: var(--shadow-sm);
 }
-
-#estop-banner.active ~ .header {
-    position: relative;
-}
-
+#estop-banner.active ~ .header { position: relative; }
 .header-left {
     display: flex;
     align-items: center;
     gap: 16px;
 }
-
 .header-logo {
     font-size: 1.3rem;
     font-weight: 700;
     color: var(--accent-blue);
     letter-spacing: 1px;
     text-transform: uppercase;
+    cursor: pointer;
 }
-
 .header-subtitle {
     color: var(--text-muted);
     font-size: 0.8rem;
     border-left: 1px solid var(--border-color);
     padding-left: 16px;
 }
-
 .status-bar {
     display: flex;
     align-items: center;
-    gap: 24px;
+    gap: 20px;
 }
-
 .status-item {
     display: flex;
     align-items: center;
     gap: 6px;
     font-size: 0.85rem;
 }
-
-.status-item .label {
-    color: var(--text-secondary);
-}
-
+.status-item .label { color: var(--text-secondary); }
 .status-item .value {
     font-weight: 600;
     font-family: var(--font-mono);
     color: var(--text-primary);
 }
-
 .ws-indicator {
     width: 8px;
     height: 8px;
@@ -173,12 +153,16 @@ body {
     background: var(--status-offline);
     transition: background 0.3s;
 }
-
 .ws-indicator.connected {
     background: var(--status-online);
     box-shadow: 0 0 6px var(--status-online);
 }
-
+.employee-badge {
+    font-size: 0.8rem;
+    color: var(--accent-blue);
+    cursor: pointer;
+}
+.employee-badge:hover { text-decoration: underline; }
 .estop-status-badge {
     padding: 3px 10px;
     border-radius: var(--radius-sm);
@@ -187,43 +171,152 @@ body {
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
-
 .estop-status-badge.safe {
     background: var(--status-online-bg);
     color: var(--status-online);
     border: 1px solid var(--status-online);
 }
-
 .estop-status-badge.active {
     background: var(--status-offline-bg);
     color: var(--status-offline);
     border: 1px solid var(--status-offline);
     animation: badge-pulse 1s ease-in-out infinite;
 }
-
 @keyframes badge-pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.6; }
 }
 
 /* =====================================================================
-   Main Layout
+   Views
    ===================================================================== */
+.view { display: none; }
+.view.active { display: block; }
 .main {
     padding: 20px 24px;
     max-width: 1920px;
     margin: 0 auto;
 }
 
-.grid-2col {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-    margin-bottom: 20px;
+/* =====================================================================
+   Login View
+   ===================================================================== */
+.login-container {
+    max-width: 400px;
+    margin: 80px auto;
+    text-align: center;
+}
+.login-container h1 {
+    font-size: 2rem;
+    color: var(--accent-blue);
+    margin-bottom: 8px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+.login-container .subtitle {
+    color: var(--text-muted);
+    margin-bottom: 40px;
+}
+.login-form {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 32px;
+}
+.login-form label {
+    display: block;
+    text-align: left;
+    margin-bottom: 6px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+.login-form .field { margin-bottom: 20px; }
+.login-error {
+    color: var(--fail-red);
+    font-size: 0.85rem;
+    margin-bottom: 12px;
+    display: none;
 }
 
-.grid-full {
-    margin-bottom: 20px;
+/* =====================================================================
+   Forms + Inputs
+   ===================================================================== */
+input[type="text"],
+input[type="number"],
+textarea,
+select {
+    width: 100%;
+    padding: 10px 14px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+input:focus, textarea:focus, select:focus {
+    border-color: var(--accent-blue);
+}
+textarea { resize: vertical; min-height: 60px; }
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 20px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    font-family: inherit;
+}
+.btn:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-light);
+}
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.btn-primary {
+    background: var(--accent-blue-dim);
+    border-color: var(--accent-blue);
+    color: #fff;
+}
+.btn-primary:hover { background: var(--accent-blue); }
+.btn-danger {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: var(--fail-red);
+    color: var(--fail-red);
+}
+.btn-danger:hover { background: rgba(239, 68, 68, 0.25); }
+.btn-warning {
+    background: rgba(249, 115, 22, 0.15);
+    border-color: var(--status-paused);
+    color: var(--status-paused);
+}
+.btn-warning:hover { background: rgba(249, 115, 22, 0.25); }
+.btn-success {
+    background: rgba(34, 197, 94, 0.15);
+    border-color: var(--success-green);
+    color: var(--success-green);
+}
+.btn-success:hover { background: rgba(34, 197, 94, 0.25); }
+.btn-sm {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+}
+.btn-group {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 
 /* =====================================================================
@@ -235,8 +328,8 @@ body {
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
     overflow: hidden;
+    margin-bottom: 20px;
 }
-
 .panel-header {
     padding: 14px 20px;
     border-bottom: 1px solid var(--border-color);
@@ -244,7 +337,6 @@ body {
     align-items: center;
     justify-content: space-between;
 }
-
 .panel-title {
     font-size: 0.95rem;
     font-weight: 600;
@@ -253,12 +345,6 @@ body {
     align-items: center;
     gap: 8px;
 }
-
-.panel-title .icon {
-    font-size: 1.1rem;
-    opacity: 0.7;
-}
-
 .panel-badge {
     font-size: 0.7rem;
     font-weight: 600;
@@ -269,36 +355,40 @@ body {
     border: 1px solid var(--border-color);
     font-family: var(--font-mono);
 }
-
-.panel-body {
-    padding: 16px 20px;
-}
-
-.panel-body.no-pad {
-    padding: 0;
+.panel-body { padding: 16px 20px; }
+.panel-body.no-pad { padding: 0; }
+.panel-body.scrollable { max-height: 400px; overflow-y: auto; }
+.panel-body.scrollable::-webkit-scrollbar { width: 6px; }
+.panel-body.scrollable::-webkit-scrollbar-track { background: var(--bg-secondary); }
+.panel-body.scrollable::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 3px;
 }
 
 /* =====================================================================
-   Station Cards
+   Station Grid (4-panel)
    ===================================================================== */
 .station-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 14px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
 }
-
 .station-card {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     padding: 16px;
+    cursor: pointer;
     transition: border-color 0.2s, box-shadow 0.2s;
 }
-
 .station-card:hover {
-    border-color: var(--border-light);
+    border-color: var(--accent-blue-dim);
     box-shadow: var(--shadow-md);
 }
+.station-card.state-testing { border-left: 3px solid var(--status-testing); }
+.station-card.state-paused { border-left: 3px solid var(--status-paused); }
+.station-card.state-idle { border-left: 3px solid var(--status-online); }
+.station-card.state-offline { border-left: 3px solid var(--status-offline); opacity: 0.7; }
 
 .station-card-header {
     display: flex;
@@ -306,14 +396,12 @@ body {
     justify-content: space-between;
     margin-bottom: 12px;
 }
-
 .station-name {
     font-weight: 600;
-    font-size: 0.95rem;
+    font-size: 1rem;
     font-family: var(--font-mono);
     color: var(--accent-blue);
 }
-
 .status-badge {
     padding: 2px 10px;
     border-radius: 10px;
@@ -322,71 +410,244 @@ body {
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
-
-.status-badge.online {
+.status-badge.online, .status-badge.idle {
     background: var(--status-online-bg);
     color: var(--status-online);
 }
-
 .status-badge.stale {
     background: var(--status-stale-bg);
     color: var(--status-stale);
 }
-
 .status-badge.offline {
     background: var(--status-offline-bg);
     color: var(--status-offline);
 }
-
-.station-stats {
+.status-badge.testing {
+    background: var(--status-testing-bg);
+    color: var(--status-testing);
+}
+.status-badge.paused {
+    background: var(--status-paused-bg);
+    color: var(--status-paused);
+}
+.station-temps {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
 }
-
-.station-stat {
+.temp-display {
     display: flex;
     flex-direction: column;
     gap: 2px;
 }
-
-.station-stat .stat-label {
+.temp-display .temp-label {
     font-size: 0.7rem;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
-
-.station-stat .stat-value {
-    font-size: 0.85rem;
+.temp-display .temp-value {
+    font-size: 1.1rem;
     font-family: var(--font-mono);
+    font-weight: 600;
     color: var(--text-primary);
 }
-
-.station-devices {
-    border-top: 1px solid var(--border-color);
-    padding-top: 10px;
+.station-info-row {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-top: 6px;
+}
+.station-info-row .info-label {
+    color: var(--text-muted);
 }
 
-.station-devices-label {
+/* =====================================================================
+   Station Detail View
+   ===================================================================== */
+.detail-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+.back-btn {
+    background: none;
+    border: none;
+    color: var(--accent-blue);
+    cursor: pointer;
+    font-size: 1.2rem;
+    padding: 4px 8px;
+}
+.back-btn:hover { color: var(--text-primary); }
+.detail-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    color: var(--accent-blue);
+}
+.detail-status { margin-left: auto; }
+
+.detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+.detail-grid .span-full { grid-column: 1 / -1; }
+
+/* Temperature chart */
+.chart-container {
+    position: relative;
+    width: 100%;
+    height: 250px;
+    background: var(--bg-input);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+}
+.chart-container canvas {
+    width: 100%;
+    height: 100%;
+}
+.chart-legend {
+    display: flex;
+    gap: 20px;
+    margin-top: 8px;
+    font-size: 0.8rem;
+}
+.chart-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.chart-legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+/* Control buttons */
+.controls-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.control-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Manual command input */
+.manual-cmd {
+    display: flex;
+    gap: 8px;
+}
+.manual-cmd input { flex: 1; }
+
+/* =====================================================================
+   RMA Views
+   ===================================================================== */
+.rma-toolbar {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    align-items: center;
+}
+.rma-toolbar .search-input {
+    flex: 1;
+    max-width: 400px;
+}
+.rma-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.rma-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.rma-item:hover { border-color: var(--accent-blue-dim); }
+.rma-item.closed { opacity: 0.7; }
+.rma-info { display: flex; flex-direction: column; gap: 4px; }
+.rma-number {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--accent-blue);
+}
+.rma-meta {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    display: flex;
+    gap: 16px;
+}
+.rma-status-badge {
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+.rma-status-badge.open {
+    background: var(--status-online-bg);
+    color: var(--status-online);
+}
+.rma-status-badge.closed {
+    background: var(--status-offline-bg);
+    color: var(--text-muted);
+}
+
+/* RMA form */
+.rma-form {
+    max-width: 600px;
+}
+.rma-form .field { margin-bottom: 16px; }
+.rma-form label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+/* RMA Detail */
+.rma-detail-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+.rma-detail-info {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+.info-block {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+}
+.info-block .info-block-label {
     font-size: 0.7rem;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
 }
-
-.device-chip {
-    display: inline-block;
-    background: var(--bg-input);
-    color: var(--text-secondary);
-    font-size: 0.75rem;
+.info-block .info-block-value {
+    font-size: 1rem;
     font-family: var(--font-mono);
-    padding: 2px 8px;
-    border-radius: var(--radius-sm);
-    margin: 2px 4px 2px 0;
-    border: 1px solid var(--border-color);
+    font-weight: 600;
 }
 
 /* =====================================================================
@@ -397,11 +658,7 @@ body {
     border-collapse: collapse;
     font-size: 0.85rem;
 }
-
-.data-table thead {
-    background: var(--bg-card);
-}
-
+.data-table thead { background: var(--bg-card); }
 .data-table th {
     text-align: left;
     padding: 10px 16px;
@@ -413,44 +670,22 @@ body {
     border-bottom: 1px solid var(--border-color);
     white-space: nowrap;
 }
-
 .data-table td {
     padding: 10px 16px;
     border-bottom: 1px solid var(--border-color);
     color: var(--text-primary);
     vertical-align: middle;
 }
-
-.data-table tbody tr:hover {
-    background: var(--bg-card-hover);
-}
-
-.data-table tbody tr:last-child td {
-    border-bottom: none;
-}
-
-.data-table .mono {
-    font-family: var(--font-mono);
-    font-size: 0.8rem;
-}
-
-.data-table .success {
-    color: var(--success-green);
-}
-
-.data-table .fail {
-    color: var(--fail-red);
-}
+.data-table tbody tr:hover { background: var(--bg-card-hover); }
+.data-table tbody tr:last-child td { border-bottom: none; }
+.data-table .mono { font-family: var(--font-mono); font-size: 0.8rem; }
+.data-table .success { color: var(--success-green); }
+.data-table .fail { color: var(--fail-red); }
 
 /* =====================================================================
-   Test Run Cards
+   Test Run Items
    ===================================================================== */
-.test-run-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
+.test-run-list { display: flex; flex-direction: column; gap: 10px; }
 .test-run-item {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
@@ -460,32 +695,16 @@ body {
     align-items: center;
     justify-content: space-between;
 }
-
-.test-run-item.running {
-    border-left: 3px solid var(--accent-blue);
-}
-
-.test-run-item.passed {
-    border-left: 3px solid var(--success-green);
-}
-
-.test-run-item.failed,
-.test-run-item.error {
-    border-left: 3px solid var(--fail-red);
-}
-
-.test-run-info {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
+.test-run-item.running { border-left: 3px solid var(--accent-blue); }
+.test-run-item.passed { border-left: 3px solid var(--success-green); }
+.test-run-item.failed, .test-run-item.error { border-left: 3px solid var(--fail-red); }
+.test-run-item.terminated { border-left: 3px solid var(--warning-yellow); }
+.test-run-info { display: flex; flex-direction: column; gap: 4px; }
 .test-run-script {
     font-family: var(--font-mono);
     font-weight: 600;
     font-size: 0.9rem;
 }
-
 .test-run-meta {
     font-size: 0.75rem;
     color: var(--text-secondary);
@@ -493,40 +712,93 @@ body {
     gap: 12px;
 }
 
-.test-run-status {
-    padding: 3px 10px;
-    border-radius: 10px;
-    font-size: 0.7rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+/* =====================================================================
+   Empty State
+   ===================================================================== */
+.empty-state {
+    text-align: center;
+    padding: 32px 16px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
 }
-
-.test-run-status.running {
-    background: rgba(74, 158, 255, 0.15);
-    color: var(--accent-blue);
-    animation: running-pulse 2s ease-in-out infinite;
-}
-
-.test-run-status.passed {
-    background: var(--status-online-bg);
-    color: var(--status-online);
-}
-
-.test-run-status.failed,
-.test-run-status.error {
-    background: var(--status-offline-bg);
-    color: var(--status-offline);
-}
-
-@keyframes running-pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+.empty-state .empty-icon {
+    font-size: 2rem;
+    margin-bottom: 8px;
+    opacity: 0.4;
 }
 
 /* =====================================================================
-   Measurements Table
+   Modal / Dialog
    ===================================================================== */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+}
+.modal-overlay.active { display: flex; }
+.modal {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    min-width: 400px;
+    max-width: 500px;
+    box-shadow: var(--shadow-lg);
+}
+.modal h3 {
+    margin-bottom: 16px;
+    color: var(--text-primary);
+}
+.modal .field { margin-bottom: 16px; }
+.modal label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+.modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+
+/* =====================================================================
+   Responsive
+   ===================================================================== */
+@media (max-width: 1200px) {
+    .station-grid { grid-template-columns: 1fr 1fr; }
+    .detail-grid { grid-template-columns: 1fr; }
+    .rma-detail-info { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 800px) {
+    .header { flex-direction: column; gap: 12px; }
+    .status-bar { flex-wrap: wrap; gap: 12px; }
+    .station-grid { grid-template-columns: 1fr; }
+    .main { padding: 12px; }
+    .rma-detail-info { grid-template-columns: 1fr; }
+}
+
+/* =====================================================================
+   Duration / Timestamp
+   ===================================================================== */
+.timestamp {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+}
+.duration-badge {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    background: var(--bg-input);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+}
 .measurement-response {
     max-width: 280px;
     overflow: hidden;
@@ -536,97 +808,33 @@ body {
     font-size: 0.8rem;
 }
 
-.duration-badge {
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    background: var(--bg-input);
-    padding: 2px 6px;
-    border-radius: var(--radius-sm);
+@keyframes running-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
 }
-
-/* =====================================================================
-   Empty States
-   ===================================================================== */
-.empty-state {
-    text-align: center;
-    padding: 32px 16px;
-    color: var(--text-muted);
-    font-size: 0.9rem;
+.test-run-status {
+    padding: 3px 10px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
 }
-
-.empty-state .empty-icon {
-    font-size: 2rem;
-    margin-bottom: 8px;
-    opacity: 0.4;
+.test-run-status.running {
+    background: rgba(74, 158, 255, 0.15);
+    color: var(--accent-blue);
+    animation: running-pulse 2s ease-in-out infinite;
 }
-
-/* =====================================================================
-   Scrollable Panel Body
-   ===================================================================== */
-.panel-body.scrollable {
-    max-height: 400px;
-    overflow-y: auto;
+.test-run-status.passed {
+    background: var(--status-online-bg);
+    color: var(--status-online);
 }
-
-.panel-body.scrollable::-webkit-scrollbar {
-    width: 6px;
+.test-run-status.failed, .test-run-status.error {
+    background: var(--status-offline-bg);
+    color: var(--status-offline);
 }
-
-.panel-body.scrollable::-webkit-scrollbar-track {
-    background: var(--bg-secondary);
-}
-
-.panel-body.scrollable::-webkit-scrollbar-thumb {
-    background: var(--border-color);
-    border-radius: 3px;
-}
-
-.panel-body.scrollable::-webkit-scrollbar-thumb:hover {
-    background: var(--border-light);
-}
-
-/* =====================================================================
-   Responsive
-   ===================================================================== */
-@media (max-width: 1200px) {
-    .grid-2col {
-        grid-template-columns: 1fr;
-    }
-}
-
-@media (max-width: 800px) {
-    .header {
-        flex-direction: column;
-        gap: 12px;
-    }
-    .status-bar {
-        flex-wrap: wrap;
-        gap: 12px;
-    }
-    .station-grid {
-        grid-template-columns: 1fr;
-    }
-    .main {
-        padding: 12px;
-    }
-}
-
-/* =====================================================================
-   Utility
-   ===================================================================== */
-.visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-}
-
-.timestamp {
-    color: var(--text-muted);
-    font-size: 0.75rem;
-    font-family: var(--font-mono);
+.test-run-status.terminated {
+    background: var(--status-stale-bg);
+    color: var(--status-stale);
 }
 </style>
 </head>
@@ -634,10 +842,7 @@ body {
 
 <!-- E-Stop Banner -->
 <div id="estop-banner">
-    <div>
-        <span class="estop-icon">EMERGENCY STOP</span>
-        <span id="estop-reason"></span>
-    </div>
+    <div>EMERGENCY STOP <span id="estop-reason"></span></div>
     <div class="estop-details">
         <span id="estop-description"></span>
         &mdash; Initiated by: <span id="estop-initiator"></span>
@@ -645,146 +850,80 @@ body {
     </div>
 </div>
 
-<!-- Header / Status Bar -->
-<header class="header">
+<!-- Header -->
+<header class="header" id="app-header" style="display:none">
     <div class="header-left">
-        <div class="header-logo">Arturo</div>
-        <div class="header-subtitle">Industrial Test Automation Controller</div>
+        <div class="header-logo" onclick="App.showView('dashboard')">Arturo</div>
+        <div class="header-subtitle">Industrial Test Automation</div>
     </div>
     <div class="status-bar">
         <div class="status-item">
-            <div class="ws-indicator" id="ws-indicator" title="WebSocket disconnected"></div>
+            <div class="ws-indicator" id="ws-indicator"></div>
             <span class="label">WS</span>
         </div>
         <div class="status-item">
             <span class="label">Stations:</span>
             <span class="value" id="stat-stations">0</span>
         </div>
-        <div class="status-item">
-            <span class="label">Devices:</span>
-            <span class="value" id="stat-devices">0</span>
-        </div>
-        <div class="status-item">
-            <span id="estop-status-badge" class="estop-status-badge safe">SAFE</span>
-        </div>
+        <span id="estop-status-badge" class="estop-status-badge safe">SAFE</span>
+        <span class="employee-badge" id="employee-name" onclick="App.logout()"></span>
     </div>
 </header>
 
-<!-- Main Content -->
-<main class="main">
+<!-- =====================================================================
+     LOGIN VIEW
+     ===================================================================== -->
+<div id="view-login" class="view active">
+    <div class="login-container">
+        <h1>Arturo</h1>
+        <div class="subtitle">Industrial Test Automation Controller</div>
+        <div class="login-form">
+            <div class="field">
+                <label for="login-employee-id">Employee ID</label>
+                <input type="text" id="login-employee-id" placeholder="e.g. emp-001">
+            </div>
+            <div class="field">
+                <label for="login-name">Name</label>
+                <input type="text" id="login-name" placeholder="e.g. John Doe">
+            </div>
+            <div class="login-error" id="login-error"></div>
+            <button class="btn btn-primary" style="width:100%" onclick="App.login()">Login</button>
+        </div>
+    </div>
+</div>
 
-    <!-- Stations Panel (full width) -->
-    <section class="grid-full">
+<!-- =====================================================================
+     DASHBOARD VIEW
+     ===================================================================== -->
+<div id="view-dashboard" class="view">
+    <main class="main">
+        <!-- Station Grid -->
         <div class="panel">
             <div class="panel-header">
-                <div class="panel-title">
-                    <span class="icon">S</span>
-                    Stations
+                <div class="panel-title">Stations</div>
+                <div class="btn-group">
+                    <button class="btn btn-sm" onclick="App.showView('rma-list')">RMAs</button>
+                    <button class="btn btn-sm btn-primary" onclick="App.showView('rma-new')">New RMA</button>
                 </div>
-                <span class="panel-badge" id="station-count-badge">0</span>
             </div>
             <div class="panel-body">
                 <div class="station-grid" id="station-grid">
-                    <div class="empty-state">
-                        <div class="empty-icon">--</div>
-                        <div>No stations reporting</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Active Tests + Recent Measurements (2 col) -->
-    <section class="grid-2col">
-        <!-- Active Tests -->
-        <div class="panel">
-            <div class="panel-header">
-                <div class="panel-title">
-                    <span class="icon">T</span>
-                    Active Tests
-                </div>
-                <span class="panel-badge" id="active-test-count">0</span>
-            </div>
-            <div class="panel-body scrollable">
-                <div class="test-run-list" id="active-tests">
-                    <div class="empty-state">
-                        <div class="empty-icon">--</div>
-                        <div>No tests running</div>
-                    </div>
+                    <div class="empty-state"><div>No stations reporting</div></div>
                 </div>
             </div>
         </div>
 
-        <!-- Recent Test Runs -->
+        <!-- Recent Measurements -->
         <div class="panel">
             <div class="panel-header">
-                <div class="panel-title">
-                    <span class="icon">R</span>
-                    Recent Test Runs
-                </div>
-                <span class="panel-badge" id="test-run-count">0</span>
-            </div>
-            <div class="panel-body scrollable">
-                <div class="test-run-list" id="recent-tests">
-                    <div class="empty-state">
-                        <div class="empty-icon">--</div>
-                        <div>No test runs recorded</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Device Table (full width) -->
-    <section class="grid-full">
-        <div class="panel">
-            <div class="panel-header">
-                <div class="panel-title">
-                    <span class="icon">D</span>
-                    Devices
-                </div>
-                <span class="panel-badge" id="device-count-badge">0</span>
-            </div>
-            <div class="panel-body no-pad scrollable">
-                <table class="data-table" id="device-table">
-                    <thead>
-                        <tr>
-                            <th>Device ID</th>
-                            <th>Station</th>
-                            <th>Status</th>
-                            <th>Command Stream</th>
-                            <th>Last Seen</th>
-                        </tr>
-                    </thead>
-                    <tbody id="device-tbody">
-                        <tr>
-                            <td colspan="5">
-                                <div class="empty-state">
-                                    <div>No devices registered</div>
-                                </div>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </section>
-
-    <!-- Recent Measurements (full width) -->
-    <section class="grid-full">
-        <div class="panel">
-            <div class="panel-header">
-                <div class="panel-title">
-                    <span class="icon">M</span>
-                    Recent Measurements
-                </div>
+                <div class="panel-title">Recent Measurements</div>
                 <span class="panel-badge" id="measurement-count">0</span>
             </div>
             <div class="panel-body no-pad scrollable">
-                <table class="data-table" id="measurement-table">
+                <table class="data-table">
                     <thead>
                         <tr>
-                            <th>Timestamp</th>
+                            <th>Time</th>
                             <th>Device</th>
                             <th>Command</th>
                             <th>Result</th>
@@ -793,359 +932,1076 @@ body {
                         </tr>
                     </thead>
                     <tbody id="measurement-tbody">
-                        <tr>
-                            <td colspan="6">
-                                <div class="empty-state">
-                                    <div>No measurements recorded</div>
-                                </div>
-                            </td>
-                        </tr>
+                        <tr><td colspan="6"><div class="empty-state">No measurements recorded</div></td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
-    </section>
+    </main>
+</div>
 
-</main>
+<!-- =====================================================================
+     STATION DETAIL VIEW
+     ===================================================================== -->
+<div id="view-station-detail" class="view">
+    <main class="main">
+        <div class="detail-header">
+            <button class="back-btn" onclick="App.showView('dashboard')">&larr;</button>
+            <span class="detail-title" id="detail-station-name">station-01</span>
+            <div class="detail-status">
+                <span class="status-badge" id="detail-station-status">--</span>
+            </div>
+        </div>
+
+        <div class="detail-grid">
+            <!-- Temperature Chart -->
+            <div class="panel span-full">
+                <div class="panel-header">
+                    <div class="panel-title">Temperature</div>
+                    <div class="chart-legend">
+                        <div class="chart-legend-item">
+                            <div class="chart-legend-dot" style="background:#4a9eff"></div>
+                            <span>1st Stage</span>
+                        </div>
+                        <div class="chart-legend-item">
+                            <div class="chart-legend-dot" style="background:#22c55e"></div>
+                            <span>2nd Stage</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="panel-body">
+                    <div class="chart-container">
+                        <canvas id="temp-chart"></canvas>
+                    </div>
+                    <div style="display:flex;gap:24px;margin-top:12px">
+                        <div class="temp-display">
+                            <span class="temp-label">1st Stage</span>
+                            <span class="temp-value" id="detail-temp-1st">-- K</span>
+                        </div>
+                        <div class="temp-display">
+                            <span class="temp-label">2nd Stage</span>
+                            <span class="temp-value" id="detail-temp-2nd">-- K</span>
+                        </div>
+                        <div class="temp-display">
+                            <span class="temp-label">Elapsed</span>
+                            <span class="temp-value" id="detail-elapsed">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Test Info + Controls -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">Test Controls</div>
+                </div>
+                <div class="panel-body">
+                    <div id="detail-test-info"></div>
+                    <div class="controls-section" id="detail-controls" style="margin-top:12px"></div>
+                </div>
+            </div>
+
+            <!-- Station Info -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">Station Info</div>
+                </div>
+                <div class="panel-body" id="detail-station-info"></div>
+            </div>
+
+            <!-- Manual Command (only when idle) -->
+            <div class="panel" id="manual-cmd-panel" style="display:none">
+                <div class="panel-header">
+                    <div class="panel-title">Manual Command</div>
+                </div>
+                <div class="panel-body">
+                    <div class="field">
+                        <label for="manual-device">Device ID</label>
+                        <input type="text" id="manual-device" placeholder="PUMP-01">
+                    </div>
+                    <div class="manual-cmd" style="margin-top:8px">
+                        <input type="text" id="manual-command" placeholder="e.g. pump_status">
+                        <button class="btn btn-primary btn-sm" onclick="App.sendManualCommand()">Send</button>
+                    </div>
+                    <div id="manual-response" style="margin-top:12px;font-family:var(--font-mono);font-size:0.85rem;color:var(--text-secondary)"></div>
+                </div>
+            </div>
+
+            <!-- Events Log -->
+            <div class="panel span-full">
+                <div class="panel-header">
+                    <div class="panel-title">Test Events</div>
+                </div>
+                <div class="panel-body no-pad scrollable">
+                    <table class="data-table">
+                        <thead><tr><th>Time</th><th>Event</th><th>Employee</th><th>Reason</th></tr></thead>
+                        <tbody id="detail-events-tbody">
+                            <tr><td colspan="4"><div class="empty-state">No events</div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- =====================================================================
+     RMA LIST VIEW
+     ===================================================================== -->
+<div id="view-rma-list" class="view">
+    <main class="main">
+        <div class="detail-header">
+            <button class="back-btn" onclick="App.showView('dashboard')">&larr;</button>
+            <span class="detail-title">RMAs</span>
+            <div class="detail-status">
+                <button class="btn btn-sm btn-primary" onclick="App.showView('rma-new')">New RMA</button>
+            </div>
+        </div>
+        <div class="rma-toolbar">
+            <input type="text" class="search-input" id="rma-search-input" placeholder="Search by RMA number..." oninput="App.searchRMAs()">
+            <select id="rma-status-filter" onchange="App.loadRMAs()" style="width:auto;max-width:150px">
+                <option value="">All</option>
+                <option value="open" selected>Open</option>
+                <option value="closed">Closed</option>
+            </select>
+        </div>
+        <div class="rma-list" id="rma-list"></div>
+    </main>
+</div>
+
+<!-- =====================================================================
+     NEW RMA VIEW
+     ===================================================================== -->
+<div id="view-rma-new" class="view">
+    <main class="main">
+        <div class="detail-header">
+            <button class="back-btn" onclick="App.showView('rma-list')">&larr;</button>
+            <span class="detail-title">New RMA</span>
+        </div>
+        <div class="panel">
+            <div class="panel-body">
+                <div class="rma-form">
+                    <div class="field">
+                        <label for="rma-rma-number">RMA Number</label>
+                        <input type="text" id="rma-rma-number" placeholder="RMA-2024-001">
+                    </div>
+                    <div class="field">
+                        <label for="rma-serial">Pump Serial Number</label>
+                        <input type="text" id="rma-serial" placeholder="SN12345">
+                    </div>
+                    <div class="field">
+                        <label for="rma-customer">Customer Name</label>
+                        <input type="text" id="rma-customer" placeholder="ACME Corp">
+                    </div>
+                    <div class="field">
+                        <label for="rma-model">Pump Model</label>
+                        <input type="text" id="rma-model" placeholder="CT-8">
+                    </div>
+                    <div class="field">
+                        <label for="rma-notes">Notes</label>
+                        <textarea id="rma-notes" placeholder="Optional notes..."></textarea>
+                    </div>
+                    <div id="rma-create-error" class="login-error"></div>
+                    <button class="btn btn-primary" onclick="App.createRMA()">Create RMA</button>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- =====================================================================
+     RMA DETAIL VIEW
+     ===================================================================== -->
+<div id="view-rma-detail" class="view">
+    <main class="main">
+        <div class="rma-detail-header">
+            <div style="display:flex;align-items:center;gap:16px">
+                <button class="back-btn" onclick="App.showView('rma-list')">&larr;</button>
+                <span class="detail-title" id="rma-detail-number">--</span>
+                <span class="rma-status-badge" id="rma-detail-status">--</span>
+            </div>
+            <div class="btn-group" id="rma-detail-actions"></div>
+        </div>
+        <div class="rma-detail-info" id="rma-detail-info"></div>
+
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">Test Runs</div>
+            </div>
+            <div class="panel-body">
+                <div class="test-run-list" id="rma-detail-runs"></div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- =====================================================================
+     START TEST MODAL
+     ===================================================================== -->
+<div class="modal-overlay" id="start-test-modal">
+    <div class="modal">
+        <h3>Start Test</h3>
+        <div class="field">
+            <label for="test-rma-search">RMA Number</label>
+            <input type="text" id="test-rma-search" placeholder="Search RMA number...">
+            <div id="test-rma-results" style="margin-top:4px;font-size:0.85rem;color:var(--text-secondary)"></div>
+        </div>
+        <div class="field">
+            <label for="test-script">Script Path</label>
+            <input type="text" id="test-script" placeholder="scripts/pump_test.art">
+        </div>
+        <div id="start-test-error" class="login-error"></div>
+        <div class="modal-actions">
+            <button class="btn" onclick="App.closeModal('start-test-modal')">Cancel</button>
+            <button class="btn btn-primary" onclick="App.confirmStartTest()">Start</button>
+        </div>
+    </div>
+</div>
+
+<!-- =====================================================================
+     TERMINATE MODAL
+     ===================================================================== -->
+<div class="modal-overlay" id="terminate-modal">
+    <div class="modal">
+        <h3>Terminate Test</h3>
+        <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.85rem">
+            This will stop the test and preserve all collected data.
+        </p>
+        <div class="field">
+            <label for="terminate-reason">Reason</label>
+            <textarea id="terminate-reason" placeholder="Reason for termination..."></textarea>
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="App.closeModal('terminate-modal')">Cancel</button>
+            <button class="btn btn-warning" onclick="App.confirmTerminate()">Terminate</button>
+        </div>
+    </div>
+</div>
 
 <script>
 /* =====================================================================
-   Arturo Dashboard - Application Logic
+   Arturo Dashboard Application
    ===================================================================== */
-(function() {
+var App = (function() {
     'use strict';
 
-    // =====================================================================
+    // =================================================================
     // State
-    // =====================================================================
+    // =================================================================
     var state = {
-        stations: {},    // instance -> StationEntry
-        devices: {},     // deviceID -> DeviceEntry
-        testRuns: [],    // Array of TestRun
-        measurements: [], // Array of recent command responses (max 100)
-        estop: {
-            active: false,
-            reason: '',
-            description: '',
-            initiator: '',
-            triggered_at: ''
-        },
-        wsConnected: false
+        employee: null,       // {id, name}
+        stations: {},         // instance -> registry data
+        stationStates: {},    // instance -> {state, test_run_id, ...}
+        stationTemps: {},     // instance -> {first_stage, second_stage}
+        measurements: [],     // recent command responses
+        estop: { active: false },
+        wsConnected: false,
+        currentView: 'login',
+        detailStation: null,  // currently viewing station
+        detailRMA: null,      // currently viewing RMA ID
+        startTestStation: null,
+        startTestRMAId: null,
+        tempChartData: { timestamps: [], first: [], second: [] }
     };
 
     var MAX_MEASUREMENTS = 100;
+    var MAX_CHART_POINTS = 720; // 1 hour at 5s intervals
 
-    // =====================================================================
-    // DOM References
-    // =====================================================================
-    var dom = {
-        estopBanner: document.getElementById('estop-banner'),
-        estopReason: document.getElementById('estop-reason'),
-        estopDescription: document.getElementById('estop-description'),
-        estopInitiator: document.getElementById('estop-initiator'),
-        estopTime: document.getElementById('estop-time'),
-        estopStatusBadge: document.getElementById('estop-status-badge'),
-        wsIndicator: document.getElementById('ws-indicator'),
-        statStations: document.getElementById('stat-stations'),
-        statDevices: document.getElementById('stat-devices'),
-        stationCountBadge: document.getElementById('station-count-badge'),
-        stationGrid: document.getElementById('station-grid'),
-        activeTestCount: document.getElementById('active-test-count'),
-        activeTests: document.getElementById('active-tests'),
-        testRunCount: document.getElementById('test-run-count'),
-        recentTests: document.getElementById('recent-tests'),
-        deviceCountBadge: document.getElementById('device-count-badge'),
-        deviceTbody: document.getElementById('device-tbody'),
-        measurementCount: document.getElementById('measurement-count'),
-        measurementTbody: document.getElementById('measurement-tbody')
-    };
+    // =================================================================
+    // Utilities
+    // =================================================================
+    function escapeHtml(s) {
+        if (s == null) return '';
+        var div = document.createElement('div');
+        div.appendChild(document.createTextNode(String(s)));
+        return div.innerHTML;
+    }
 
-    // =====================================================================
-    // Utility Functions
-    // =====================================================================
-    function formatUptime(seconds) {
-        if (seconds == null || seconds <= 0) return '--';
-        var d = Math.floor(seconds / 86400);
-        var h = Math.floor((seconds % 86400) / 3600);
-        var m = Math.floor((seconds % 3600) / 60);
-        var s = seconds % 60;
-        if (d > 0) return d + 'd ' + h + 'h ' + m + 'm';
-        if (h > 0) return h + 'h ' + m + 'm ' + s + 's';
+    function formatUptime(secs) {
+        if (secs == null || secs <= 0) return '--';
+        var d = Math.floor(secs / 86400);
+        var h = Math.floor((secs % 86400) / 3600);
+        var m = Math.floor((secs % 3600) / 60);
+        var s = secs % 60;
+        if (d > 0) return d + 'd ' + h + 'h';
+        if (h > 0) return h + 'h ' + m + 'm';
         if (m > 0) return m + 'm ' + s + 's';
         return s + 's';
     }
 
-    function formatBytes(bytes) {
-        if (bytes == null) return '--';
-        if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
-        if (bytes >= 1024) return (bytes / 1024).toFixed(1) + ' KB';
-        return bytes + ' B';
-    }
-
-    function formatRSSI(rssi) {
-        if (rssi == null || rssi === 0) return '--';
-        var label;
-        if (rssi >= -50) label = 'Excellent';
-        else if (rssi >= -60) label = 'Good';
-        else if (rssi >= -70) label = 'Fair';
-        else label = 'Weak';
-        return rssi + ' dBm (' + label + ')';
-    }
-
-    function formatTime(isoString) {
-        if (!isoString) return '--';
+    function formatTime(iso) {
+        if (!iso) return '--';
         try {
-            var d = new Date(isoString);
+            var d = new Date(iso);
             if (isNaN(d.getTime())) return '--';
             return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        } catch (e) {
-            return '--';
-        }
+        } catch(e) { return '--'; }
     }
 
-    function formatDateTime(isoString) {
-        if (!isoString) return '--';
+    function formatDateTime(iso) {
+        if (!iso) return '--';
         try {
-            var d = new Date(isoString);
+            var d = new Date(iso);
             if (isNaN(d.getTime())) return '--';
-            return d.toLocaleString([], {
-                month: 'short', day: 'numeric',
-                hour: '2-digit', minute: '2-digit', second: '2-digit'
-            });
-        } catch (e) {
-            return '--';
-        }
-    }
-
-    function timeAgo(isoString) {
-        if (!isoString) return '--';
-        try {
-            var d = new Date(isoString);
-            if (isNaN(d.getTime())) return '--';
-            var secs = Math.floor((Date.now() - d.getTime()) / 1000);
-            if (secs < 5) return 'just now';
-            if (secs < 60) return secs + 's ago';
-            if (secs < 3600) return Math.floor(secs / 60) + 'm ago';
-            if (secs < 86400) return Math.floor(secs / 3600) + 'h ago';
-            return Math.floor(secs / 86400) + 'd ago';
-        } catch (e) {
-            return '--';
-        }
-    }
-
-    function escapeHtml(str) {
-        if (str == null) return '';
-        var div = document.createElement('div');
-        div.appendChild(document.createTextNode(String(str)));
-        return div.innerHTML;
+            return d.toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+        } catch(e) { return '--'; }
     }
 
     function elapsed(startISO) {
         if (!startISO) return '--';
         try {
-            var start = new Date(startISO);
-            if (isNaN(start.getTime())) return '--';
-            var secs = Math.floor((Date.now() - start.getTime()) / 1000);
-            if (secs < 0) secs = 0;
-            return formatUptime(secs);
-        } catch (e) {
-            return '--';
+            var secs = Math.floor((Date.now() - new Date(startISO).getTime()) / 1000);
+            return secs >= 0 ? formatUptime(secs) : '--';
+        } catch(e) { return '--'; }
+    }
+
+    function formatBytes(b) {
+        if (b == null) return '--';
+        if (b >= 1048576) return (b / 1048576).toFixed(1) + ' MB';
+        if (b >= 1024) return (b / 1024).toFixed(1) + ' KB';
+        return b + ' B';
+    }
+
+    // =================================================================
+    // API
+    // =================================================================
+    function api(method, url, body, cb) {
+        var xhr = new XMLHttpRequest();
+        xhr.open(method, url, true);
+        xhr.setRequestHeader('Accept', 'application/json');
+        if (state.employee) {
+            xhr.setRequestHeader('X-Employee-ID', state.employee.id);
+        }
+        if (body) {
+            xhr.setRequestHeader('Content-Type', 'application/json');
+        }
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4) {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        var data = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+                        cb(null, data);
+                    } catch(e) { cb(null, null); }
+                } else {
+                    var errMsg = 'HTTP ' + xhr.status;
+                    try {
+                        var ed = JSON.parse(xhr.responseText);
+                        if (ed.error) errMsg = ed.error;
+                    } catch(e) {}
+                    cb(new Error(errMsg));
+                }
+            }
+        };
+        xhr.send(body ? JSON.stringify(body) : null);
+    }
+
+    // =================================================================
+    // View Management
+    // =================================================================
+    function showView(name) {
+        state.currentView = name;
+        var views = document.querySelectorAll('.view');
+        for (var i = 0; i < views.length; i++) views[i].classList.remove('active');
+        var el = document.getElementById('view-' + name);
+        if (el) el.classList.add('active');
+
+        var hdr = document.getElementById('app-header');
+        hdr.style.display = (name === 'login') ? 'none' : 'flex';
+
+        if (name === 'dashboard') {
+            loadStations();
+        } else if (name === 'station-detail' && state.detailStation) {
+            loadStationDetail(state.detailStation);
+        } else if (name === 'rma-list') {
+            loadRMAs();
+        } else if (name === 'rma-detail' && state.detailRMA) {
+            loadRMADetail(state.detailRMA);
         }
     }
 
-    // =====================================================================
-    // Rendering
-    // =====================================================================
-    function renderStatusBar() {
-        var stationKeys = Object.keys(state.stations);
-        var deviceKeys = Object.keys(state.devices);
-        dom.statStations.textContent = stationKeys.length;
-        dom.statDevices.textContent = deviceKeys.length;
+    // =================================================================
+    // Login
+    // =================================================================
+    function login() {
+        var empId = document.getElementById('login-employee-id').value.trim();
+        var name = document.getElementById('login-name').value.trim();
+        if (!empId || !name) {
+            showError('login-error', 'Employee ID and Name are required');
+            return;
+        }
+        api('POST', '/auth/login', { employee_id: empId, name: name }, function(err, data) {
+            if (err) {
+                showError('login-error', err.message);
+                return;
+            }
+            state.employee = { id: empId, name: name };
+            document.getElementById('employee-name').textContent = name;
+            showView('dashboard');
+            connectWebSocket();
+        });
     }
 
-    function renderEstop() {
-        var es = state.estop;
-        if (es.active) {
-            dom.estopBanner.classList.add('active');
-            dom.estopReason.textContent = es.reason || 'Unknown reason';
-            dom.estopDescription.textContent = es.description || '';
-            dom.estopInitiator.textContent = es.initiator || 'unknown';
-            dom.estopTime.textContent = formatDateTime(es.triggered_at);
-            dom.estopStatusBadge.textContent = 'E-STOP';
-            dom.estopStatusBadge.className = 'estop-status-badge active';
-        } else {
-            dom.estopBanner.classList.remove('active');
-            dom.estopStatusBadge.textContent = 'SAFE';
-            dom.estopStatusBadge.className = 'estop-status-badge safe';
+    function logout() {
+        state.employee = null;
+        showView('login');
+    }
+
+    function showError(id, msg) {
+        var el = document.getElementById(id);
+        if (el) {
+            el.textContent = msg;
+            el.style.display = msg ? 'block' : 'none';
         }
     }
 
-    function renderWSStatus() {
-        if (state.wsConnected) {
-            dom.wsIndicator.classList.add('connected');
-            dom.wsIndicator.title = 'WebSocket connected';
-        } else {
-            dom.wsIndicator.classList.remove('connected');
-            dom.wsIndicator.title = 'WebSocket disconnected';
-        }
+    // =================================================================
+    // Stations / Dashboard
+    // =================================================================
+    function loadStations() {
+        api('GET', '/stations', null, function(err, data) {
+            if (!err && Array.isArray(data)) {
+                state.stations = {};
+                for (var i = 0; i < data.length; i++) {
+                    state.stations[data[i].Instance] = data[i];
+                }
+            }
+            renderStationGrid();
+        });
     }
 
-    function renderStations() {
-        var stationKeys = Object.keys(state.stations).sort();
-        dom.stationCountBadge.textContent = stationKeys.length;
+    function getStationState(instance) {
+        return state.stationStates[instance] || { state: 'unknown' };
+    }
 
-        if (stationKeys.length === 0) {
-            dom.stationGrid.innerHTML =
-                '<div class="empty-state">' +
-                '<div class="empty-icon">--</div>' +
-                '<div>No stations reporting</div>' +
-                '</div>';
+    function renderStationGrid() {
+        var grid = document.getElementById('station-grid');
+        var keys = Object.keys(state.stations).sort();
+        document.getElementById('stat-stations').textContent = keys.length;
+
+        if (keys.length === 0) {
+            grid.innerHTML = '<div class="empty-state">No stations reporting</div>';
             return;
         }
 
         var html = '';
-        for (var i = 0; i < stationKeys.length; i++) {
-            var s = state.stations[stationKeys[i]];
-            var statusClass = s.Status || 'offline';
-            var statusLabel = statusClass.charAt(0).toUpperCase() + statusClass.slice(1);
+        for (var i = 0; i < keys.length; i++) {
+            var s = state.stations[keys[i]];
+            var ss = getStationState(keys[i]);
+            var stateStr = ss.state || s.Status || 'offline';
+            var stateLabel = stateStr.charAt(0).toUpperCase() + stateStr.slice(1);
+            var temps = state.stationTemps[keys[i]] || {};
+            var t1 = temps.first_stage != null ? temps.first_stage.toFixed(1) + ' K' : '-- K';
+            var t2 = temps.second_stage != null ? temps.second_stage.toFixed(1) + ' K' : '-- K';
 
-            html += '<div class="station-card">';
+            html += '<div class="station-card state-' + escapeHtml(stateStr) + '" onclick="App.openStation(\'' + escapeHtml(keys[i]) + '\')">';
             html += '<div class="station-card-header">';
-            html += '<span class="station-name">' + escapeHtml(s.Instance) + '</span>';
-            html += '<span class="status-badge ' + statusClass + '">' + statusLabel + '</span>';
+            html += '<span class="station-name">' + escapeHtml(keys[i]) + '</span>';
+            html += '<span class="status-badge ' + escapeHtml(stateStr) + '">' + stateLabel + '</span>';
             html += '</div>';
-
-            html += '<div class="station-stats">';
-            html += '<div class="station-stat"><span class="stat-label">Firmware</span><span class="stat-value">' + escapeHtml(s.FirmwareVersion || '--') + '</span></div>';
-            html += '<div class="station-stat"><span class="stat-label">Uptime</span><span class="stat-value">' + formatUptime(s.UptimeSeconds) + '</span></div>';
-            html += '<div class="station-stat"><span class="stat-label">WiFi RSSI</span><span class="stat-value">' + formatRSSI(s.WifiRSSI) + '</span></div>';
-            html += '<div class="station-stat"><span class="stat-label">Free Heap</span><span class="stat-value">' + formatBytes(s.FreeHeap) + '</span></div>';
+            html += '<div class="station-temps">';
+            html += '<div class="temp-display"><span class="temp-label">1st Stage</span><span class="temp-value">' + t1 + '</span></div>';
+            html += '<div class="temp-display"><span class="temp-label">2nd Stage</span><span class="temp-value">' + t2 + '</span></div>';
             html += '</div>';
 
             var devices = s.Devices || [];
-            html += '<div class="station-devices">';
-            html += '<div class="station-devices-label">Devices (' + devices.length + ')</div>';
-            if (devices.length > 0) {
-                for (var j = 0; j < devices.length; j++) {
-                    html += '<span class="device-chip">' + escapeHtml(devices[j]) + '</span>';
-                }
-            } else {
-                html += '<span class="device-chip">none</span>';
+            html += '<div class="station-info-row"><span class="info-label">Devices:</span> ' + (devices.length > 0 ? devices.join(', ') : 'none') + '</div>';
+
+            if (stateStr === 'testing' || stateStr === 'paused') {
+                html += '<div class="station-info-row" style="color:var(--accent-blue)">Test in progress</div>';
             }
-            html += '</div>';
 
             html += '</div>';
         }
 
-        dom.stationGrid.innerHTML = html;
+        grid.innerHTML = html;
     }
 
-    function renderDevices() {
-        var deviceKeys = Object.keys(state.devices).sort();
-        dom.deviceCountBadge.textContent = deviceKeys.length;
+    function openStation(instance) {
+        state.detailStation = instance;
+        state.tempChartData = { timestamps: [], first: [], second: [] };
+        showView('station-detail');
+    }
 
-        if (deviceKeys.length === 0) {
-            dom.deviceTbody.innerHTML =
-                '<tr><td colspan="5"><div class="empty-state"><div>No devices registered</div></div></td></tr>';
+    // =================================================================
+    // Station Detail
+    // =================================================================
+    function loadStationDetail(instance) {
+        document.getElementById('detail-station-name').textContent = instance;
+
+        // Load station state
+        api('GET', '/stations/' + encodeURIComponent(instance) + '/state', null, function(err, data) {
+            if (!err && data) {
+                state.stationStates[instance] = data;
+                renderStationDetail(instance);
+
+                // Load temperature data if there's an active test
+                if (data.test_run_id) {
+                    loadTemperatureData(data.test_run_id);
+                    loadTestEvents(data.test_run_id);
+                }
+            } else {
+                renderStationDetail(instance);
+            }
+        });
+    }
+
+    function renderStationDetail(instance) {
+        var s = state.stations[instance] || {};
+        var ss = state.stationStates[instance] || {};
+        var stateStr = ss.state || s.Status || 'offline';
+        var stateLabel = stateStr.charAt(0).toUpperCase() + stateStr.slice(1);
+
+        // Status badge
+        var badge = document.getElementById('detail-station-status');
+        badge.textContent = stateLabel;
+        badge.className = 'status-badge ' + stateStr;
+
+        // Temps
+        var temps = state.stationTemps[instance] || {};
+        document.getElementById('detail-temp-1st').textContent = temps.first_stage != null ? temps.first_stage.toFixed(1) + ' K' : '-- K';
+        document.getElementById('detail-temp-2nd').textContent = temps.second_stage != null ? temps.second_stage.toFixed(1) + ' K' : '-- K';
+
+        // Elapsed
+        document.getElementById('detail-elapsed').textContent = ss.started_at ? elapsed(ss.started_at) : '--';
+
+        // Station info
+        var infoHtml = '';
+        infoHtml += '<div class="station-info-row"><span class="info-label">Firmware:</span> ' + escapeHtml(s.FirmwareVersion || '--') + '</div>';
+        infoHtml += '<div class="station-info-row"><span class="info-label">Uptime:</span> ' + formatUptime(s.UptimeSeconds) + '</div>';
+        infoHtml += '<div class="station-info-row"><span class="info-label">Free Heap:</span> ' + formatBytes(s.FreeHeap) + '</div>';
+        infoHtml += '<div class="station-info-row"><span class="info-label">Devices:</span> ' + ((s.Devices || []).join(', ') || 'none') + '</div>';
+        document.getElementById('detail-station-info').innerHTML = infoHtml;
+
+        // Test info
+        var testInfoHtml = '';
+        if (ss.script_name) {
+            testInfoHtml += '<div class="station-info-row"><span class="info-label">Script:</span> ' + escapeHtml(ss.script_name) + '</div>';
+        }
+        if (ss.rma_id) {
+            testInfoHtml += '<div class="station-info-row"><span class="info-label">RMA:</span> ' + escapeHtml(ss.rma_id) + '</div>';
+        }
+        if (ss.started_at) {
+            testInfoHtml += '<div class="station-info-row"><span class="info-label">Started:</span> ' + formatDateTime(ss.started_at) + '</div>';
+        }
+        document.getElementById('detail-test-info').innerHTML = testInfoHtml || '<div style="color:var(--text-muted)">No active test</div>';
+
+        // Controls
+        var controlsHtml = '';
+        if (stateStr === 'idle' || stateStr === 'online') {
+            controlsHtml += '<button class="btn btn-primary" onclick="App.startTest(\'' + escapeHtml(instance) + '\')">Start Test</button>';
+        } else if (stateStr === 'testing') {
+            controlsHtml += '<div class="btn-group">';
+            controlsHtml += '<button class="btn btn-warning" onclick="App.pauseTest(\'' + escapeHtml(instance) + '\')">Pause</button>';
+            controlsHtml += '<button class="btn" onclick="App.terminateTest(\'' + escapeHtml(instance) + '\')">Terminate</button>';
+            controlsHtml += '<button class="btn btn-danger btn-sm" onclick="App.abortTest(\'' + escapeHtml(instance) + '\')">Abort</button>';
+            controlsHtml += '</div>';
+        } else if (stateStr === 'paused') {
+            controlsHtml += '<div class="btn-group">';
+            controlsHtml += '<button class="btn btn-success" onclick="App.resumeTest(\'' + escapeHtml(instance) + '\')">Resume</button>';
+            controlsHtml += '<button class="btn" onclick="App.terminateTest(\'' + escapeHtml(instance) + '\')">Terminate</button>';
+            controlsHtml += '<button class="btn btn-danger btn-sm" onclick="App.abortTest(\'' + escapeHtml(instance) + '\')">Abort</button>';
+            controlsHtml += '</div>';
+        }
+        document.getElementById('detail-controls').innerHTML = controlsHtml;
+
+        // Manual command panel
+        var manualPanel = document.getElementById('manual-cmd-panel');
+        manualPanel.style.display = (stateStr === 'idle' || stateStr === 'online') ? 'block' : 'none';
+
+        // Pre-fill device ID if we know it
+        if (s.Devices && s.Devices.length > 0) {
+            var devInput = document.getElementById('manual-device');
+            if (!devInput.value) devInput.value = s.Devices[0];
+        }
+    }
+
+    function loadTemperatureData(testRunId) {
+        api('GET', '/test-runs/' + encodeURIComponent(testRunId) + '/temperatures', null, function(err, data) {
+            if (!err && Array.isArray(data)) {
+                state.tempChartData = { timestamps: [], first: [], second: [] };
+                for (var i = 0; i < data.length; i++) {
+                    var t = data[i];
+                    state.tempChartData.timestamps.push(new Date(t.Timestamp).getTime());
+                    if (t.Stage === 'first_stage') {
+                        state.tempChartData.first.push(t.TemperatureK);
+                        state.tempChartData.second.push(null);
+                    } else {
+                        state.tempChartData.first.push(null);
+                        state.tempChartData.second.push(t.TemperatureK);
+                    }
+                }
+                renderTempChart();
+            }
+        });
+    }
+
+    function loadTestEvents(testRunId) {
+        api('GET', '/test-runs/' + encodeURIComponent(testRunId) + '/events', null, function(err, data) {
+            if (!err && Array.isArray(data)) {
+                renderTestEvents(data);
+            }
+        });
+    }
+
+    function renderTestEvents(events) {
+        var tbody = document.getElementById('detail-events-tbody');
+        if (!events || events.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4"><div class="empty-state">No events</div></td></tr>';
+            return;
+        }
+        var html = '';
+        for (var i = 0; i < events.length; i++) {
+            var e = events[i];
+            html += '<tr>';
+            html += '<td class="timestamp">' + formatDateTime(e.Timestamp) + '</td>';
+            html += '<td class="mono">' + escapeHtml(e.EventType) + '</td>';
+            html += '<td>' + escapeHtml(e.EmployeeID || '--') + '</td>';
+            html += '<td>' + escapeHtml(e.Reason || '--') + '</td>';
+            html += '</tr>';
+        }
+        tbody.innerHTML = html;
+    }
+
+    // =================================================================
+    // Temperature Chart (Canvas)
+    // =================================================================
+    function renderTempChart() {
+        var canvas = document.getElementById('temp-chart');
+        if (!canvas) return;
+        var ctx = canvas.getContext('2d');
+        var rect = canvas.parentElement.getBoundingClientRect();
+
+        canvas.width = rect.width * (window.devicePixelRatio || 1);
+        canvas.height = rect.height * (window.devicePixelRatio || 1);
+        canvas.style.width = rect.width + 'px';
+        canvas.style.height = rect.height + 'px';
+        ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+
+        var w = rect.width;
+        var h = rect.height;
+        var pad = { top: 20, right: 20, bottom: 30, left: 55 };
+        var plotW = w - pad.left - pad.right;
+        var plotH = h - pad.top - pad.bottom;
+
+        // Clear
+        ctx.fillStyle = '#0f1629';
+        ctx.fillRect(0, 0, w, h);
+
+        var cd = state.tempChartData;
+        // Build separate arrays for first/second stage
+        var first = [];
+        var second = [];
+        var times = [];
+
+        // Merge interleaved data into aligned arrays
+        for (var i = 0; i < cd.timestamps.length; i++) {
+            if (cd.first[i] != null) {
+                first.push({ t: cd.timestamps[i], v: cd.first[i] });
+            }
+            if (cd.second[i] != null) {
+                second.push({ t: cd.timestamps[i], v: cd.second[i] });
+            }
+        }
+
+        if (first.length === 0 && second.length === 0) {
+            ctx.fillStyle = '#5a6578';
+            ctx.font = '14px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('No temperature data', w / 2, h / 2);
             return;
         }
 
-        var html = '';
-        for (var i = 0; i < deviceKeys.length; i++) {
-            var d = state.devices[deviceKeys[i]];
-            var statusClass = d.Status || 'offline';
-            var statusLabel = statusClass.charAt(0).toUpperCase() + statusClass.slice(1);
+        // Find data range
+        var allTimes = first.map(function(p){return p.t}).concat(second.map(function(p){return p.t}));
+        var tMin = Math.min.apply(null, allTimes);
+        var tMax = Math.max.apply(null, allTimes);
+        if (tMax === tMin) tMax = tMin + 60000;
 
-            html += '<tr>';
-            html += '<td class="mono">' + escapeHtml(d.DeviceID) + '</td>';
-            html += '<td class="mono">' + escapeHtml(d.StationInstance) + '</td>';
-            html += '<td><span class="status-badge ' + statusClass + '">' + statusLabel + '</span></td>';
-            html += '<td class="mono">' + escapeHtml(d.CommandStream) + '</td>';
-            html += '<td class="timestamp">' + timeAgo(d.LastSeen) + '</td>';
-            html += '</tr>';
+        var allVals = first.map(function(p){return p.v}).concat(second.map(function(p){return p.v}));
+        var vMin = Math.min.apply(null, allVals);
+        var vMax = Math.max.apply(null, allVals);
+        var vRange = vMax - vMin;
+        if (vRange < 10) { vMin -= 5; vMax += 5; vRange = vMax - vMin; }
+        vMin -= vRange * 0.05;
+        vMax += vRange * 0.05;
+        vRange = vMax - vMin;
+
+        function xPos(t) { return pad.left + (t - tMin) / (tMax - tMin) * plotW; }
+        function yPos(v) { return pad.top + (1 - (v - vMin) / vRange) * plotH; }
+
+        // Grid lines
+        ctx.strokeStyle = '#1e2a47';
+        ctx.lineWidth = 1;
+        var nGridY = 5;
+        for (var g = 0; g <= nGridY; g++) {
+            var gy = pad.top + g * plotH / nGridY;
+            ctx.beginPath();
+            ctx.moveTo(pad.left, gy);
+            ctx.lineTo(w - pad.right, gy);
+            ctx.stroke();
+
+            var gv = vMax - g * vRange / nGridY;
+            ctx.fillStyle = '#5a6578';
+            ctx.font = '11px monospace';
+            ctx.textAlign = 'right';
+            ctx.fillText(gv.toFixed(0) + ' K', pad.left - 6, gy + 4);
         }
 
-        dom.deviceTbody.innerHTML = html;
+        // Time axis labels
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#5a6578';
+        var nGridX = Math.min(6, Math.max(2, Math.floor(plotW / 80)));
+        for (var gx = 0; gx <= nGridX; gx++) {
+            var gt = tMin + gx * (tMax - tMin) / nGridX;
+            var gxp = xPos(gt);
+            var d = new Date(gt);
+            ctx.fillText(d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), gxp, h - 6);
+        }
+
+        // Plot first stage (blue)
+        if (first.length > 1) {
+            ctx.strokeStyle = '#4a9eff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(xPos(first[0].t), yPos(first[0].v));
+            for (var f = 1; f < first.length; f++) {
+                ctx.lineTo(xPos(first[f].t), yPos(first[f].v));
+            }
+            ctx.stroke();
+        }
+
+        // Plot second stage (green)
+        if (second.length > 1) {
+            ctx.strokeStyle = '#22c55e';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(xPos(second[0].t), yPos(second[0].v));
+            for (var s2 = 1; s2 < second.length; s2++) {
+                ctx.lineTo(xPos(second[s2].t), yPos(second[s2].v));
+            }
+            ctx.stroke();
+        }
+
+        // Plot border
+        ctx.strokeStyle = '#2a3a5c';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(pad.left, pad.top, plotW, plotH);
     }
 
-    function renderTestRuns() {
-        var runs = state.testRuns;
-        var activeRuns = [];
-        var completedRuns = [];
+    // =================================================================
+    // Test Control Actions
+    // =================================================================
+    function startTest(instance) {
+        state.startTestStation = instance;
+        state.startTestRMAId = null;
+        document.getElementById('test-rma-search').value = '';
+        document.getElementById('test-rma-results').innerHTML = '';
+        document.getElementById('test-script').value = '';
+        showError('start-test-error', '');
+        openModal('start-test-modal');
 
-        for (var i = 0; i < runs.length; i++) {
-            if (runs[i].Status === 'running') {
-                activeRuns.push(runs[i]);
-            } else {
-                completedRuns.push(runs[i]);
+        // Setup RMA search
+        var searchInput = document.getElementById('test-rma-search');
+        searchInput.oninput = function() {
+            var q = searchInput.value.trim();
+            if (q.length < 2) {
+                document.getElementById('test-rma-results').innerHTML = '';
+                state.startTestRMAId = null;
+                return;
             }
-        }
-
-        // Active tests
-        dom.activeTestCount.textContent = activeRuns.length;
-        if (activeRuns.length === 0) {
-            dom.activeTests.innerHTML =
-                '<div class="empty-state">' +
-                '<div class="empty-icon">--</div>' +
-                '<div>No tests running</div>' +
-                '</div>';
-        } else {
-            var activeHtml = '';
-            for (var a = 0; a < activeRuns.length; a++) {
-                var ar = activeRuns[a];
-                activeHtml += '<div class="test-run-item running">';
-                activeHtml += '<div class="test-run-info">';
-                activeHtml += '<div class="test-run-script">' + escapeHtml(ar.ScriptName) + '</div>';
-                activeHtml += '<div class="test-run-meta">';
-                activeHtml += '<span>Started: ' + formatDateTime(ar.StartedAt) + '</span>';
-                activeHtml += '<span>Elapsed: ' + elapsed(ar.StartedAt) + '</span>';
-                activeHtml += '</div>';
-                activeHtml += '</div>';
-                activeHtml += '<span class="test-run-status running">Running</span>';
-                activeHtml += '</div>';
-            }
-            dom.activeTests.innerHTML = activeHtml;
-        }
-
-        // Recent completed tests (up to 20)
-        var displayCompleted = completedRuns.slice(0, 20);
-        dom.testRunCount.textContent = completedRuns.length;
-        if (displayCompleted.length === 0) {
-            dom.recentTests.innerHTML =
-                '<div class="empty-state">' +
-                '<div class="empty-icon">--</div>' +
-                '<div>No completed test runs</div>' +
-                '</div>';
-        } else {
-            var completedHtml = '';
-            for (var c = 0; c < displayCompleted.length; c++) {
-                var cr = displayCompleted[c];
-                var statusClass = cr.Status || 'error';
-                var statusLabel = statusClass.charAt(0).toUpperCase() + statusClass.slice(1);
-                completedHtml += '<div class="test-run-item ' + escapeHtml(statusClass) + '">';
-                completedHtml += '<div class="test-run-info">';
-                completedHtml += '<div class="test-run-script">' + escapeHtml(cr.ScriptName) + '</div>';
-                completedHtml += '<div class="test-run-meta">';
-                completedHtml += '<span>' + formatDateTime(cr.StartedAt) + '</span>';
-                if (cr.Summary) {
-                    completedHtml += '<span>' + escapeHtml(cr.Summary) + '</span>';
+            api('GET', '/rmas/search?q=' + encodeURIComponent(q), null, function(err, data) {
+                if (err || !Array.isArray(data)) return;
+                var html = '';
+                for (var i = 0; i < data.length && i < 5; i++) {
+                    html += '<div style="padding:4px 0;cursor:pointer;color:var(--accent-blue)" onclick="App.selectTestRMA(\'' + escapeHtml(data[i].ID) + '\',\'' + escapeHtml(data[i].RMANumber) + '\')">';
+                    html += escapeHtml(data[i].RMANumber) + ' - ' + escapeHtml(data[i].CustomerName) + ' (' + escapeHtml(data[i].PumpSerialNumber) + ')';
+                    html += '</div>';
                 }
-                completedHtml += '</div>';
-                completedHtml += '</div>';
-                completedHtml += '<span class="test-run-status ' + escapeHtml(statusClass) + '">' + statusLabel + '</span>';
-                completedHtml += '</div>';
-            }
-            dom.recentTests.innerHTML = completedHtml;
-        }
+                if (data.length === 0) html = '<div style="color:var(--text-muted)">No matching RMAs</div>';
+                document.getElementById('test-rma-results').innerHTML = html;
+            });
+        };
     }
 
+    function selectTestRMA(id, number) {
+        state.startTestRMAId = id;
+        document.getElementById('test-rma-search').value = number;
+        document.getElementById('test-rma-results').innerHTML = '<div style="color:var(--success-green)">Selected: ' + escapeHtml(number) + '</div>';
+    }
+
+    function confirmStartTest() {
+        var instance = state.startTestStation;
+        var rmaId = state.startTestRMAId;
+        var script = document.getElementById('test-script').value.trim();
+
+        if (!rmaId) { showError('start-test-error', 'Select an RMA'); return; }
+        if (!script) { showError('start-test-error', 'Script path required'); return; }
+
+        api('POST', '/stations/' + encodeURIComponent(instance) + '/test/start', {
+            rma_id: rmaId,
+            script_path: script
+        }, function(err) {
+            if (err) { showError('start-test-error', err.message); return; }
+            closeModal('start-test-modal');
+            loadStationDetail(instance);
+        });
+    }
+
+    function pauseTest(instance) {
+        api('POST', '/stations/' + encodeURIComponent(instance) + '/test/pause', null, function(err) {
+            if (err) alert('Pause failed: ' + err.message);
+            else loadStationDetail(instance);
+        });
+    }
+
+    function resumeTest(instance) {
+        api('POST', '/stations/' + encodeURIComponent(instance) + '/test/resume', null, function(err) {
+            if (err) alert('Resume failed: ' + err.message);
+            else loadStationDetail(instance);
+        });
+    }
+
+    function terminateTest(instance) {
+        state.startTestStation = instance;
+        document.getElementById('terminate-reason').value = '';
+        openModal('terminate-modal');
+    }
+
+    function confirmTerminate() {
+        var instance = state.startTestStation;
+        var reason = document.getElementById('terminate-reason').value.trim();
+        api('POST', '/stations/' + encodeURIComponent(instance) + '/test/terminate', {
+            reason: reason || 'operator terminated'
+        }, function(err) {
+            if (err) alert('Terminate failed: ' + err.message);
+            closeModal('terminate-modal');
+            loadStationDetail(instance);
+        });
+    }
+
+    function abortTest(instance) {
+        if (!confirm('Abort test? This will discard all collected data.')) return;
+        api('POST', '/stations/' + encodeURIComponent(instance) + '/test/abort', null, function(err) {
+            if (err) alert('Abort failed: ' + err.message);
+            else loadStationDetail(instance);
+        });
+    }
+
+    function sendManualCommand() {
+        var instance = state.detailStation;
+        var deviceId = document.getElementById('manual-device').value.trim();
+        var command = document.getElementById('manual-command').value.trim();
+        if (!deviceId || !command) return;
+
+        document.getElementById('manual-response').textContent = 'Sending...';
+        api('POST', '/stations/' + encodeURIComponent(instance) + '/command', {
+            device_id: deviceId,
+            command: command
+        }, function(err, data) {
+            if (err) {
+                document.getElementById('manual-response').innerHTML = '<span style="color:var(--fail-red)">Error: ' + escapeHtml(err.message) + '</span>';
+            } else if (data) {
+                var respText = data.success ? data.response || 'OK' : 'FAIL: ' + (data.error || 'unknown');
+                var color = data.success ? 'var(--success-green)' : 'var(--fail-red)';
+                document.getElementById('manual-response').innerHTML = '<span style="color:' + color + '">' + escapeHtml(respText) + '</span>';
+                if (data.duration_ms != null) {
+                    document.getElementById('manual-response').innerHTML += ' <span class="duration-badge">' + data.duration_ms + ' ms</span>';
+                }
+            }
+        });
+    }
+
+    // =================================================================
+    // RMA Management
+    // =================================================================
+    function loadRMAs() {
+        var statusFilter = document.getElementById('rma-status-filter').value;
+        var url = '/rmas';
+        if (statusFilter) url += '?status=' + statusFilter;
+
+        api('GET', url, null, function(err, data) {
+            if (err || !Array.isArray(data)) {
+                document.getElementById('rma-list').innerHTML = '<div class="empty-state">Failed to load RMAs</div>';
+                return;
+            }
+            renderRMAList(data);
+        });
+    }
+
+    function searchRMAs() {
+        var q = document.getElementById('rma-search-input').value.trim();
+        if (q.length < 2) { loadRMAs(); return; }
+
+        api('GET', '/rmas/search?q=' + encodeURIComponent(q), null, function(err, data) {
+            if (err || !Array.isArray(data)) return;
+            renderRMAList(data);
+        });
+    }
+
+    function renderRMAList(rmas) {
+        var listEl = document.getElementById('rma-list');
+        if (rmas.length === 0) {
+            listEl.innerHTML = '<div class="empty-state">No RMAs found</div>';
+            return;
+        }
+        var html = '';
+        for (var i = 0; i < rmas.length; i++) {
+            var r = rmas[i];
+            html += '<div class="rma-item ' + (r.Status === 'closed' ? 'closed' : '') + '" onclick="App.openRMA(\'' + escapeHtml(r.ID) + '\')">';
+            html += '<div class="rma-info">';
+            html += '<span class="rma-number">' + escapeHtml(r.RMANumber) + '</span>';
+            html += '<div class="rma-meta">';
+            html += '<span>' + escapeHtml(r.CustomerName) + '</span>';
+            html += '<span>' + escapeHtml(r.PumpSerialNumber) + '</span>';
+            html += '<span>' + escapeHtml(r.PumpModel) + '</span>';
+            html += '</div>';
+            html += '</div>';
+            html += '<span class="rma-status-badge ' + (r.Status || 'open') + '">' + (r.Status || 'open') + '</span>';
+            html += '</div>';
+        }
+        listEl.innerHTML = html;
+    }
+
+    function openRMA(id) {
+        state.detailRMA = id;
+        showView('rma-detail');
+    }
+
+    function loadRMADetail(id) {
+        api('GET', '/rmas/' + encodeURIComponent(id), null, function(err, data) {
+            if (err) {
+                document.getElementById('rma-detail-info').innerHTML = '<div class="empty-state">Failed to load RMA</div>';
+                return;
+            }
+            renderRMADetail(data);
+        });
+    }
+
+    function renderRMADetail(rma) {
+        if (!rma) return;
+        document.getElementById('rma-detail-number').textContent = rma.RMANumber || rma.rma_number || '--';
+
+        var status = rma.Status || rma.status || 'open';
+        var statusBadge = document.getElementById('rma-detail-status');
+        statusBadge.textContent = status;
+        statusBadge.className = 'rma-status-badge ' + status;
+
+        // Info blocks
+        var infoHtml = '';
+        infoHtml += '<div class="info-block"><div class="info-block-label">Customer</div><div class="info-block-value">' + escapeHtml(rma.CustomerName || rma.customer_name || '--') + '</div></div>';
+        infoHtml += '<div class="info-block"><div class="info-block-label">Serial Number</div><div class="info-block-value">' + escapeHtml(rma.PumpSerialNumber || rma.pump_serial_number || '--') + '</div></div>';
+        infoHtml += '<div class="info-block"><div class="info-block-label">Pump Model</div><div class="info-block-value">' + escapeHtml(rma.PumpModel || rma.pump_model || '--') + '</div></div>';
+        document.getElementById('rma-detail-info').innerHTML = infoHtml;
+
+        // Actions
+        var actionsHtml = '';
+        if (status === 'open') {
+            actionsHtml += '<button class="btn btn-sm" onclick="App.downloadArtifact(\'' + escapeHtml(rma.ID || rma.id) + '\')">Download JSON</button>';
+            actionsHtml += '<button class="btn btn-sm" onclick="App.downloadPDF(\'' + escapeHtml(rma.ID || rma.id) + '\')">Download PDF</button>';
+            actionsHtml += '<button class="btn btn-sm btn-danger" onclick="App.closeRMA(\'' + escapeHtml(rma.ID || rma.id) + '\')">Close RMA</button>';
+        } else {
+            actionsHtml += '<button class="btn btn-sm" onclick="App.downloadArtifact(\'' + escapeHtml(rma.ID || rma.id) + '\')">Download JSON</button>';
+            actionsHtml += '<button class="btn btn-sm" onclick="App.downloadPDF(\'' + escapeHtml(rma.ID || rma.id) + '\')">Download PDF</button>';
+        }
+        document.getElementById('rma-detail-actions').innerHTML = actionsHtml;
+
+        // Test runs
+        var rmaId = rma.ID || rma.id;
+        api('GET', '/rmas/' + encodeURIComponent(rmaId), null, function(err, fullData) {
+            // Fetch test runs for this RMA
+            var runsEl = document.getElementById('rma-detail-runs');
+            if (fullData && fullData.TestRuns && fullData.TestRuns.length > 0) {
+                var html = '';
+                for (var i = 0; i < fullData.TestRuns.length; i++) {
+                    var run = fullData.TestRuns[i];
+                    var statusClass = run.Status || 'error';
+                    html += '<div class="test-run-item ' + escapeHtml(statusClass) + '">';
+                    html += '<div class="test-run-info">';
+                    html += '<div class="test-run-script">' + escapeHtml(run.ScriptName) + '</div>';
+                    html += '<div class="test-run-meta">';
+                    html += '<span>' + formatDateTime(run.StartedAt) + '</span>';
+                    if (run.Summary) html += '<span>' + escapeHtml(run.Summary) + '</span>';
+                    html += '</div></div>';
+                    html += '<span class="test-run-status ' + escapeHtml(statusClass) + '">' + (statusClass.charAt(0).toUpperCase() + statusClass.slice(1)) + '</span>';
+                    html += '</div>';
+                }
+                runsEl.innerHTML = html;
+            } else {
+                runsEl.innerHTML = '<div class="empty-state">No test runs for this RMA</div>';
+            }
+        });
+    }
+
+    function createRMA() {
+        var rmaNumber = document.getElementById('rma-rma-number').value.trim();
+        var serial = document.getElementById('rma-serial').value.trim();
+        var customer = document.getElementById('rma-customer').value.trim();
+        var model = document.getElementById('rma-model').value.trim();
+        var notes = document.getElementById('rma-notes').value.trim();
+
+        if (!rmaNumber || !serial || !customer || !model) {
+            showError('rma-create-error', 'RMA number, serial, customer, and model are required');
+            return;
+        }
+
+        api('POST', '/rmas', {
+            rma_number: rmaNumber,
+            pump_serial_number: serial,
+            customer_name: customer,
+            pump_model: model,
+            notes: notes
+        }, function(err, data) {
+            if (err) {
+                showError('rma-create-error', err.message);
+                return;
+            }
+            // Clear form
+            document.getElementById('rma-rma-number').value = '';
+            document.getElementById('rma-serial').value = '';
+            document.getElementById('rma-customer').value = '';
+            document.getElementById('rma-model').value = '';
+            document.getElementById('rma-notes').value = '';
+            showError('rma-create-error', '');
+
+            if (data && (data.id || data.ID)) {
+                state.detailRMA = data.id || data.ID;
+                showView('rma-detail');
+            } else {
+                showView('rma-list');
+            }
+        });
+    }
+
+    function closeRMA(id) {
+        if (!confirm('Close this RMA? This will generate final artifacts and export to the file server.')) return;
+        api('POST', '/rmas/' + encodeURIComponent(id) + '/close', null, function(err) {
+            if (err) {
+                alert('Failed to close RMA: ' + err.message);
+                return;
+            }
+            loadRMADetail(id);
+        });
+    }
+
+    function downloadArtifact(id) {
+        window.open('/rmas/' + encodeURIComponent(id) + '/artifact', '_blank');
+    }
+
+    function downloadPDF(id) {
+        window.open('/rmas/' + encodeURIComponent(id) + '/pdf', '_blank');
+    }
+
+    // =================================================================
+    // Measurements
+    // =================================================================
     function renderMeasurements() {
+        var tbody = document.getElementById('measurement-tbody');
+        var countEl = document.getElementById('measurement-count');
         var measurements = state.measurements;
-        dom.measurementCount.textContent = measurements.length;
+        countEl.textContent = measurements.length;
 
         if (measurements.length === 0) {
-            dom.measurementTbody.innerHTML =
-                '<tr><td colspan="6"><div class="empty-state"><div>No measurements recorded</div></div></td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state">No measurements recorded</div></td></tr>';
             return;
         }
 
@@ -1154,133 +2010,47 @@ body {
             var m = measurements[i];
             var resultClass = m.success ? 'success' : 'fail';
             var resultLabel = m.success ? 'OK' : 'FAIL';
-
             html += '<tr>';
             html += '<td class="timestamp">' + formatTime(m.timestamp) + '</td>';
             html += '<td class="mono">' + escapeHtml(m.device_id) + '</td>';
             html += '<td class="mono">' + escapeHtml(m.command_name) + '</td>';
             html += '<td><span class="' + resultClass + '">' + resultLabel + '</span></td>';
-            html += '<td><div class="measurement-response" title="' + escapeHtml(m.response || m.error || '') + '">' + escapeHtml(m.response || m.error || '--') + '</div></td>';
+            html += '<td><div class="measurement-response">' + escapeHtml(m.response || m.error || '--') + '</div></td>';
             html += '<td><span class="duration-badge">' + (m.duration_ms != null ? m.duration_ms + ' ms' : '--') + '</span></td>';
             html += '</tr>';
         }
-
-        dom.measurementTbody.innerHTML = html;
+        tbody.innerHTML = html;
     }
 
-    function renderAll() {
-        renderStatusBar();
-        renderEstop();
-        renderWSStatus();
-        renderStations();
-        renderDevices();
-        renderTestRuns();
-        renderMeasurements();
+    // =================================================================
+    // Modals
+    // =================================================================
+    function openModal(id) {
+        document.getElementById(id).classList.add('active');
+    }
+    function closeModal(id) {
+        document.getElementById(id).classList.remove('active');
     }
 
-    // =====================================================================
-    // API Fetching
-    // =====================================================================
-    function fetchJSON(url, callback) {
-        var xhr = new XMLHttpRequest();
-        xhr.open('GET', url, true);
-        xhr.setRequestHeader('Accept', 'application/json');
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === 4) {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    try {
-                        var data = JSON.parse(xhr.responseText);
-                        callback(null, data);
-                    } catch (e) {
-                        callback(e, null);
-                    }
-                } else {
-                    callback(new Error('HTTP ' + xhr.status), null);
-                }
-            }
-        };
-        xhr.send();
-    }
-
-    function loadInitialData() {
-        // Fetch stations
-        fetchJSON('/stations', function(err, data) {
-            if (!err && Array.isArray(data)) {
-                state.stations = {};
-                for (var i = 0; i < data.length; i++) {
-                    var s = data[i];
-                    state.stations[s.Instance] = s;
-                }
-                renderStations();
-                renderStatusBar();
-            }
-        });
-
-        // Fetch devices
-        fetchJSON('/devices', function(err, data) {
-            if (!err && Array.isArray(data)) {
-                state.devices = {};
-                for (var i = 0; i < data.length; i++) {
-                    var d = data[i];
-                    state.devices[d.DeviceID] = d;
-                }
-                renderDevices();
-                renderStatusBar();
-            }
-        });
-
-        // Fetch system status
-        fetchJSON('/system/status', function(err, data) {
-            if (!err && data) {
-                if (data.estop_state) {
-                    state.estop = data.estop_state;
-                }
-                renderEstop();
-                renderStatusBar();
-            }
-        });
-
-        // Fetch test runs
-        fetchJSON('/test-runs', function(err, data) {
-            if (!err && Array.isArray(data)) {
-                state.testRuns = data;
-                renderTestRuns();
-            }
-        });
-    }
-
-    // =====================================================================
+    // =================================================================
     // WebSocket
-    // =====================================================================
+    // =================================================================
     var ws = null;
     var wsReconnectDelay = 1000;
-    var wsMaxReconnectDelay = 30000;
-    var wsReconnectTimer = null;
-
-    function getWSUrl() {
-        var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        return protocol + '//' + window.location.host + '/ws';
-    }
 
     function connectWebSocket() {
-        if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
-            return;
-        }
+        if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) return;
 
-        var url = getWSUrl();
-        try {
-            ws = new WebSocket(url);
-        } catch (e) {
-            scheduleReconnect();
-            return;
-        }
+        var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        var url = protocol + '//' + window.location.host + '/ws';
+
+        try { ws = new WebSocket(url); } catch(e) { scheduleReconnect(); return; }
 
         ws.onopen = function() {
             state.wsConnected = true;
             wsReconnectDelay = 1000;
             renderWSStatus();
-            // Refresh all data on reconnect to sync state
-            loadInitialData();
+            loadStations();
         };
 
         ws.onclose = function() {
@@ -1289,32 +2059,28 @@ body {
             scheduleReconnect();
         };
 
-        ws.onerror = function() {
-            // onclose will fire after onerror
-        };
+        ws.onerror = function() {};
 
         ws.onmessage = function(event) {
             try {
                 var msg = JSON.parse(event.data);
                 handleWSMessage(msg);
-            } catch (e) {
-                // Ignore unparsable messages
-            }
+            } catch(e) {}
         };
     }
 
     function scheduleReconnect() {
-        if (wsReconnectTimer) {
-            clearTimeout(wsReconnectTimer);
-        }
-        wsReconnectTimer = setTimeout(function() {
-            wsReconnectTimer = null;
-            connectWebSocket();
-        }, wsReconnectDelay);
+        setTimeout(function() { connectWebSocket(); }, wsReconnectDelay);
+        wsReconnectDelay = Math.min(wsReconnectDelay * 1.5 + Math.random() * 500, 30000);
+    }
 
-        // Exponential backoff with jitter
-        wsReconnectDelay = Math.min(wsReconnectDelay * 1.5, wsMaxReconnectDelay);
-        wsReconnectDelay += Math.random() * 500;
+    function renderWSStatus() {
+        var el = document.getElementById('ws-indicator');
+        if (state.wsConnected) {
+            el.classList.add('connected');
+        } else {
+            el.classList.remove('connected');
+        }
     }
 
     function handleWSMessage(msg) {
@@ -1330,126 +2096,64 @@ body {
             case 'estop':
                 handleEstop(msg.payload);
                 break;
+            case 'station_state':
+                handleStationState(msg.payload);
+                break;
+            case 'temperature':
+                handleTemperature(msg.payload);
+                break;
+            case 'test_event':
+                handleTestEvent(msg.payload);
+                break;
+            case 'redis_health':
+                // Could show a banner but not critical for operator
+                break;
         }
     }
 
     function handleHeartbeat(payload) {
         if (!payload) return;
 
-        // The heartbeat payload does not include the source instance.
-        // We update any existing stations whose device list or stats
-        // match, but primarily rely on periodic /stations refresh
-        // for accurate mapping. For now, update device statuses if we
-        // can match by devices array.
-        //
-        // Since the WS heartbeat does not carry instance info, we
-        // attempt to match by comparing the devices array to known stations.
-        var matchedInstance = null;
-        var stationKeys = Object.keys(state.stations);
-
-        // Try to find the station by matching device lists
-        if (payload.devices && payload.devices.length > 0) {
-            for (var i = 0; i < stationKeys.length; i++) {
-                var s = state.stations[stationKeys[i]];
-                if (arraysEqual(s.Devices, payload.devices)) {
-                    matchedInstance = stationKeys[i];
-                    break;
-                }
-            }
-
-            // If no exact match, try to find by any overlapping device
-            if (!matchedInstance) {
-                var deviceSet = {};
-                for (var d = 0; d < payload.devices.length; d++) {
-                    deviceSet[payload.devices[d]] = true;
-                }
-                for (var k = 0; k < stationKeys.length; k++) {
-                    var st = state.stations[stationKeys[k]];
-                    if (st.Devices) {
-                        for (var dd = 0; dd < st.Devices.length; dd++) {
-                            if (deviceSet[st.Devices[dd]]) {
-                                matchedInstance = stationKeys[k];
-                                break;
-                            }
-                        }
-                    }
-                    if (matchedInstance) break;
-                }
+        // Match station by device list
+        var keys = Object.keys(state.stations);
+        for (var i = 0; i < keys.length; i++) {
+            var s = state.stations[keys[i]];
+            if (s.Devices && payload.devices && arraysEqual(s.Devices, payload.devices)) {
+                s.Status = payload.status || 'online';
+                s.UptimeSeconds = payload.uptime_seconds;
+                s.FreeHeap = payload.free_heap;
+                s.WifiRSSI = payload.wifi_rssi;
+                s.FirmwareVersion = payload.firmware_version;
+                break;
             }
         }
 
-        // If we still cannot match, try by firmware version + unique stats
-        // as a last resort, pick the station with the closest uptime
-        if (!matchedInstance && stationKeys.length === 1) {
-            matchedInstance = stationKeys[0];
-        }
-
-        if (matchedInstance) {
-            var station = state.stations[matchedInstance];
-            station.Status = payload.status || 'online';
-            station.FreeHeap = payload.free_heap != null ? payload.free_heap : station.FreeHeap;
-            station.WifiRSSI = payload.wifi_rssi != null ? payload.wifi_rssi : station.WifiRSSI;
-            station.FirmwareVersion = payload.firmware_version || station.FirmwareVersion;
-            station.UptimeSeconds = payload.uptime_seconds != null ? payload.uptime_seconds : station.UptimeSeconds;
-            station.LastHeartbeat = new Date().toISOString();
-            if (payload.devices) {
-                station.Devices = payload.devices;
-                // Update device registry
-                for (var di = 0; di < payload.devices.length; di++) {
-                    var devId = payload.devices[di];
-                    if (!state.devices[devId]) {
-                        state.devices[devId] = {
-                            DeviceID: devId,
-                            StationInstance: matchedInstance,
-                            CommandStream: 'commands:' + matchedInstance,
-                            Status: 'online',
-                            LastSeen: new Date().toISOString()
-                        };
-                    } else {
-                        state.devices[devId].Status = 'online';
-                        state.devices[devId].LastSeen = new Date().toISOString();
-                    }
-                }
-            }
-
-            renderStations();
-            renderDevices();
-            renderStatusBar();
-        }
+        if (state.currentView === 'dashboard') renderStationGrid();
     }
 
     function arraysEqual(a, b) {
         if (!a && !b) return true;
-        if (!a || !b) return false;
-        if (a.length !== b.length) return false;
-        var sortedA = a.slice().sort();
-        var sortedB = b.slice().sort();
-        for (var i = 0; i < sortedA.length; i++) {
-            if (sortedA[i] !== sortedB[i]) return false;
-        }
+        if (!a || !b || a.length !== b.length) return false;
+        var sa = a.slice().sort(), sb = b.slice().sort();
+        for (var i = 0; i < sa.length; i++) if (sa[i] !== sb[i]) return false;
         return true;
     }
 
     function handleCommandResponse(payload) {
         if (!payload) return;
-
-        var measurement = {
+        state.measurements.unshift({
             timestamp: new Date().toISOString(),
             device_id: payload.device_id,
             command_name: payload.command_name,
             success: payload.success,
             response: payload.response,
-            error: payload.error,
+            error: payload.error ? (payload.error.message || payload.error) : null,
             duration_ms: payload.duration_ms
-        };
-
-        // Add to front of array (most recent first)
-        state.measurements.unshift(measurement);
+        });
         if (state.measurements.length > MAX_MEASUREMENTS) {
             state.measurements = state.measurements.slice(0, MAX_MEASUREMENTS);
         }
-
-        renderMeasurements();
+        if (state.currentView === 'dashboard') renderMeasurements();
     }
 
     function handleEstop(payload) {
@@ -1464,94 +2168,134 @@ body {
         renderEstop();
     }
 
-    // =====================================================================
-    // Periodic Refresh
-    // =====================================================================
+    function handleStationState(payload) {
+        if (!payload || !payload.instance) return;
+        state.stationStates[payload.instance] = payload;
 
-    // Refresh station/device data periodically to catch health check changes
-    // (stale/offline transitions happen server-side on a timer).
-    var REFRESH_INTERVAL = 15000; // 15 seconds
-
-    function periodicRefresh() {
-        fetchJSON('/stations', function(err, data) {
-            if (!err && Array.isArray(data)) {
-                state.stations = {};
-                for (var i = 0; i < data.length; i++) {
-                    var s = data[i];
-                    state.stations[s.Instance] = s;
-                }
-                renderStations();
-                renderStatusBar();
-            }
-        });
-
-        fetchJSON('/devices', function(err, data) {
-            if (!err && Array.isArray(data)) {
-                state.devices = {};
-                for (var i = 0; i < data.length; i++) {
-                    var d = data[i];
-                    state.devices[d.DeviceID] = d;
-                }
-                renderDevices();
-                renderStatusBar();
-            }
-        });
-
-        fetchJSON('/system/status', function(err, data) {
-            if (!err && data) {
-                if (data.estop_state) {
-                    state.estop = data.estop_state;
-                    renderEstop();
-                }
-            }
-        });
-
-        fetchJSON('/test-runs', function(err, data) {
-            if (!err && Array.isArray(data)) {
-                state.testRuns = data;
-                renderTestRuns();
-            }
-        });
-    }
-
-    // Update elapsed times for running tests every second
-    function updateRunningElapsed() {
-        var hasRunning = false;
-        for (var i = 0; i < state.testRuns.length; i++) {
-            if (state.testRuns[i].Status === 'running') {
-                hasRunning = true;
-                break;
-            }
-        }
-        if (hasRunning) {
-            renderTestRuns();
+        if (state.currentView === 'dashboard') renderStationGrid();
+        if (state.currentView === 'station-detail' && state.detailStation === payload.instance) {
+            renderStationDetail(payload.instance);
         }
     }
 
-    // Update "time ago" displays periodically
-    function updateTimeAgo() {
-        renderDevices();
+    function handleTemperature(payload) {
+        if (!payload) return;
+
+        // Update live temp display
+        var instance = payload.station_instance;
+        if (instance) {
+            if (!state.stationTemps[instance]) state.stationTemps[instance] = {};
+            if (payload.stage === 'first_stage') {
+                state.stationTemps[instance].first_stage = payload.temperature_k;
+            } else if (payload.stage === 'second_stage') {
+                state.stationTemps[instance].second_stage = payload.temperature_k;
+            }
+        }
+
+        // Update chart if viewing this station
+        if (state.currentView === 'station-detail' && state.detailStation === instance) {
+            var ts = payload.timestamp ? new Date(payload.timestamp).getTime() : Date.now();
+            state.tempChartData.timestamps.push(ts);
+            state.tempChartData.first.push(payload.stage === 'first_stage' ? payload.temperature_k : null);
+            state.tempChartData.second.push(payload.stage === 'second_stage' ? payload.temperature_k : null);
+
+            // Trim to max points
+            while (state.tempChartData.timestamps.length > MAX_CHART_POINTS) {
+                state.tempChartData.timestamps.shift();
+                state.tempChartData.first.shift();
+                state.tempChartData.second.shift();
+            }
+
+            var temps = state.stationTemps[instance] || {};
+            document.getElementById('detail-temp-1st').textContent = temps.first_stage != null ? temps.first_stage.toFixed(1) + ' K' : '-- K';
+            document.getElementById('detail-temp-2nd').textContent = temps.second_stage != null ? temps.second_stage.toFixed(1) + ' K' : '-- K';
+
+            renderTempChart();
+        }
+
+        if (state.currentView === 'dashboard') renderStationGrid();
     }
 
-    // =====================================================================
-    // Initialization
-    // =====================================================================
-    function init() {
-        renderAll();
-        loadInitialData();
-        connectWebSocket();
-
-        setInterval(periodicRefresh, REFRESH_INTERVAL);
-        setInterval(updateRunningElapsed, 1000);
-        setInterval(updateTimeAgo, 10000);
+    function handleTestEvent(payload) {
+        if (!payload) return;
+        // Refresh station detail if viewing
+        if (state.currentView === 'station-detail' && payload.test_run_id) {
+            loadTestEvents(payload.test_run_id);
+        }
     }
 
-    // Start when DOM is ready
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        init();
+    function renderEstop() {
+        var es = state.estop;
+        var banner = document.getElementById('estop-banner');
+        var badge = document.getElementById('estop-status-badge');
+
+        if (es.active) {
+            banner.classList.add('active');
+            document.getElementById('estop-reason').textContent = es.reason || 'Unknown reason';
+            document.getElementById('estop-description').textContent = es.description || '';
+            document.getElementById('estop-initiator').textContent = es.initiator || 'unknown';
+            document.getElementById('estop-time').textContent = formatDateTime(es.triggered_at);
+            badge.textContent = 'E-STOP';
+            badge.className = 'estop-status-badge active';
+        } else {
+            banner.classList.remove('active');
+            badge.textContent = 'SAFE';
+            badge.className = 'estop-status-badge safe';
+        }
     }
+
+    // =================================================================
+    // Periodic Updates
+    // =================================================================
+    setInterval(function() {
+        if (state.currentView === 'dashboard' && state.employee) {
+            loadStations();
+        }
+    }, 15000);
+
+    setInterval(function() {
+        if (state.currentView === 'station-detail' && state.detailStation) {
+            var ss = state.stationStates[state.detailStation] || {};
+            if (ss.started_at) {
+                document.getElementById('detail-elapsed').textContent = elapsed(ss.started_at);
+            }
+        }
+    }, 1000);
+
+    // Handle enter key on login
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            if (state.currentView === 'login') login();
+            if (document.getElementById('manual-command') === document.activeElement) sendManualCommand();
+        }
+    });
+
+    // =================================================================
+    // Public API
+    // =================================================================
+    return {
+        showView: showView,
+        login: login,
+        logout: logout,
+        openStation: openStation,
+        startTest: startTest,
+        selectTestRMA: selectTestRMA,
+        confirmStartTest: confirmStartTest,
+        pauseTest: pauseTest,
+        resumeTest: resumeTest,
+        terminateTest: terminateTest,
+        confirmTerminate: confirmTerminate,
+        abortTest: abortTest,
+        sendManualCommand: sendManualCommand,
+        loadRMAs: loadRMAs,
+        searchRMAs: searchRMAs,
+        openRMA: openRMA,
+        createRMA: createRMA,
+        closeRMA: closeRMA,
+        closeModal: closeModal,
+        downloadArtifact: downloadArtifact,
+        downloadPDF: downloadPDF
+    };
 })();
 </script>
 </body>

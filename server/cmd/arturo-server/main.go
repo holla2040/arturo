@@ -20,6 +20,7 @@ import (
 	"github.com/holla2040/arturo/internal/redishealth"
 	"github.com/holla2040/arturo/internal/registry"
 	"github.com/holla2040/arturo/internal/store"
+	"github.com/holla2040/arturo/internal/testmanager"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -70,10 +71,15 @@ func main() {
 	dispatcher := api.NewResponseDispatcher()
 	wsHub := api.NewHub()
 
-	// E-stop coordinator with callback to broadcast via WebSocket
+	// Test manager for test lifecycle
+	testMgr := testmanager.New(ctx, db, wsHub, rdb, serverSource)
+	log.Println("Test manager initialized")
+
+	// E-stop coordinator with callback to broadcast via WebSocket and stop all tests
 	estopCoord := estop.New(func(state estop.State) {
 		wsHub.BroadcastEvent("estop", state)
 		db.RecordDeviceEvent("system", "controller", "emergency_stop", state.Reason)
+		testMgr.EmergencyStopAll()
 	})
 
 	// Redis command sender
@@ -101,6 +107,7 @@ func main() {
 		Sender:      sender,
 		Source:      serverSource,
 		RedisHealth: redisMon,
+		TestMgr:     testMgr,
 	}
 
 	mux := http.NewServeMux()
@@ -119,7 +126,7 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		runHeartbeatListener(ctx, rdb, reg, wsHub)
+		runHeartbeatListener(ctx, rdb, reg, wsHub, testMgr)
 	}()
 
 	// 2. E-stop listener
@@ -140,7 +147,7 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		runHealthChecker(ctx, reg, wsHub)
+		runHealthChecker(ctx, reg, wsHub, testMgr)
 	}()
 
 	// 5. WebSocket hub
@@ -182,7 +189,7 @@ func main() {
 
 // runHeartbeatListener subscribes to heartbeat events and updates the registry.
 // It automatically re-subscribes if the connection drops.
-func runHeartbeatListener(ctx context.Context, rdb *redis.Client, reg *registry.Registry, hub *api.Hub) {
+func runHeartbeatListener(ctx context.Context, rdb *redis.Client, reg *registry.Registry, hub *api.Hub, testMgr *testmanager.TestManager) {
 	for {
 		if ctx.Err() != nil {
 			return
@@ -213,6 +220,7 @@ func runHeartbeatListener(ctx context.Context, rdb *redis.Client, reg *registry.
 						continue
 					}
 					reg.UpdateFromHeartbeat(parsed.Envelope.Source.Instance, payload)
+					testMgr.HandleHeartbeat(parsed.Envelope.Source.Instance)
 					hub.BroadcastEvent("heartbeat", payload)
 				}
 			}
@@ -323,7 +331,7 @@ func runResponseListener(ctx context.Context, rdb *redis.Client, dispatcher *api
 }
 
 // runHealthChecker periodically checks station health.
-func runHealthChecker(ctx context.Context, reg *registry.Registry, hub *api.Hub) {
+func runHealthChecker(ctx context.Context, reg *registry.Registry, hub *api.Hub, testMgr *testmanager.TestManager) {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
@@ -332,7 +340,24 @@ func runHealthChecker(ctx context.Context, reg *registry.Registry, hub *api.Hub)
 		case <-ctx.Done():
 			return
 		case now := <-ticker.C:
+			// Get stations that were online before health check
+			stationsBefore := reg.ListStations()
+			onlineBefore := make(map[string]bool)
+			for _, s := range stationsBefore {
+				if s.Status == "online" || s.Status == "stale" {
+					onlineBefore[s.Instance] = true
+				}
+			}
+
 			reg.RunHealthCheck(now)
+
+			// Check which stations went offline
+			stationsAfter := reg.ListStations()
+			for _, s := range stationsAfter {
+				if s.Status == "offline" && onlineBefore[s.Instance] {
+					testMgr.HandleOffline(s.Instance)
+				}
+			}
 		}
 	}
 }

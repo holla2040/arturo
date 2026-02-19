@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Arturo - Industrial Test Automation</title>
+<title>Arturo - Cryo Test System</title>
 <style>
 /* =====================================================================
    Arturo Dashboard - Dark Industrial Theme
@@ -854,7 +854,7 @@ textarea { resize: vertical; min-height: 60px; }
 <header class="header" id="app-header" style="display:none">
     <div class="header-left">
         <div class="header-logo" onclick="App.showView('dashboard')">Arturo</div>
-        <div class="header-subtitle">Industrial Test Automation</div>
+        <div class="header-subtitle">Cryo Test System</div>
     </div>
     <div class="status-bar">
         <div class="status-item">
@@ -876,15 +876,15 @@ textarea { resize: vertical; min-height: 60px; }
 <div id="view-login" class="view active">
     <div class="login-container">
         <h1>Arturo</h1>
-        <div class="subtitle">Industrial Test Automation Controller</div>
+        <div class="subtitle">Cryo Test System Controller</div>
         <div class="login-form">
             <div class="field">
                 <label for="login-employee-id">Employee ID</label>
-                <input type="text" id="login-employee-id" placeholder="e.g. emp-001">
+                <input type="text" id="login-employee-id" placeholder="e.g. emp-001" value="emp-001">
             </div>
             <div class="field">
                 <label for="login-name">Name</label>
-                <input type="text" id="login-name" placeholder="e.g. John Doe">
+                <input type="text" id="login-name" placeholder="e.g. John Doe" value="Dev Operator">
             </div>
             <div class="login-error" id="login-error"></div>
             <button class="btn btn-primary" style="width:100%" onclick="App.login()">Login</button>
@@ -2261,6 +2261,9 @@ var App = (function() {
             }
         }
     }, 1000);
+
+    // Auto-login with pre-filled credentials
+    login();
 
     // Handle enter key on login
     document.addEventListener('keydown', function(e) {

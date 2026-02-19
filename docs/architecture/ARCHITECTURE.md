@@ -371,7 +371,7 @@ XACK the command (mark as processed)
 
 ```
 ┌──────────────────────────────────────────┐
-│ arturo-server                            │
+│ arturo-controller                            │
 │                                          │
 │  Device Registry     REST API            │
 │  Health Monitor      WebSocket           │
@@ -840,10 +840,10 @@ Lessons from the original 39-component system:
 | Don't Build | Why |
 |-------------|-----|
 | Process supervisor (systemg) | Use systemd for 2 Go processes |
-| Separate WebSocket service | Build into arturo-server |
-| Separate REST API service | Build into arturo-server |
-| Separate health check service | Build into arturo-server |
-| Separate config management service | Build into arturo-server |
+| Separate WebSocket service | Build into arturo-controller |
+| Separate REST API service | Build into arturo-controller |
+| Separate health check service | Build into arturo-controller |
+| Separate config management service | Build into arturo-controller |
 | Separate auth service | Simple middleware, not a service |
 | Separate metrics service | Prometheus endpoint, not a service |
 | Separate file operations service | Standard library calls |
@@ -855,7 +855,7 @@ Lessons from the original 39-component system:
 | Communication hub | Redis IS the communication hub |
 | 14 other services | Just don't |
 
-**Rule: If it can be a function call inside arturo-server, it's not a service.**
+**Rule: If it can be a function call inside arturo-controller, it's not a service.**
 
 ---
 

@@ -29,7 +29,7 @@ Wherever a field or variable is called `timestamp`, it is UTC epoch seconds. Whe
 ```
 Stations (up to 6)          <--Redis Streams/PubSub-->     Controller (Go)
   C++ / Arduino                                              │
-  - SCPI instruments                                    arturo-server
+  - SCPI instruments                                    arturo-controller
   - Serial devices                                       - Device registry
   - Relay control                                        - REST API + WebSocket
   - Modbus devices                                       - SQLite data storage
@@ -58,11 +58,13 @@ arturo/
 │       ├── service-heartbeat/          # Station health report (30s interval)
 │       ├── system-emergency-stop/      # E-stop broadcast
 │       └── system-ota-request/         # OTA firmware update
-├── server/                             # Controller (Go processes)
+├── services/                            # Go services that run on the controller machine
+│   ├── README.md                       # Service architecture and build instructions
 │   └── cmd/
-│       ├── arturo-server/              # Main process (API, device registry, data, health)
+│       ├── arturo-controller/           # API, device registry, health, data storage
 │       ├── arturo-engine/              # Script parser + executor
-│       └── arturo-monitor/             # Redis traffic monitor (debugging)
+│       ├── arturo-monitor/             # Redis traffic monitor (debugging)
+│       └── arturo-console/             # Mock stations + web console (development)
 ├── firmware/                           # Station firmware (ESP32 Arduino)
 │   ├── README.md                       # Firmware architecture decisions
 │   ├── src/
@@ -120,8 +122,9 @@ Controller                      Redis                        Station
 ## Getting Started
 
 1. Read [schemas/v1.0.0/README.md](schemas/v1.0.0/README.md) — the protocol definitions
-2. Read [firmware/README.md](firmware/README.md) — station firmware architecture
-3. Read [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) — architecture decisions
+2. Read [services/README.md](services/README.md) — Go services architecture
+3. Read [firmware/README.md](firmware/README.md) — station firmware architecture
+4. Read [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) — architecture decisions
 
 ## Related
 

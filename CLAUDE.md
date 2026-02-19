@@ -7,7 +7,7 @@ Arturo is an industrial test automation system with ESP32 stations and a central
 **Terminology:** Stations (ESP32 + instruments), Terminal (operator UI), Controller (Go processes), File server (report storage).
 
 - **Station firmware**: C++ with Arduino in `firmware/`
-- **Controller**: `server/` with two main binaries (arturo-server, arturo-engine) and one debug tool (arturo-monitor)
+- **Services**: Go processes in `services/` — arturo-controller, arturo-engine, arturo-monitor, arturo-console
 - **Redis**: Streams for commands/responses, Pub/Sub for heartbeats/E-stop
 - **Profiles**: Device YAML profiles in `profiles/`
 - **Schemas**: JSON Schema message definitions in `schemas/`
@@ -33,9 +33,10 @@ Arturo is an industrial test automation system with ESP32 stations and a central
 
 ### Controller (Go)
 ```bash
-cd server && go build -o arturo-server ./cmd/arturo-server
-cd server && go build -o arturo-engine ./cmd/arturo-engine
-cd server && go build -o arturo-monitor ./cmd/arturo-monitor
+cd services && go build -o arturo-controller ./cmd/arturo-controller
+cd services && go build -o arturo-engine ./cmd/arturo-engine
+cd services && go build -o arturo-monitor ./cmd/arturo-monitor
+cd services && go build -o arturo-console ./cmd/arturo-console
 ```
 
 ### Station Firmware (ESP32)
@@ -48,7 +49,7 @@ cd firmware && pio test -e native                     # run unit tests on host
 
 ## Development Guidelines
 
-- Keep service count low. If it can be a function call inside arturo-server, it is not a separate service.
+- Keep service count low. If it can be a function call inside arturo-controller, it is not a separate service.
 - Every message must use the Protocol v1.0.0 envelope format.
 - Station firmware uses ArduinoJson v7 with static allocation.
 - Debug output on stations goes to USB serial, controlled by DEBUG_LEVEL in config.h.

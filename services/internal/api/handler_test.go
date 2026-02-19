@@ -77,7 +77,7 @@ func newTestHandler(t *testing.T) (*Handler, *mockSender) {
 		Dispatcher: d,
 		Sender:     sender,
 		Source: protocol.Source{
-			Service:  "arturo_server",
+			Service:  "arturo_controller",
 			Instance: "ctrl-test",
 			Version:  "1.0.0",
 		},

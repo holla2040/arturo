@@ -27,7 +27,7 @@ import (
 const serverVersion = "1.0.0"
 
 var serverSource = protocol.Source{
-	Service:  "arturo_server",
+	Service:  "arturo_controller",
 	Instance: "ctrl-01",
 	Version:  serverVersion,
 }
@@ -398,7 +398,7 @@ func runSendCommand() {
 	}
 
 	source := protocol.Source{
-		Service:  "arturo_server",
+		Service:  "arturo_controller",
 		Instance: "server-01",
 		Version:  serverVersion,
 	}

@@ -1,7 +1,8 @@
 # Go
-server/arturo-server
-server/arturo-engine
-server/arturo-monitor
+services/arturo-console
+services/arturo-controller
+services/arturo-engine
+services/arturo-monitor
 *.exe
 *.test
 *.out

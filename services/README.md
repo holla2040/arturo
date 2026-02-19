@@ -9,21 +9,12 @@ Go services that run on the controller machine. These are the processes that mus
 | **arturo-controller** | REST API, WebSocket, device registry, health monitor, E-stop coordinator, SQLite data store | Always |
 | **arturo-console** | Spawns mock stations with simulated pumps, serves web UI for control and Redis monitoring | Development |
 
-## CLI Tools
-
-| Tool | What it does | Runs |
-|------|-------------|------|
-| **arturo-engine** | Script parser and executor (.art DSL), test orchestration, sends device commands via Redis | During tests |
-| **arturo-monitor** | Tails all Redis traffic (Streams, Pub/Sub, presence keys) with color-coded output | On demand |
-
 ## Build
 
 ```bash
 cd services
 go build -o arturo-controller ./cmd/arturo-controller
 go build -o arturo-console ./cmd/arturo-console
-go build -o arturo-engine ./cli/arturo-engine
-go build -o arturo-monitor ./cli/arturo-monitor
 ```
 
 ## Run
@@ -51,10 +42,6 @@ services/
 ├── cmd/
 │   ├── arturo-controller/       # Main service entry point
 │   └── arturo-console/          # Mock stations + web console entry point
-├── cli/
-│   ├── arturo-engine/           # Script engine entry point
-│   └── arturo-monitor/          # Redis monitor entry point
-│
 ├── internal/
 │   ├── api/                     # REST API handlers, WebSocket hub, response dispatcher
 │   ├── artifact/                # Test artifact storage (PDF reports, data files)

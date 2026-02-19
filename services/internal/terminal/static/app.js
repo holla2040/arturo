@@ -726,7 +726,7 @@ var App = (function() {
 
     function toggleRegen(instance, deviceId) {
         var ps = state.stationPumpStatus[instance];
-        var cmd = ps && ps.regen ? 'N0' : 'N1';
+        var cmd = ps && ps.regen ? 'abort_regen' : 'start_regen';
         if (ps) { ps.regen = !ps.regen; handlePumpStatus(ps); }
         api('POST', '/stations/' + encodeURIComponent(instance) + '/command', {
             device_id: deviceId, command: cmd

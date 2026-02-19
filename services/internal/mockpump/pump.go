@@ -108,7 +108,7 @@ func (p *Pump) HandleCommand(command string) (string, bool) {
 		return "0", true
 
 	case "start_regen":
-		if p.state != StateOff && p.state != StateRegen {
+		if p.state != StateRegen {
 			p.state = StateRegen
 			p.regenStart = time.Now()
 			p.regenStep = 1

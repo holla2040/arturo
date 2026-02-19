@@ -453,6 +453,45 @@ textarea { resize: vertical; min-height: 60px; }
     font-weight: 600;
     color: var(--text-primary);
 }
+.station-pump-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+.pump-indicator {
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    letter-spacing: 0.5px;
+}
+.pump-indicator.on {
+    background: var(--status-online-bg);
+    color: var(--status-online);
+    border: 1px solid var(--status-online);
+}
+.pump-indicator.off {
+    background: var(--status-offline-bg);
+    color: var(--status-offline);
+    border: 1px solid var(--status-offline);
+}
+.pump-flag {
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    letter-spacing: 0.5px;
+}
+.pump-flag.at-temp {
+    background: var(--status-online-bg);
+    color: var(--status-online);
+}
+.pump-flag.regen {
+    background: var(--status-paused-bg);
+    color: var(--status-paused);
+}
 .station-info-row {
     font-size: 0.8rem;
     color: var(--text-secondary);
@@ -990,6 +1029,14 @@ textarea { resize: vertical; min-height: 60px; }
                 </div>
             </div>
 
+            <!-- Pump Status -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">Pump Status</div>
+                </div>
+                <div class="panel-body" id="detail-pump-status"></div>
+            </div>
+
             <!-- Test Info + Controls -->
             <div class="panel">
                 <div class="panel-header">
@@ -1193,6 +1240,7 @@ var App = (function() {
         stations: {},         // instance -> registry data
         stationStates: {},    // instance -> {state, test_run_id, ...}
         stationTemps: {},     // instance -> {first_stage, second_stage}
+        stationPumpStatus: {}, // instance -> {pump_on, at_temp, regen, status_1, ...}
         measurements: [],     // recent command responses
         estop: { active: false },
         wsConnected: false,
@@ -1403,6 +1451,15 @@ var App = (function() {
             html += '<div class="temp-display"><span class="temp-label">2nd Stage</span><span class="temp-value">' + t2 + '</span></div>';
             html += '</div>';
 
+            var ps = state.stationPumpStatus[keys[i]];
+            if (ps) {
+                html += '<div class="station-pump-status">';
+                html += '<span class="pump-indicator ' + (ps.pump_on ? 'on' : 'off') + '">' + (ps.pump_on ? 'PUMP ON' : 'PUMP OFF') + '</span>';
+                if (ps.at_temp) html += '<span class="pump-flag at-temp">AT TEMP</span>';
+                if (ps.regen) html += '<span class="pump-flag regen">REGEN</span>';
+                html += '</div>';
+            }
+
             var devices = s.Devices || [];
             html += '<div class="station-info-row"><span class="info-label">Devices:</span> ' + (devices.length > 0 ? devices.join(', ') : 'none') + '</div>';
 
@@ -1463,6 +1520,18 @@ var App = (function() {
 
         // Elapsed
         document.getElementById('detail-elapsed').textContent = ss.started_at ? elapsed(ss.started_at) : '--';
+
+        // Pump status
+        var ps = state.stationPumpStatus[instance];
+        var pumpHtml = '';
+        if (ps) {
+            pumpHtml += '<div class="station-pump-status">';
+            pumpHtml += '<span class="pump-indicator ' + (ps.pump_on ? 'on' : 'off') + '">' + (ps.pump_on ? 'PUMP ON' : 'PUMP OFF') + '</span>';
+            if (ps.at_temp) pumpHtml += '<span class="pump-flag at-temp">AT TEMP</span>';
+            if (ps.regen) pumpHtml += '<span class="pump-flag regen">REGEN</span>';
+            pumpHtml += '</div>';
+        }
+        document.getElementById('detail-pump-status').innerHTML = pumpHtml;
 
         // Station info
         var infoHtml = '';
@@ -2102,6 +2171,9 @@ var App = (function() {
             case 'temperature':
                 handleTemperature(msg.payload);
                 break;
+            case 'pump_status':
+                handlePumpStatus(msg.payload);
+                break;
             case 'test_event':
                 handleTestEvent(msg.payload);
                 break;
@@ -2214,6 +2286,15 @@ var App = (function() {
         }
 
         if (state.currentView === 'stations') renderStationGrid();
+    }
+
+    function handlePumpStatus(payload) {
+        if (!payload || !payload.station_instance) return;
+        state.stationPumpStatus[payload.station_instance] = payload;
+        if (state.currentView === 'stations') renderStationGrid();
+        if (state.currentView === 'station-detail' && state.detailStation === payload.station_instance) {
+            renderStationDetail(payload.station_instance);
+        }
     }
 
     function handleTestEvent(payload) {

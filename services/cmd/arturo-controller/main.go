@@ -15,6 +15,7 @@ import (
 
 	"github.com/holla2040/arturo/internal/api"
 	"github.com/holla2040/arturo/internal/estop"
+	"github.com/holla2040/arturo/internal/poller"
 	"github.com/holla2040/arturo/internal/protocol"
 	"github.com/holla2040/arturo/internal/redishealth"
 	"github.com/holla2040/arturo/internal/registry"
@@ -174,6 +175,14 @@ func main() {
 		if err := server.ListenAndServe(); err != http.ErrServerClosed {
 			log.Fatalf("HTTP server error: %v", err)
 		}
+	}()
+
+	// 8. Station poller (background status + temperature queries)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		stationPoller := poller.New(serverSource, sender, dispatcher, reg, wsHub)
+		stationPoller.Run(ctx)
 	}()
 
 	// Wait for shutdown signal

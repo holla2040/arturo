@@ -345,8 +345,8 @@ var App = (function() {
 
         // Temps
         var temps = state.stationTemps[instance] || {};
-        document.getElementById('detail-temp-1st').textContent = formatTemp(temps.first_stage) + ' K';
-        document.getElementById('detail-temp-2nd').textContent = formatTemp(temps.second_stage) + ' K';
+        document.getElementById('detail-temp-1st').textContent = formatTemp(temps.first_stage);
+        document.getElementById('detail-temp-2nd').textContent = formatTemp(temps.second_stage);
 
         // Elapsed
         document.getElementById('detail-elapsed').textContent = ss.started_at ? elapsed(ss.started_at) : '--';
@@ -359,6 +359,7 @@ var App = (function() {
             var pDevId = escapeHtml(ps.device_id || '');
             var pInst = escapeHtml(instance);
             pumpHtml += '<div class="station-pump-status">';
+            pumpHtml += '<div class="pump-controls">';
             if (canControl) {
                 pumpHtml += '<button class="pump-indicator ' + (ps.pump_on ? 'on' : 'off') + '" onclick="App.togglePump(\'' + pInst + '\', \'' + pDevId + '\')">' + (ps.pump_on ? 'PUMP ON' : 'PUMP OFF') + '</button>';
                 pumpHtml += '<button class="pump-indicator ' + (ps.rough_valve_open ? 'off' : 'on') + '" onclick="App.toggleRoughValve(\'' + pInst + '\', \'' + pDevId + '\')">' + (ps.rough_valve_open ? 'ROUGH OPEN' : 'ROUGH CLOSED') + '</button>';
@@ -368,8 +369,14 @@ var App = (function() {
                 pumpHtml += '<span class="pump-indicator ' + (ps.rough_valve_open ? 'off' : 'on') + '">' + (ps.rough_valve_open ? 'ROUGH OPEN' : 'ROUGH CLOSED') + '</span>';
                 pumpHtml += '<span class="pump-indicator ' + (ps.purge_valve_open ? 'off' : 'on') + '">' + (ps.purge_valve_open ? 'PURGE OPEN' : 'PURGE CLOSED') + '</span>';
             }
+            pumpHtml += '</div>';
             if (ps.at_temp) pumpHtml += '<span class="pump-flag at-temp">AT TEMP</span>';
-            if (ps.regen) pumpHtml += '<span class="pump-flag regen">REGEN</span>';
+            if (canControl) {
+                pumpHtml += '<button class="pump-indicator ' + (ps.regen ? 'on' : 'regen-off') + '" onclick="App.toggleRegen(\'' + pInst + '\', \'' + pDevId + '\')">' + (ps.regen ? 'REGEN ON' : 'REGEN OFF') + '</button>';
+            } else {
+                pumpHtml += '<span class="pump-indicator ' + (ps.regen ? 'on' : 'regen-off') + '">' + (ps.regen ? 'REGEN ON' : 'REGEN OFF') + '</span>';
+            }
+            if (ps.regen && ps.regen_status) pumpHtml += '<span class="regen-desc">' + escapeHtml(regenDescription(ps.regen_status)) + '</span>';
             pumpHtml += '</div>';
         }
         document.getElementById('detail-pump-status').innerHTML = pumpHtml;
@@ -1107,8 +1114,8 @@ var App = (function() {
             }
 
             var temps = state.stationTemps[instance] || {};
-            document.getElementById('detail-temp-1st').textContent = formatTemp(temps.first_stage) + ' K';
-            document.getElementById('detail-temp-2nd').textContent = formatTemp(temps.second_stage) + ' K';
+            document.getElementById('detail-temp-1st').textContent = formatTemp(temps.first_stage);
+            document.getElementById('detail-temp-2nd').textContent = formatTemp(temps.second_stage);
 
             renderTempChart();
         }
@@ -1179,6 +1186,11 @@ var App = (function() {
         if (e.key === 'Enter') {
             if (state.currentView === 'login') login();
             if (document.getElementById('manual-command') === document.activeElement) sendManualCommand();
+        }
+        if (e.key === 'Escape') {
+            if (state.currentView === 'station-detail') showView('stations');
+            else if (state.currentView === 'rma-detail') showView('rma-list');
+            else if (state.currentView === 'rma-list' || state.currentView === 'rma-new') showView('stations');
         }
     });
 

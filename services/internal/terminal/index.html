@@ -191,11 +191,14 @@ body {
    Views
    ===================================================================== */
 .view { display: none; }
-.view.active { display: block; }
+.view.active { display: flex; flex-direction: column; min-height: calc(100vh - 60px); }
 .main {
     padding: 20px 24px;
-    max-width: 1920px;
+    width: 90%;
     margin: 0 auto;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
 }
 
 /* =====================================================================
@@ -368,16 +371,27 @@ textarea { resize: vertical; min-height: 60px; }
 /* =====================================================================
    Station Grid (4-panel)
    ===================================================================== */
+#view-stations .panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+#view-stations .panel-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
 .station-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 16px;
+    flex: 1;
 }
 .station-card {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
-    padding: 16px;
+    padding: 24px;
     cursor: pointer;
     transition: border-color 0.2s, box-shadow 0.2s;
 }
@@ -398,14 +412,14 @@ textarea { resize: vertical; min-height: 60px; }
 }
 .station-name {
     font-weight: 600;
-    font-size: 1rem;
+    font-size: 2rem;
     font-family: var(--font-mono);
     color: var(--accent-blue);
 }
 .status-badge {
     padding: 2px 10px;
     border-radius: 10px;
-    font-size: 0.7rem;
+    font-size: 1.2rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -442,14 +456,13 @@ textarea { resize: vertical; min-height: 60px; }
     gap: 2px;
 }
 .temp-display .temp-label {
-    font-size: 0.7rem;
+    font-size: 1.5rem;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
 .temp-display .temp-value {
-    font-size: 1.1rem;
-    font-family: var(--font-mono);
+    font-size: clamp(4rem, 12vw, 128pt);
     font-weight: 600;
     color: var(--text-primary);
 }
@@ -810,7 +823,7 @@ textarea { resize: vertical; min-height: 60px; }
    Responsive
    ===================================================================== */
 @media (max-width: 1200px) {
-    .station-grid { grid-template-columns: 1fr 1fr; }
+    .station-grid { grid-template-columns: repeat(2, 1fr); }
     .detail-grid { grid-template-columns: 1fr; }
     .rma-detail-info { grid-template-columns: 1fr 1fr; }
 }
@@ -952,30 +965,6 @@ textarea { resize: vertical; min-height: 60px; }
             </div>
         </div>
 
-        <!-- Recent Measurements -->
-        <div class="panel">
-            <div class="panel-header">
-                <div class="panel-title">Recent Measurements</div>
-                <span class="panel-badge" id="measurement-count">0</span>
-            </div>
-            <div class="panel-body no-pad scrollable">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Time</th>
-                            <th>Device</th>
-                            <th>Command</th>
-                            <th>Result</th>
-                            <th>Response</th>
-                            <th>Duration</th>
-                        </tr>
-                    </thead>
-                    <tbody id="measurement-tbody">
-                        <tr><td colspan="6"><div class="empty-state">No measurements recorded</div></td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
     </main>
 </div>
 
@@ -1241,7 +1230,6 @@ var App = (function() {
         stationStates: {},    // instance -> {state, test_run_id, ...}
         stationTemps: {},     // instance -> {first_stage, second_stage}
         stationPumpStatus: {}, // instance -> {pump_on, at_temp, regen, status_1, ...}
-        measurements: [],     // recent command responses
         estop: { active: false },
         wsConnected: false,
         currentView: 'login',
@@ -1252,7 +1240,6 @@ var App = (function() {
         tempChartData: { timestamps: [], first: [], second: [] }
     };
 
-    var MAX_MEASUREMENTS = 100;
     var MAX_CHART_POINTS = 720; // 1 hour at 5s intervals
 
     // =================================================================
@@ -1438,8 +1425,8 @@ var App = (function() {
             var stateStr = ss.state || s.Status || 'offline';
             var stateLabel = stateStr.charAt(0).toUpperCase() + stateStr.slice(1);
             var temps = state.stationTemps[keys[i]] || {};
-            var t1 = temps.first_stage != null ? temps.first_stage.toFixed(1) + ' K' : '-- K';
-            var t2 = temps.second_stage != null ? temps.second_stage.toFixed(1) + ' K' : '-- K';
+            var t1 = temps.first_stage != null ? temps.first_stage.toFixed(1) : '--';
+            var t2 = temps.second_stage != null ? temps.second_stage.toFixed(1) : '--';
 
             html += '<div class="station-card state-' + escapeHtml(stateStr) + '" onclick="App.openStation(\'' + escapeHtml(keys[i]) + '\')">';
             html += '<div class="station-card-header">';
@@ -2060,36 +2047,6 @@ var App = (function() {
         window.open('/rmas/' + encodeURIComponent(id) + '/pdf', '_blank');
     }
 
-    // =================================================================
-    // Measurements
-    // =================================================================
-    function renderMeasurements() {
-        var tbody = document.getElementById('measurement-tbody');
-        var countEl = document.getElementById('measurement-count');
-        var measurements = state.measurements;
-        countEl.textContent = measurements.length;
-
-        if (measurements.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state">No measurements recorded</div></td></tr>';
-            return;
-        }
-
-        var html = '';
-        for (var i = 0; i < measurements.length; i++) {
-            var m = measurements[i];
-            var resultClass = m.success ? 'success' : 'fail';
-            var resultLabel = m.success ? 'OK' : 'FAIL';
-            html += '<tr>';
-            html += '<td class="timestamp">' + formatTime(m.timestamp) + '</td>';
-            html += '<td class="mono">' + escapeHtml(m.device_id) + '</td>';
-            html += '<td class="mono">' + escapeHtml(m.command_name) + '</td>';
-            html += '<td><span class="' + resultClass + '">' + resultLabel + '</span></td>';
-            html += '<td><div class="measurement-response">' + escapeHtml(m.response || m.error || '--') + '</div></td>';
-            html += '<td><span class="duration-badge">' + (m.duration_ms != null ? m.duration_ms + ' ms' : '--') + '</span></td>';
-            html += '</tr>';
-        }
-        tbody.innerHTML = html;
-    }
 
     // =================================================================
     // Modals
@@ -2159,9 +2116,6 @@ var App = (function() {
             case 'heartbeat':
                 handleHeartbeat(msg.payload);
                 break;
-            case 'command_response':
-                handleCommandResponse(msg.payload);
-                break;
             case 'estop':
                 handleEstop(msg.payload);
                 break;
@@ -2211,22 +2165,6 @@ var App = (function() {
         return true;
     }
 
-    function handleCommandResponse(payload) {
-        if (!payload) return;
-        state.measurements.unshift({
-            timestamp: new Date().toISOString(),
-            device_id: payload.device_id,
-            command_name: payload.command_name,
-            success: payload.success,
-            response: payload.response,
-            error: payload.error ? (payload.error.message || payload.error) : null,
-            duration_ms: payload.duration_ms
-        });
-        if (state.measurements.length > MAX_MEASUREMENTS) {
-            state.measurements = state.measurements.slice(0, MAX_MEASUREMENTS);
-        }
-        if (state.currentView === 'stations') renderMeasurements();
-    }
 
     function handleEstop(payload) {
         if (!payload) return;

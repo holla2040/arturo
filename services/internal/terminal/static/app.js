@@ -73,6 +73,11 @@ var App = (function() {
         } catch(e) { return '--'; }
     }
 
+    function formatTemp(k) {
+        if (k == null) return '--';
+        return k > 99.9 ? Math.round(k).toString() : k.toFixed(1);
+    }
+
     function formatBytes(b) {
         if (b == null) return '--';
         if (b >= 1048576) return (b / 1048576).toFixed(1) + ' MB';
@@ -208,8 +213,8 @@ var App = (function() {
             var stateStr = ss.state || (s.Status === 'online' ? 'idle' : s.Status) || 'offline';
             var stateLabel = stateStr.charAt(0).toUpperCase() + stateStr.slice(1);
             var temps = state.stationTemps[keys[i]] || {};
-            var t1 = temps.first_stage != null ? temps.first_stage.toFixed(1) : '--';
-            var t2 = temps.second_stage != null ? temps.second_stage.toFixed(1) : '--';
+            var t1 = formatTemp(temps.first_stage);
+            var t2 = formatTemp(temps.second_stage);
 
             html += '<div class="station-card state-' + escapeHtml(stateStr) + '" onclick="App.openStation(\'' + escapeHtml(keys[i]) + '\')">';
             html += '<div class="station-card-header">';
@@ -299,8 +304,8 @@ var App = (function() {
 
         // Temps
         var temps = state.stationTemps[instance] || {};
-        document.getElementById('detail-temp-1st').textContent = temps.first_stage != null ? temps.first_stage.toFixed(1) + ' K' : '-- K';
-        document.getElementById('detail-temp-2nd').textContent = temps.second_stage != null ? temps.second_stage.toFixed(1) + ' K' : '-- K';
+        document.getElementById('detail-temp-1st').textContent = formatTemp(temps.first_stage) + ' K';
+        document.getElementById('detail-temp-2nd').textContent = formatTemp(temps.second_stage) + ' K';
 
         // Elapsed
         document.getElementById('detail-elapsed').textContent = ss.started_at ? elapsed(ss.started_at) : '--';
@@ -1052,8 +1057,8 @@ var App = (function() {
             }
 
             var temps = state.stationTemps[instance] || {};
-            document.getElementById('detail-temp-1st').textContent = temps.first_stage != null ? temps.first_stage.toFixed(1) + ' K' : '-- K';
-            document.getElementById('detail-temp-2nd').textContent = temps.second_stage != null ? temps.second_stage.toFixed(1) + ' K' : '-- K';
+            document.getElementById('detail-temp-1st').textContent = formatTemp(temps.first_stage) + ' K';
+            document.getElementById('detail-temp-2nd').textContent = formatTemp(temps.second_stage) + ' K';
 
             renderTempChart();
         }

@@ -196,6 +196,10 @@ func (dw *dirWatcher) serveSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
+	// Send headers immediately so the browser's EventSource connects.
+	fmt.Fprintf(w, ": connected\n\n")
+	flusher.Flush()
+
 	ch := dw.addClient()
 	defer dw.removeClient(ch)
 

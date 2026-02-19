@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arturo - Cryo Test System</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- E-Stop Banner -->
+<div id="estop-banner">
+    <div>EMERGENCY STOP <span id="estop-reason"></span></div>
+    <div class="estop-details">
+        <span id="estop-description"></span>
+        &mdash; Initiated by: <span id="estop-initiator"></span>
+        at <span id="estop-time"></span>
+    </div>
+</div>
+
+<!-- Header -->
+<header class="header" id="app-header" style="display:none">
+    <div class="header-left">
+        <div class="header-logo" onclick="App.showView('stations')">Arturo</div>
+        <div class="header-subtitle">Cryo Test System</div>
+    </div>
+    <div class="status-bar">
+        <div class="status-item">
+            <div class="ws-indicator" id="ws-indicator"></div>
+            <span class="label">WS</span>
+        </div>
+        <div class="status-item">
+            <span class="label">Stations:</span>
+            <span class="value" id="stat-stations">0</span>
+        </div>
+        <span id="estop-status-badge" class="estop-status-badge safe">SAFE</span>
+        <span class="employee-badge" id="employee-name" onclick="App.logout()"></span>
+    </div>
+</header>
+
+<!-- =====================================================================
+     LOGIN VIEW
+     ===================================================================== -->
+<div id="view-login" class="view active">
+    <div class="login-container">
+        <h1>Arturo</h1>
+        <div class="subtitle">Cryo Test System Controller</div>
+        <div class="login-form">
+            <div class="field">
+                <label for="login-employee-id">Employee ID</label>
+                <input type="text" id="login-employee-id" placeholder="e.g. emp-001" value="emp-001">
+            </div>
+            <div class="field">
+                <label for="login-name">Name</label>
+                <input type="text" id="login-name" placeholder="e.g. John Doe" value="Dev Operator">
+            </div>
+            <div class="login-error" id="login-error"></div>
+            <button class="btn btn-primary" style="width:100%" onclick="App.login()">Login</button>
+        </div>
+    </div>
+</div>
+
+<!-- =====================================================================
+     STATIONS VIEW
+     ===================================================================== -->
+<div id="view-stations" class="view">
+    <main class="main">
+        <!-- Station Grid -->
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">Stations</div>
+                <div class="btn-group">
+                    <button class="btn btn-sm" onclick="App.showView('rma-list')">RMAs</button>
+                    <button class="btn btn-sm btn-primary" onclick="App.showView('rma-new')">New RMA</button>
+                </div>
+            </div>
+            <div class="panel-body">
+                <div class="station-grid" id="station-grid">
+                    <div class="empty-state"><div>No stations reporting</div></div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<!-- =====================================================================
+     STATION DETAIL VIEW
+     ===================================================================== -->
+<div id="view-station-detail" class="view">
+    <main class="main">
+        <div class="detail-header">
+            <button class="back-btn" onclick="App.showView('stations')">&larr;</button>
+            <span class="detail-title" id="detail-station-name">station-01</span>
+            <div class="detail-status">
+                <span class="status-badge" id="detail-station-status">--</span>
+            </div>
+        </div>
+
+        <div class="detail-grid">
+            <!-- Temperature Chart -->
+            <div class="panel span-full">
+                <div class="panel-header">
+                    <div class="panel-title">Temperature</div>
+                    <div class="chart-legend">
+                        <div class="chart-legend-item">
+                            <div class="chart-legend-dot" style="background:#4a9eff"></div>
+                            <span>1st Stage</span>
+                        </div>
+                        <div class="chart-legend-item">
+                            <div class="chart-legend-dot" style="background:#22c55e"></div>
+                            <span>2nd Stage</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="panel-body">
+                    <div class="chart-container">
+                        <canvas id="temp-chart"></canvas>
+                    </div>
+                    <div style="display:flex;gap:24px;margin-top:12px">
+                        <div class="temp-display">
+                            <span class="temp-label">1st Stage</span>
+                            <span class="temp-value" id="detail-temp-1st">-- K</span>
+                        </div>
+                        <div class="temp-display">
+                            <span class="temp-label">2nd Stage</span>
+                            <span class="temp-value" id="detail-temp-2nd">-- K</span>
+                        </div>
+                        <div class="temp-display">
+                            <span class="temp-label">Elapsed</span>
+                            <span class="temp-value" id="detail-elapsed">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pump Status -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">Pump Status</div>
+                </div>
+                <div class="panel-body" id="detail-pump-status"></div>
+            </div>
+
+            <!-- Test Info + Controls -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">Test Controls</div>
+                </div>
+                <div class="panel-body">
+                    <div id="detail-test-info"></div>
+                    <div class="controls-section" id="detail-controls" style="margin-top:12px"></div>
+                </div>
+            </div>
+
+            <!-- Station Info -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">Station Info</div>
+                </div>
+                <div class="panel-body" id="detail-station-info"></div>
+            </div>
+
+            <!-- Manual Command (only when idle) -->
+            <div class="panel" id="manual-cmd-panel" style="display:none">
+                <div class="panel-header">
+                    <div class="panel-title">Manual Command</div>
+                </div>
+                <div class="panel-body">
+                    <div class="field">
+                        <label for="manual-device">Device ID</label>
+                        <input type="text" id="manual-device" placeholder="PUMP-01">
+                    </div>
+                    <div class="manual-cmd" style="margin-top:8px">
+                        <input type="text" id="manual-command" placeholder="e.g. pump_status">
+                        <button class="btn btn-primary btn-sm" onclick="App.sendManualCommand()">Send</button>
+                    </div>
+                    <div id="manual-response" style="margin-top:12px;font-family:var(--font-mono);font-size:0.85rem;color:var(--text-secondary)"></div>
+                </div>
+            </div>
+
+            <!-- Events Log -->
+            <div class="panel span-full">
+                <div class="panel-header">
+                    <div class="panel-title">Test Events</div>
+                </div>
+                <div class="panel-body no-pad scrollable">
+                    <table class="data-table">
+                        <thead><tr><th>Time</th><th>Event</th><th>Employee</th><th>Reason</th></tr></thead>
+                        <tbody id="detail-events-tbody">
+                            <tr><td colspan="4"><div class="empty-state">No events</div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- =====================================================================
+     RMA LIST VIEW
+     ===================================================================== -->
+<div id="view-rma-list" class="view">
+    <main class="main">
+        <div class="detail-header">
+            <button class="back-btn" onclick="App.showView('stations')">&larr;</button>
+            <span class="detail-title">RMAs</span>
+            <div class="detail-status">
+                <button class="btn btn-sm btn-primary" onclick="App.showView('rma-new')">New RMA</button>
+            </div>
+        </div>
+        <div class="rma-toolbar">
+            <input type="text" class="search-input" id="rma-search-input" placeholder="Search by RMA number..." oninput="App.searchRMAs()">
+            <select id="rma-status-filter" onchange="App.loadRMAs()" style="width:auto;max-width:150px">
+                <option value="">All</option>
+                <option value="open" selected>Open</option>
+                <option value="closed">Closed</option>
+            </select>
+        </div>
+        <div class="rma-list" id="rma-list"></div>
+    </main>
+</div>
+
+<!-- =====================================================================
+     NEW RMA VIEW
+     ===================================================================== -->
+<div id="view-rma-new" class="view">
+    <main class="main">
+        <div class="detail-header">
+            <button class="back-btn" onclick="App.showView('rma-list')">&larr;</button>
+            <span class="detail-title">New RMA</span>
+        </div>
+        <div class="panel">
+            <div class="panel-body">
+                <div class="rma-form">
+                    <div class="field">
+                        <label for="rma-rma-number">RMA Number</label>
+                        <input type="text" id="rma-rma-number" placeholder="RMA-2024-001">
+                    </div>
+                    <div class="field">
+                        <label for="rma-serial">Pump Serial Number</label>
+                        <input type="text" id="rma-serial" placeholder="SN12345">
+                    </div>
+                    <div class="field">
+                        <label for="rma-customer">Customer Name</label>
+                        <input type="text" id="rma-customer" placeholder="ACME Corp">
+                    </div>
+                    <div class="field">
+                        <label for="rma-model">Pump Model</label>
+                        <input type="text" id="rma-model" placeholder="CT-8">
+                    </div>
+                    <div class="field">
+                        <label for="rma-notes">Notes</label>
+                        <textarea id="rma-notes" placeholder="Optional notes..."></textarea>
+                    </div>
+                    <div id="rma-create-error" class="login-error"></div>
+                    <button class="btn btn-primary" onclick="App.createRMA()">Create RMA</button>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- =====================================================================
+     RMA DETAIL VIEW
+     ===================================================================== -->
+<div id="view-rma-detail" class="view">
+    <main class="main">
+        <div class="rma-detail-header">
+            <div style="display:flex;align-items:center;gap:16px">
+                <button class="back-btn" onclick="App.showView('rma-list')">&larr;</button>
+                <span class="detail-title" id="rma-detail-number">--</span>
+                <span class="rma-status-badge" id="rma-detail-status">--</span>
+            </div>
+            <div class="btn-group" id="rma-detail-actions"></div>
+        </div>
+        <div class="rma-detail-info" id="rma-detail-info"></div>
+
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">Test Runs</div>
+            </div>
+            <div class="panel-body">
+                <div class="test-run-list" id="rma-detail-runs"></div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- =====================================================================
+     START TEST MODAL
+     ===================================================================== -->
+<div class="modal-overlay" id="start-test-modal">
+    <div class="modal">
+        <h3>Start Test</h3>
+        <div class="field">
+            <label for="test-rma-search">RMA Number</label>
+            <input type="text" id="test-rma-search" placeholder="Search RMA number...">
+            <div id="test-rma-results" style="margin-top:4px;font-size:0.85rem;color:var(--text-secondary)"></div>
+        </div>
+        <div class="field">
+            <label for="test-script">Script Path</label>
+            <input type="text" id="test-script" placeholder="scripts/pump_test.art">
+        </div>
+        <div id="start-test-error" class="login-error"></div>
+        <div class="modal-actions">
+            <button class="btn" onclick="App.closeModal('start-test-modal')">Cancel</button>
+            <button class="btn btn-primary" onclick="App.confirmStartTest()">Start</button>
+        </div>
+    </div>
+</div>
+
+<!-- =====================================================================
+     TERMINATE MODAL
+     ===================================================================== -->
+<div class="modal-overlay" id="terminate-modal">
+    <div class="modal">
+        <h3>Terminate Test</h3>
+        <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.85rem">
+            This will stop the test and preserve all collected data.
+        </p>
+        <div class="field">
+            <label for="terminate-reason">Reason</label>
+            <textarea id="terminate-reason" placeholder="Reason for termination..."></textarea>
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="App.closeModal('terminate-modal')">Cancel</button>
+            <button class="btn btn-warning" onclick="App.confirmTerminate()">Terminate</button>
+        </div>
+    </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

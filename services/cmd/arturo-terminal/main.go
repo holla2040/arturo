@@ -15,20 +15,26 @@ import (
 func main() {
 	listenAddr := flag.String("listen", ":8082", "HTTP listen address")
 	controllerURL := flag.String("controller", "http://localhost:8080", "Controller URL to proxy to")
+	devMode := flag.Bool("dev", false, "serve static files from disk with live reload")
 	flag.Parse()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	handler := terminal.Handler(*controllerURL)
+	handler := terminal.Handler(*controllerURL, *devMode)
 
 	server := &http.Server{
 		Addr:    *listenAddr,
 		Handler: handler,
 	}
 
+	mode := "production (embedded)"
+	if *devMode {
+		mode = "development (live reload)"
+	}
+
 	go func() {
-		log.Printf("arturo-terminal listening on %s (controller: %s)", *listenAddr, *controllerURL)
+		log.Printf("arturo-terminal listening on %s (controller: %s, mode: %s)", *listenAddr, *controllerURL, mode)
 		if err := server.ListenAndServe(); err != http.ErrServerClosed {
 			log.Fatalf("HTTP server error: %v", err)
 		}

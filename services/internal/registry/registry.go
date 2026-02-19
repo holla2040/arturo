@@ -16,8 +16,8 @@ const (
 
 // Health check thresholds.
 const (
-	StaleThreshold   = 60 * time.Second
-	OfflineThreshold = 90 * time.Second
+	StaleThreshold   = 5 * time.Second
+	OfflineThreshold = 10 * time.Second
 )
 
 // DeviceEntry tracks a single device attached to a station.

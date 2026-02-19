@@ -155,7 +155,7 @@ func (s *mockStation) heartbeatLoop(ctx context.Context) {
 		s.sendHeartbeat(ctx)
 	}
 
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -210,10 +210,10 @@ func (s *mockStation) presenceLoop(ctx context.Context) {
 	key := "device:" + s.instance + ":alive"
 	wasOnline := *s.online
 	if wasOnline {
-		s.rdb.Set(ctx, key, "1", 90*time.Second)
+		s.rdb.Set(ctx, key, "1", 15*time.Second)
 	}
 
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -223,7 +223,7 @@ func (s *mockStation) presenceLoop(ctx context.Context) {
 		case <-ticker.C:
 			on := *s.online
 			if on {
-				s.rdb.Set(ctx, key, "1", 90*time.Second)
+				s.rdb.Set(ctx, key, "1", 15*time.Second)
 			} else if wasOnline {
 				// Transitioning to offline — remove alive key immediately
 				s.rdb.Del(ctx, key)

@@ -1405,7 +1405,7 @@ var App = (function() {
     }
 
     function getStationState(instance) {
-        return state.stationStates[instance] || { state: 'unknown' };
+        return state.stationStates[instance] || {};
     }
 
     function renderStationGrid() {
@@ -1422,7 +1422,7 @@ var App = (function() {
         for (var i = 0; i < keys.length; i++) {
             var s = state.stations[keys[i]];
             var ss = getStationState(keys[i]);
-            var stateStr = ss.state || s.Status || 'offline';
+            var stateStr = ss.state || (s.Status === 'online' ? 'idle' : s.Status) || 'offline';
             var stateLabel = stateStr.charAt(0).toUpperCase() + stateStr.slice(1);
             var temps = state.stationTemps[keys[i]] || {};
             var t1 = temps.first_stage != null ? temps.first_stage.toFixed(1) : '--';
@@ -1433,6 +1433,8 @@ var App = (function() {
             html += '<span class="station-name">' + escapeHtml(keys[i]) + '</span>';
             html += '<span class="status-badge ' + escapeHtml(stateStr) + '">' + stateLabel + '</span>';
             html += '</div>';
+
+            if (stateStr !== 'offline') {
             html += '<div class="station-temps">';
             html += '<div class="temp-display"><span class="temp-label">1st Stage</span><span class="temp-value">' + t1 + '</span></div>';
             html += '<div class="temp-display"><span class="temp-label">2nd Stage</span><span class="temp-value">' + t2 + '</span></div>';
@@ -1452,6 +1454,7 @@ var App = (function() {
 
             if (stateStr === 'testing' || stateStr === 'paused') {
                 html += '<div class="station-info-row" style="color:var(--accent-blue)">Test in progress</div>';
+            }
             }
 
             html += '</div>';
@@ -1492,7 +1495,7 @@ var App = (function() {
     function renderStationDetail(instance) {
         var s = state.stations[instance] || {};
         var ss = state.stationStates[instance] || {};
-        var stateStr = ss.state || s.Status || 'offline';
+        var stateStr = ss.state || (s.Status === 'online' ? 'idle' : s.Status) || 'offline';
         var stateLabel = stateStr.charAt(0).toUpperCase() + stateStr.slice(1);
 
         // Status badge
@@ -2270,7 +2273,7 @@ var App = (function() {
         if (state.currentView === 'stations' && state.employee) {
             loadStations();
         }
-    }, 15000);
+    }, 3000);
 
     setInterval(function() {
         if (state.currentView === 'station-detail' && state.detailStation) {

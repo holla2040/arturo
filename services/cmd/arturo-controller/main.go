@@ -343,7 +343,7 @@ func runResponseListener(ctx context.Context, rdb *redis.Client, dispatcher *api
 
 // runHealthChecker periodically checks station health.
 func runHealthChecker(ctx context.Context, reg *registry.Registry, hub *api.Hub, testMgr *testmanager.TestManager) {
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
 	for {

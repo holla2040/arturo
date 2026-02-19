@@ -316,7 +316,7 @@ func pollPresence(ctx context.Context, rdb *redis.Client, hub *api.Hub) {
 			}
 
 			state := "online"
-			if ttl.Seconds() < 30 {
+			if ttl.Seconds() < 5 {
 				state = "stale"
 			}
 

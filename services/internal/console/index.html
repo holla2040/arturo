@@ -213,9 +213,9 @@ body {
     <div class="filter-bar">
       <label><input type="checkbox" id="f-command" checked> Commands</label>
       <label><input type="checkbox" id="f-response" checked> Responses</label>
-      <label><input type="checkbox" id="f-heartbeat" checked> Heartbeats</label>
+      <label><input type="checkbox" id="f-heartbeat"> Heartbeats</label>
       <label><input type="checkbox" id="f-estop" checked> E-Stop</label>
-      <label><input type="checkbox" id="f-presence" checked> Presence</label>
+      <label><input type="checkbox" id="f-presence"> Presence</label>
       <span class="filter-sep">|</span>
       <input type="text" id="f-station" placeholder="station filter">
       <label style="margin-left:auto"><input type="checkbox" id="f-autoscroll" checked> Auto-scroll</label>
@@ -238,7 +238,8 @@ const stationsContainer = document.getElementById('stations-container');
 function renderStations(stations) {
   stationsContainer.innerHTML = stations.map(s => {
     const p = s.pump;
-    const stateClass = 'state-' + p.state_name;
+    const stateClass = s.online ? 'state-' + p.state_name : 'state-off';
+    const badgeText = s.online ? p.state_name.toUpperCase() : 'OFFLINE';
     return `
     <div class="station-card" data-instance="${s.instance}">
       <h3>
@@ -247,8 +248,9 @@ function renderStations(stations) {
           ${s.instance}
         </label>
         <span class="device-id" style="color:#888;font-weight:normal">${s.device_id}</span>
-        <span class="state-badge ${stateClass}">${p.state_name.toUpperCase()}</span>
+        <span class="state-badge ${stateClass}">${badgeText}</span>
       </h3>
+      ${s.online ? `
       <div class="stats-grid">
         <span class="label">1st Stage</span><span class="value">${p.first_stage_k.toFixed(1)} K</span>
         <span class="label">2nd Stage</span><span class="value">${p.second_stage_k.toFixed(1)} K</span>
@@ -281,6 +283,7 @@ function renderStations(stations) {
         <span class="range-val" id="frv-${s.instance}">${(p.fail_rate*100).toFixed(0)}%</span>
         <button class="btn" onclick="setFailRate('${s.instance}')">Set</button>
       </div>
+      ` : ''}
     </div>`;
   }).join('');
 }

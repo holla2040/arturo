@@ -127,6 +127,9 @@ func (p *Pump) HandleCommand(command string) (string, bool) {
 	case "get_regen_step":
 		return fmt.Sprintf("%d", p.regenStep), true
 
+	case "get_regen_status":
+		return string(p.regenStatusChar()), true
+
 	case "open_rough_valve":
 		p.roughValveOpen = true
 		return "A", true
@@ -264,6 +267,29 @@ func (p *Pump) statusByte1() string {
 
 func (p *Pump) statusByte2() string {
 	return "0"
+}
+
+// regenStatusChar returns a CTI-style O-command character for the current regen phase.
+func (p *Pump) regenStatusChar() byte {
+	if p.state != StateRegen {
+		return 'A' // pump off
+	}
+	switch p.regenStep {
+	case 1:
+		return 'B' // warmup
+	case 2:
+		return 'I' // rough to base pressure
+	case 3:
+		return 'L' // rate of rise
+	case 4:
+		return 'M' // cooldown
+	case 5:
+		return 'M' // cooldown
+	case 6:
+		return 'P' // regen complete
+	default:
+		return 'A'
+	}
 }
 
 // String returns the human-readable name for a pump state.

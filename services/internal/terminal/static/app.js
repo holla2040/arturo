@@ -35,6 +35,40 @@ var App = (function() {
         return div.innerHTML;
     }
 
+    function regenDescription(ch) {
+        if (!ch) return '';
+        switch (ch) {
+            case 'A': case '\\': return 'Pump OFF';
+            case 'B': case 'C': case 'E': case '^': case ']':
+            case 'l': case 'm': case '_': case 'r': case 's':
+            case 't': case 'u': case 'v': case "'":
+                return 'Warmup';
+            case 'D': case 'F': case 'G': case 'Q': case 'R':
+                return 'Purge gas failure';
+            case 'H': return 'Extended purge';
+            case 'S': return 'Repurge cycle';
+            case 'I': case 'J': case 'K': case 'T':
+            case 'a': case 'b': case 'j': case 'n':
+                return 'Rough to base pressure';
+            case 'L': return 'Rate of rise';
+            case 'M': case 'N': case 'c': case 'd': case 'o':
+                return 'Cooldown';
+            case 'P': return 'Regen complete';
+            case 'U': return 'FastRegen start';
+            case 'V': return 'Regen aborted';
+            case 'W': return 'Delay restart';
+            case 'X': case 'Y': return 'Power failure';
+            case 'Z': return 'Delay start';
+            case 'O': case '[': return 'Zeroing TC gauge';
+            case 'f': return 'Share regen wait';
+            case 'e': return 'Repurge (FastRegen)';
+            case 'h': return 'Purge coordinate wait';
+            case 'i': return 'Rough coordinate wait';
+            case 'k': return 'Purge gas fail recovery';
+            default: return 'Unknown (' + ch + ')';
+        }
+    }
+
     function formatUptime(secs) {
         if (secs == null || secs <= 0) return '--';
         var d = Math.floor(secs / 86400);
@@ -234,6 +268,7 @@ var App = (function() {
                 var pDevId = escapeHtml(ps.device_id || '');
                 var pInst = escapeHtml(keys[i]);
                 html += '<div class="station-pump-status">';
+                html += '<div class="pump-controls">';
                 if (canControl) {
                     html += '<button class="pump-indicator ' + (ps.pump_on ? 'on' : 'off') + '" onclick="event.stopPropagation(); App.togglePump(\'' + pInst + '\', \'' + pDevId + '\')">' + (ps.pump_on ? 'PUMP ON' : 'PUMP OFF') + '</button>';
                     html += '<button class="pump-indicator ' + (ps.rough_valve_open ? 'off' : 'on') + '" onclick="event.stopPropagation(); App.toggleRoughValve(\'' + pInst + '\', \'' + pDevId + '\')">' + (ps.rough_valve_open ? 'ROUGH OPEN' : 'ROUGH CLOSED') + '</button>';
@@ -243,8 +278,10 @@ var App = (function() {
                     html += '<span class="pump-indicator ' + (ps.rough_valve_open ? 'off' : 'on') + '">' + (ps.rough_valve_open ? 'ROUGH OPEN' : 'ROUGH CLOSED') + '</span>';
                     html += '<span class="pump-indicator ' + (ps.purge_valve_open ? 'off' : 'on') + '">' + (ps.purge_valve_open ? 'PURGE OPEN' : 'PURGE CLOSED') + '</span>';
                 }
+                html += '</div>';
                 if (ps.at_temp) html += '<span class="pump-flag at-temp">AT TEMP</span>';
                 if (ps.regen) html += '<span class="pump-flag regen">REGEN</span>';
+                if (ps.regen && ps.regen_status) html += '<span class="regen-desc">' + escapeHtml(regenDescription(ps.regen_status)) + '</span>';
                 html += '</div>';
             }
 

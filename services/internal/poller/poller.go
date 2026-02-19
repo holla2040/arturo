@@ -100,6 +100,14 @@ func (p *StationPoller) pollDevice(ctx context.Context, stationInstance, deviceI
 			purgeValveOpen = *pv == "1"
 		}
 
+		// Poll regen status character when in regen
+		regenStatus := ""
+		if status1&4 != 0 {
+			if rs := p.queryCommand(ctx, deviceID, "get_regen_status", commandStream); rs != nil {
+				regenStatus = *rs
+			}
+		}
+
 		p.hub.BroadcastEvent("pump_status", map[string]interface{}{
 			"station_instance": stationInstance,
 			"device_id":        deviceID,
@@ -109,6 +117,7 @@ func (p *StationPoller) pollDevice(ctx context.Context, stationInstance, deviceI
 			"pump_on":          status1&1 != 0,
 			"at_temp":          status1&2 != 0,
 			"regen":            status1&4 != 0,
+			"regen_status":     regenStatus,
 			"rough_valve_open": roughValveOpen,
 			"purge_valve_open": purgeValveOpen,
 			"timestamp":        now,

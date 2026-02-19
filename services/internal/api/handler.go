@@ -32,6 +32,15 @@ type commandRequest struct {
 	TimeoutMs  int               `json:"timeout_ms,omitempty"`
 }
 
+// stationCommandRequest is the JSON body for POST /stations/{id}/command.
+// It includes a device_id field since the URL path {id} is the station instance.
+type stationCommandRequest struct {
+	DeviceID   string            `json:"device_id"`
+	Command    string            `json:"command"`
+	Parameters map[string]string `json:"parameters,omitempty"`
+	TimeoutMs  int               `json:"timeout_ms,omitempty"`
+}
+
 // otaRequest is the JSON body for POST /ota.
 type otaRequest struct {
 	Station     string `json:"station"`
@@ -137,18 +146,7 @@ func (h *Handler) redisAvailable() bool {
 }
 
 func (h *Handler) sendCommand(w http.ResponseWriter, r *http.Request) {
-	if !h.redisAvailable() {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "redis unavailable"})
-		return
-	}
-
 	deviceID := r.PathValue("id")
-
-	device := h.Registry.LookupDevice(deviceID)
-	if device == nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "device not found"})
-		return
-	}
 
 	var req commandRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -156,17 +154,32 @@ func (h *Handler) sendCommand(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Command == "" {
+	h.executeCommand(w, r, deviceID, req.Command, req.Parameters, req.TimeoutMs)
+}
+
+// executeCommand is the shared core for sending a device command and waiting for a response.
+func (h *Handler) executeCommand(w http.ResponseWriter, r *http.Request, deviceID, command string, parameters map[string]string, timeoutMs int) {
+	if !h.redisAvailable() {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "redis unavailable"})
+		return
+	}
+
+	device := h.Registry.LookupDevice(deviceID)
+	if device == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "device not found"})
+		return
+	}
+
+	if command == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "command is required"})
 		return
 	}
 
-	timeoutMs := req.TimeoutMs
 	if timeoutMs <= 0 {
 		timeoutMs = 5000
 	}
 
-	msg, err := protocol.BuildCommandRequest(h.Source, deviceID, req.Command, req.Parameters, timeoutMs)
+	msg, err := protocol.BuildCommandRequest(h.Source, deviceID, command, parameters, timeoutMs)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("failed to build command: %v", err)})
 		return
@@ -654,8 +667,18 @@ func (h *Handler) stationCommand(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Delegate to existing sendCommand logic
-	h.sendCommand(w, r)
+	var req stationCommandRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	if req.DeviceID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "device_id is required"})
+		return
+	}
+
+	h.executeCommand(w, r, req.DeviceID, req.Command, req.Parameters, req.TimeoutMs)
 }
 
 // ---------------------------------------------------------------------------

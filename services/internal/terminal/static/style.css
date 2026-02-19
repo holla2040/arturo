@@ -387,6 +387,8 @@ textarea { resize: vertical; min-height: 60px; }
     padding: 24px;
     cursor: pointer;
     transition: border-color 0.2s, box-shadow 0.2s;
+    display: flex;
+    flex-direction: column;
 }
 .station-card:hover {
     border-color: var(--accent-blue-dim);
@@ -461,10 +463,15 @@ textarea { resize: vertical; min-height: 60px; }
 }
 .station-pump-status {
     display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    margin-bottom: 8px;
+}
+.pump-controls {
+    display: flex;
     align-items: center;
     gap: 6px;
-    margin-bottom: 8px;
-    flex-wrap: wrap;
 }
 .pump-indicator {
     font-size: 2.1rem;
@@ -509,10 +516,16 @@ button.pump-indicator:hover {
     background: var(--status-paused-bg);
     color: var(--status-paused);
 }
+.regen-desc {
+    font-size: 3.3rem;
+    color: var(--status-paused);
+    font-weight: 600;
+}
 .station-info-row {
     font-size: 0.8rem;
     color: var(--text-secondary);
-    margin-top: 6px;
+    margin-top: auto;
+    padding-top: 6px;
 }
 .station-info-row .info-label {
     color: var(--text-muted);

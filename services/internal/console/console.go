@@ -158,6 +158,30 @@ func Handler(stations []*StationInfo, rdb *redis.Client) (http.Handler, func(ctx
 			writeJSON(w, map[string]string{"status": "ok"})
 		})
 
+		mux.HandleFunc("POST "+prefix+"/rough-valve", func(w http.ResponseWriter, r *http.Request) {
+			var body struct {
+				Open bool `json:"open"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			st.Pump.SetRoughValve(body.Open)
+			writeJSON(w, map[string]string{"status": "ok"})
+		})
+
+		mux.HandleFunc("POST "+prefix+"/purge-valve", func(w http.ResponseWriter, r *http.Request) {
+			var body struct {
+				Open bool `json:"open"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			st.Pump.SetPurgeValve(body.Open)
+			writeJSON(w, map[string]string{"status": "ok"})
+		})
+
 		mux.HandleFunc("POST "+prefix+"/online", func(w http.ResponseWriter, r *http.Request) {
 			var body struct {
 				Online bool `json:"online"`

@@ -34,6 +34,10 @@ type Pump struct {
 
 	// Operating hours accumulator
 	totalOnSeconds float64
+
+	// Valve state
+	roughValveOpen bool
+	purgeValveOpen bool
 }
 
 // NewPump creates a pump simulator.
@@ -122,6 +126,34 @@ func (p *Pump) HandleCommand(command string) (string, bool) {
 
 	case "get_regen_step":
 		return fmt.Sprintf("%d", p.regenStep), true
+
+	case "open_rough_valve":
+		p.roughValveOpen = true
+		return "A", true
+
+	case "close_rough_valve":
+		p.roughValveOpen = false
+		return "A", true
+
+	case "get_rough_valve":
+		if p.roughValveOpen {
+			return "1", true
+		}
+		return "0", true
+
+	case "open_purge_valve":
+		p.purgeValveOpen = true
+		return "A", true
+
+	case "close_purge_valve":
+		p.purgeValveOpen = false
+		return "A", true
+
+	case "get_purge_valve":
+		if p.purgeValveOpen {
+			return "1", true
+		}
+		return "0", true
 
 	case "identify":
 		return "CTI-Cryogenics,Cryo-Torr 8,SIM-001,1.0", true
@@ -261,6 +293,8 @@ type PumpSnapshot struct {
 	CooldownHours  float64 `json:"cooldown_hours"`
 	FailRate       float64 `json:"fail_rate"`
 	OperatingHours float64 `json:"operating_hours"`
+	RoughValveOpen bool    `json:"rough_valve_open"`
+	PurgeValveOpen bool    `json:"purge_valve_open"`
 }
 
 // Snapshot returns a point-in-time view of the pump's state.
@@ -280,6 +314,8 @@ func (p *Pump) Snapshot() PumpSnapshot {
 		CooldownHours:  p.cooldownHours,
 		FailRate:       p.failRate,
 		OperatingHours: p.totalOnSeconds / 3600.0,
+		RoughValveOpen: p.roughValveOpen,
+		PurgeValveOpen: p.purgeValveOpen,
 	}
 }
 
@@ -326,6 +362,20 @@ func (p *Pump) SetCooldownHours(hours float64) error {
 	defer p.mu.Unlock()
 	p.cooldownHours = hours
 	return nil
+}
+
+// SetRoughValve sets the rough valve state.
+func (p *Pump) SetRoughValve(open bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.roughValveOpen = open
+}
+
+// SetPurgeValve sets the purge valve state.
+func (p *Pump) SetPurgeValve(open bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.purgeValveOpen = open
 }
 
 // SetFailRate sets the random failure probability. Clamped to [0.0, 1.0].

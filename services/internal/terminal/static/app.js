@@ -280,7 +280,11 @@ var App = (function() {
                 }
                 html += '</div>';
                 if (ps.at_temp) html += '<span class="pump-flag at-temp">AT TEMP</span>';
-                if (ps.regen) html += '<span class="pump-flag regen">REGEN</span>';
+                if (canControl) {
+                    html += '<button class="pump-indicator ' + (ps.regen ? 'on' : 'regen-off') + '" onclick="event.stopPropagation(); App.toggleRegen(\'' + pInst + '\', \'' + pDevId + '\')">' + (ps.regen ? 'REGEN ON' : 'REGEN OFF') + '</button>';
+                } else {
+                    html += '<span class="pump-indicator ' + (ps.regen ? 'on' : 'regen-off') + '">' + (ps.regen ? 'REGEN ON' : 'REGEN OFF') + '</span>';
+                }
                 if (ps.regen && ps.regen_status) html += '<span class="regen-desc">' + escapeHtml(regenDescription(ps.regen_status)) + '</span>';
                 html += '</div>';
             }
@@ -715,6 +719,15 @@ var App = (function() {
         var ps = state.stationPumpStatus[instance];
         var cmd = ps && ps.purge_valve_open ? 'close_purge_valve' : 'open_purge_valve';
         if (ps) { ps.purge_valve_open = !ps.purge_valve_open; handlePumpStatus(ps); }
+        api('POST', '/stations/' + encodeURIComponent(instance) + '/command', {
+            device_id: deviceId, command: cmd
+        }, function(){});
+    }
+
+    function toggleRegen(instance, deviceId) {
+        var ps = state.stationPumpStatus[instance];
+        var cmd = ps && ps.regen ? 'N0' : 'N1';
+        if (ps) { ps.regen = !ps.regen; handlePumpStatus(ps); }
         api('POST', '/stations/' + encodeURIComponent(instance) + '/command', {
             device_id: deviceId, command: cmd
         }, function(){});
@@ -1188,6 +1201,7 @@ var App = (function() {
         togglePump: togglePump,
         toggleRoughValve: toggleRoughValve,
         togglePurgeValve: togglePurgeValve,
+        toggleRegen: toggleRegen,
         sendManualCommand: sendManualCommand,
         loadRMAs: loadRMAs,
         searchRMAs: searchRMAs,

@@ -490,11 +490,18 @@ textarea { resize: vertical; min-height: 60px; }
     color: var(--status-offline);
     border: 1px solid var(--status-offline);
 }
+.pump-indicator.regen-off {
+    background: var(--status-paused-bg);
+    color: var(--status-paused);
+    border: 1px solid var(--status-paused);
+}
 button.pump-indicator {
     cursor: pointer;
     font-family: inherit;
-    border: none;
 }
+button.pump-indicator.on { border: 1px solid var(--status-online); }
+button.pump-indicator.off { border: 1px solid var(--status-offline); }
+button.pump-indicator.regen-off { border: 1px solid var(--status-paused); }
 button.pump-indicator:hover {
     filter: brightness(1.3);
 }

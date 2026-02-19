@@ -529,7 +529,7 @@ button.pump-indicator:hover {
     font-weight: 600;
 }
 .station-info-row {
-    font-size: 0.8rem;
+    font-size: 1.6rem;
     color: var(--text-secondary);
     margin-top: auto;
     padding-top: 6px;

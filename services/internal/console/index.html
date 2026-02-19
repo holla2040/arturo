@@ -242,7 +242,11 @@ function renderStations(stations) {
     return `
     <div class="station-card" data-instance="${s.instance}">
       <h3>
-        ${s.instance} <span class="device-id" style="color:#888;font-weight:normal">${s.device_id}</span>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" ${s.online ? 'checked' : ''} onchange="toggleOnline('${s.instance}', this.checked)" style="accent-color:#00d4ff">
+          ${s.instance}
+        </label>
+        <span class="device-id" style="color:#888;font-weight:normal">${s.device_id}</span>
         <span class="state-badge ${stateClass}">${p.state_name.toUpperCase()}</span>
       </h3>
       <div class="stats-grid">
@@ -283,6 +287,14 @@ function renderStations(stations) {
 
 async function stationAction(instance, action) {
   await fetch('/api/stations/' + instance + '/' + action, { method: 'POST' });
+}
+
+async function toggleOnline(instance, on) {
+  await fetch('/api/stations/' + instance + '/online', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ online: on })
+  });
 }
 
 async function setTemps(instance) {

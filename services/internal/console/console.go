@@ -26,6 +26,7 @@ type StationInfo struct {
 	Instance string
 	DeviceID string
 	Pump     *mockpump.Pump
+	Online   *bool // shared pointer; toggled by console UI
 }
 
 // MonitorMessage is a parsed Redis message for the web UI.
@@ -42,8 +43,9 @@ type MonitorMessage struct {
 
 // stationSnapshot is the JSON shape returned by the stations API.
 type stationSnapshot struct {
-	Instance string              `json:"instance"`
-	DeviceID string              `json:"device_id"`
+	Instance string                `json:"instance"`
+	DeviceID string                `json:"device_id"`
+	Online   bool                  `json:"online"`
 	Pump     mockpump.PumpSnapshot `json:"pump"`
 }
 
@@ -75,6 +77,7 @@ func Handler(stations []*StationInfo, rdb *redis.Client) (http.Handler, func(ctx
 			snapshots[i] = stationSnapshot{
 				Instance: s.Instance,
 				DeviceID: s.DeviceID,
+				Online:   *s.Online,
 				Pump:     s.Pump.Snapshot(),
 			}
 		}
@@ -90,6 +93,7 @@ func Handler(stations []*StationInfo, rdb *redis.Client) (http.Handler, func(ctx
 			writeJSON(w, stationSnapshot{
 				Instance: st.Instance,
 				DeviceID: st.DeviceID,
+				Online:   *st.Online,
 				Pump:     st.Pump.Snapshot(),
 			})
 		})
@@ -151,6 +155,18 @@ func Handler(stations []*StationInfo, rdb *redis.Client) (http.Handler, func(ctx
 				return
 			}
 			st.Pump.SetFailRate(body.Rate)
+			writeJSON(w, map[string]string{"status": "ok"})
+		})
+
+		mux.HandleFunc("POST "+prefix+"/online", func(w http.ResponseWriter, r *http.Request) {
+			var body struct {
+				Online bool `json:"online"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			*st.Online = body.Online
 			writeJSON(w, map[string]string{"status": "ok"})
 		})
 	}

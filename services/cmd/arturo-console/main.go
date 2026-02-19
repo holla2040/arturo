@@ -56,17 +56,20 @@ func main() {
 		}
 
 		pump := mockpump.NewPump(*cooldownHours, *failRate)
+		online := true
 		s := &mockStation{
 			rdb:      rdb,
 			instance: inst,
 			deviceID: dev,
 			pump:     pump,
+			online:   &online,
 		}
 
 		stationInfos = append(stationInfos, &console.StationInfo{
 			Instance: inst,
 			DeviceID: dev,
 			Pump:     pump,
+			Online:   &online,
 		})
 
 		wg.Add(1)
@@ -109,6 +112,7 @@ type mockStation struct {
 	instance string
 	deviceID string
 	pump     *mockpump.Pump
+	online   *bool
 	startUp  time.Time
 }
 
@@ -147,7 +151,9 @@ func (s *mockStation) source() protocol.Source {
 }
 
 func (s *mockStation) heartbeatLoop(ctx context.Context) {
-	s.sendHeartbeat(ctx)
+	if *s.online {
+		s.sendHeartbeat(ctx)
+	}
 
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
@@ -157,7 +163,9 @@ func (s *mockStation) heartbeatLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			s.sendHeartbeat(ctx)
+			if *s.online {
+				s.sendHeartbeat(ctx)
+			}
 		}
 	}
 }
@@ -200,7 +208,10 @@ func (s *mockStation) sendHeartbeat(ctx context.Context) {
 
 func (s *mockStation) presenceLoop(ctx context.Context) {
 	key := "device:" + s.instance + ":alive"
-	s.rdb.Set(ctx, key, "1", 90*time.Second)
+	wasOnline := *s.online
+	if wasOnline {
+		s.rdb.Set(ctx, key, "1", 90*time.Second)
+	}
 
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
@@ -210,7 +221,14 @@ func (s *mockStation) presenceLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			s.rdb.Set(ctx, key, "1", 90*time.Second)
+			on := *s.online
+			if on {
+				s.rdb.Set(ctx, key, "1", 90*time.Second)
+			} else if wasOnline {
+				// Transitioning to offline — remove alive key immediately
+				s.rdb.Del(ctx, key)
+			}
+			wasOnline = on
 		}
 	}
 }
@@ -247,6 +265,9 @@ func (s *mockStation) commandLoop(ctx context.Context) {
 		for _, str := range result {
 			for _, xmsg := range str.Messages {
 				lastID = xmsg.ID
+				if !*s.online {
+					continue
+				}
 				jsonStr, ok := xmsg.Values["message"].(string)
 				if !ok {
 					continue

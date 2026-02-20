@@ -29,8 +29,9 @@ bool buildCommandResponse(JsonDocument& doc, const Source& source,
                           int durationMs);
 
 #ifdef ARDUINO
-class RedisClient; // forward declare
+class RedisClient;        // forward declare
 class CtiOnBoardDevice;   // forward declare
+class OTAUpdateHandler;   // forward declare
 
 class CommandHandler {
 public:
@@ -44,6 +45,9 @@ public:
     // Register a CTI OnBoard device for command dispatch
     void setCtiOnBoardDevice(CtiOnBoardDevice* device) { _ctiOnBoardDevice = device; }
 
+    // Register an OTA update handler
+    void setOTAHandler(OTAUpdateHandler* handler) { _otaHandler = handler; }
+
 private:
     RedisClient& _redis;
     const char* _instance;
@@ -52,8 +56,14 @@ private:
     int _failed = 0;
     char _streamName[64];
     CtiOnBoardDevice* _ctiOnBoardDevice = nullptr;
+    OTAUpdateHandler* _otaHandler = nullptr;
 
     void handleMessage(const char* messageJson);
+    void handleDeviceCommand(const char* messageJson);
+    void handleOTARequest(JsonDocument& doc);
+    void sendOTAResponse(const char* correlationId, const char* replyTo,
+                         bool success, const char* response,
+                         const char* errorCode, const char* errorMessage);
 };
 #endif
 

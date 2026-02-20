@@ -7,6 +7,8 @@
 #include "../debug_log.h"
 #include "../network/redis_client.h"
 #include "../devices/cti_onboard_device.h"
+#include "../safety/ota_update.h"
+#include <esp_system.h>
 #endif
 
 namespace arturo {
@@ -109,6 +111,33 @@ bool CommandHandler::poll(unsigned long blockMs) {
 }
 
 void CommandHandler::handleMessage(const char* messageJson) {
+    // Extract envelope.type to route to the correct handler
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, messageJson);
+    if (err) {
+        LOG_ERROR("CMD", "Failed to parse message JSON: %s", err.c_str());
+        _failed++;
+        return;
+    }
+
+    const char* type = doc["envelope"]["type"];
+    if (type == nullptr) {
+        LOG_ERROR("CMD", "Message missing envelope.type");
+        _failed++;
+        return;
+    }
+
+    if (strcmp(type, "device.command.request") == 0) {
+        handleDeviceCommand(messageJson);
+    } else if (strcmp(type, "system.ota.request") == 0) {
+        handleOTARequest(doc);
+    } else {
+        LOG_ERROR("CMD", "Unknown message type: %s", type);
+        _failed++;
+    }
+}
+
+void CommandHandler::handleDeviceCommand(const char* messageJson) {
     JsonDocument reqDoc;
     CommandRequest req;
 
@@ -198,6 +227,96 @@ void CommandHandler::handleMessage(const char* messageJson) {
 
     _processed++;
     LOG_INFO("CMD", "Response sent to %s (entry=%s)", req.replyTo, entryId);
+}
+
+void CommandHandler::handleOTARequest(JsonDocument& doc) {
+    const char* correlationId = doc["envelope"]["correlation_id"];
+    const char* replyTo = doc["envelope"]["reply_to"];
+
+    if (correlationId == nullptr || replyTo == nullptr) {
+        LOG_ERROR("OTA", "OTA request missing correlation_id or reply_to");
+        _failed++;
+        return;
+    }
+
+    // Parse OTA payload fields
+    JsonObjectConst payload = doc["payload"];
+    const char* firmwareUrl = payload["firmware_url"];
+    const char* version = payload["version"];
+    const char* sha256 = payload["sha256"];
+    bool force = payload["force"] | false;
+
+    LOG_INFO("OTA", "OTA request: version=%s url=%s force=%d (corr=%s)",
+             version ? version : "null",
+             firmwareUrl ? firmwareUrl : "null",
+             force ? 1 : 0, correlationId);
+
+    if (_otaHandler == nullptr) {
+        LOG_ERROR("OTA", "OTA handler not initialized");
+        sendOTAResponse(correlationId, replyTo, false, nullptr,
+                        "ota_unavailable", "OTA handler not initialized");
+        _failed++;
+        return;
+    }
+
+    // Parse and validate request
+    OTARequest req;
+    if (!parseOTAPayload(firmwareUrl, version, sha256, force, req)) {
+        LOG_ERROR("OTA", "Failed to parse OTA payload");
+        sendOTAResponse(correlationId, replyTo, false, nullptr,
+                        "invalid_payload", "Missing or invalid OTA payload fields");
+        _failed++;
+        return;
+    }
+
+    // Attempt the update (downloads, verifies SHA256, writes to flash)
+    bool success = _otaHandler->startUpdate(req, FIRMWARE_VERSION);
+
+    if (success) {
+        // Send success response BEFORE rebooting
+        char responseBuf[128];
+        snprintf(responseBuf, sizeof(responseBuf),
+                 "OTA update to %s complete, rebooting", req.version);
+        sendOTAResponse(correlationId, replyTo, true, responseBuf, nullptr, nullptr);
+        _processed++;
+        LOG_INFO("OTA", "Response sent, rebooting in 500ms...");
+        delay(500);
+        esp_restart();
+    } else {
+        const char* errStr = otaErrorToString(_otaHandler->lastError());
+        LOG_ERROR("OTA", "OTA update failed: %s", errStr);
+        sendOTAResponse(correlationId, replyTo, false, nullptr, errStr, errStr);
+        _failed++;
+    }
+}
+
+void CommandHandler::sendOTAResponse(const char* correlationId, const char* replyTo,
+                                     bool success, const char* response,
+                                     const char* errorCode, const char* errorMessage) {
+    JsonDocument respDoc;
+    Source src = { STATION_SERVICE, STATION_INSTANCE, STATION_VERSION };
+
+    char respId[48];
+    snprintf(respId, sizeof(respId), "resp-%s-%d", _instance, _processed);
+    int64_t timestamp = (int64_t)(millis() / 1000);
+
+    if (!buildCommandResponse(respDoc, src, respId, timestamp,
+                              correlationId, STATION_INSTANCE, "ota_update",
+                              success, response, errorCode, errorMessage, 0)) {
+        LOG_ERROR("OTA", "Failed to build OTA response");
+        return;
+    }
+
+    char buffer[2048];
+    serializeJson(respDoc, buffer, sizeof(buffer));
+
+    char entryId[32];
+    if (!_redis.xadd(replyTo, "message", buffer, entryId, sizeof(entryId))) {
+        LOG_ERROR("OTA", "Failed to XADD OTA response to %s", replyTo);
+        return;
+    }
+
+    LOG_INFO("OTA", "OTA response sent to %s (entry=%s)", replyTo, entryId);
 }
 #endif
 

@@ -15,6 +15,7 @@
 #include "safety/watchdog.h"
 #include "safety/wifi_reconnect.h"
 #include "safety/power_recovery.h"
+#include "safety/ota_update.h"
 
 // Globals
 arturo::WifiManager wifi;
@@ -171,7 +172,11 @@ void setup() {
     static arturo::CommandHandler handler(redis, STATION_INSTANCE);
     cmdHandler = &handler;
 
-    // 5a. Initialize CTI OnBoard serial port (UART1, 2400 7E1 via MAX3232)
+    // 5a. Register OTA update handler
+    static arturo::OTAUpdateHandler otaHandler;
+    handler.setOTAHandler(&otaHandler);
+
+    // 5b. Initialize CTI OnBoard serial port (UART1, 2400 7E1 via MAX3232)
     static arturo::SerialDevice ctiSerial(CTI_UART_NUM);
     if (ctiSerial.begin(arturo::SERIAL_CONFIG_CTI, CTI_RX_PIN, CTI_TX_PIN)) {
         LOG_INFO("MAIN", "CTI serial ready: UART%d, pins RX=%d TX=%d",

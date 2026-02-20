@@ -290,7 +290,12 @@ var App = (function() {
             }
 
             var devices = s.Devices || [];
-            html += '<div class="station-info-row"><span class="info-label">Devices:</span> ' + (devices.length > 0 ? devices.join(', ') : 'none') + '</div>';
+            var deviceTypes = s.DeviceTypes || {};
+            var deviceLabels = devices.map(function(d) {
+                var t = deviceTypes[d];
+                return t ? d + ' (' + t + ')' : d;
+            });
+            html += '<div class="station-info-row"><span class="info-label">Devices:</span> ' + (deviceLabels.length > 0 ? deviceLabels.join(', ') : 'none') + '</div>';
 
             if (stateStr === 'testing' || stateStr === 'paused') {
                 html += '<div class="station-info-row" style="color:var(--accent-blue)">Test in progress</div>';
@@ -386,7 +391,13 @@ var App = (function() {
         infoHtml += '<div class="station-info-row"><span class="info-label">Firmware:</span> ' + escapeHtml(s.FirmwareVersion || '--') + '</div>';
         infoHtml += '<div class="station-info-row"><span class="info-label">Uptime:</span> ' + formatUptime(s.UptimeSeconds) + '</div>';
         infoHtml += '<div class="station-info-row"><span class="info-label">Free Heap:</span> ' + formatBytes(s.FreeHeap) + '</div>';
-        infoHtml += '<div class="station-info-row"><span class="info-label">Devices:</span> ' + ((s.Devices || []).join(', ') || 'none') + '</div>';
+        var detDevices = s.Devices || [];
+        var detDeviceTypes = s.DeviceTypes || {};
+        var detDeviceLabels = detDevices.map(function(d) {
+            var t = detDeviceTypes[d];
+            return t ? d + ' (' + t + ')' : d;
+        });
+        infoHtml += '<div class="station-info-row"><span class="info-label">Devices:</span> ' + (detDeviceLabels.join(', ') || 'none') + '</div>';
         document.getElementById('detail-station-info').innerHTML = infoHtml;
 
         // Test info
@@ -1042,11 +1053,12 @@ var App = (function() {
         for (var i = 0; i < keys.length; i++) {
             var s = state.stations[keys[i]];
             if (s.Devices && payload.devices && arraysEqual(s.Devices, payload.devices)) {
-                s.Status = payload.status || 'online';
+                s.Status = 'online';
                 s.UptimeSeconds = payload.uptime_seconds;
                 s.FreeHeap = payload.free_heap;
                 s.WifiRSSI = payload.wifi_rssi;
                 s.FirmwareVersion = payload.firmware_version;
+                if (payload.device_types) s.DeviceTypes = payload.device_types;
                 break;
             }
         }

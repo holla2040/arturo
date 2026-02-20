@@ -29,12 +29,12 @@ Wherever a field or variable is called `timestamp`, it is UTC epoch seconds. Whe
 ```
 Stations (up to 6)          <--Redis Streams/PubSub-->     Controller (Go)
   C++ / Arduino                                              │
-  - SCPI instruments                                    arturo-controller
+  - SCPI instruments                                    controller
   - Serial devices                                       - Device registry
   - Relay control                                        - REST API + WebSocket
   - Modbus devices                                       - SQLite data storage
   - Safety interlocks                                    - Health monitoring
-                                                         arturo-engine
+                                                         engine
          Terminal                                        - Script engine (.art DSL)
   - Screen + keyboard                                    - Test orchestration
   - Barcode scanner                                      - LLM-assisted script generation
@@ -62,10 +62,11 @@ arturo/
 │   ├── README.md                       # Service architecture and build instructions
 │   ├── cmd/
 │   │   ├── arturo-controller/           # API, device registry, health, data storage
-│   │   └── arturo-console/             # Mock stations + web console (development)
+│   │   ├── arturo-console/             # Mock stations + web console (development)
+│   │   └── arturo-terminal/            # Operator web UI (reverse proxy to controller)
 ├── tools/                              # Tools (invoke and exit)
-│   ├── arturo-engine/                 # Script parser + executor
-│   └── arturo-monitor/                # Redis traffic monitor (debugging)
+│   ├── arturo-engine/                  # Script parser + executor
+│   └── arturo-monitor/                 # Redis traffic monitor (debugging)
 ├── firmware/                           # Station firmware (ESP32 Arduino)
 │   ├── README.md                       # Firmware architecture decisions
 │   ├── src/

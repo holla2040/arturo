@@ -13,8 +13,8 @@ import (
 )
 
 func main() {
-	listenAddr := flag.String("listen", ":8082", "HTTP listen address")
-	controllerURL := flag.String("controller", "http://localhost:8080", "Controller URL to proxy to")
+	listenAddr := flag.String("listen", ":8000", "HTTP listen address")
+	controllerURL := flag.String("controller", "http://localhost:8002", "Controller URL to proxy to")
 	devMode := flag.Bool("dev", false, "serve static files from disk with live reload")
 	flag.Parse()
 

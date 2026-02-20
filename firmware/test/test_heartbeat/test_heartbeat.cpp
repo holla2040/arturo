@@ -25,6 +25,7 @@ static HeartbeatData makeTestData() {
     data.lastError = nullptr;
     data.watchdogResets = 0;
     data.firmwareVersion = "1.0.0";
+    data.deviceTypes = nullptr;
     return data;
 }
 

@@ -35,6 +35,7 @@ type StationEntry struct {
 	LastHeartbeat   time.Time
 	Status          string
 	Devices         []string
+	DeviceTypes     map[string]string `json:"DeviceTypes,omitempty"`
 	FreeHeap        int64
 	WifiRSSI        int
 	FirmwareVersion string
@@ -72,6 +73,7 @@ func (r *Registry) UpdateFromHeartbeat(instance string, payload *protocol.Heartb
 	station.LastHeartbeat = now
 	station.Status = StatusOnline
 	station.Devices = payload.Devices
+	station.DeviceTypes = payload.DeviceTypes
 	station.FreeHeap = payload.FreeHeap
 	station.WifiRSSI = payload.WifiRSSI
 	station.FirmwareVersion = payload.FirmwareVersion

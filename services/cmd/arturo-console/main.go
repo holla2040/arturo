@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -23,13 +25,17 @@ const firmwareVersion = "1.0.0-mock"
 
 func main() {
 	redisAddr := flag.String("redis", "localhost:6379", "Redis address")
-	instance := flag.String("instance", "station-01", "Base station instance ID")
-	deviceID := flag.String("device-id", "PUMP-01", "Base device ID")
-	stations := flag.Int("stations", 4, "Number of mock stations to spawn (1-4)")
+	stationsFlag := flag.String("stations", "1,2,3,4", "Comma-separated station numbers to mock (e.g. 2,3,4)")
 	failRate := flag.Float64("fail-rate", 0.0, "Probability of random command failure (0.0-1.0)")
 	cooldownHours := flag.Float64("cooldown-hours", 4.0, "Simulated hours to reach base temperature")
-	httpAddr := flag.String("http", ":8081", "HTTP address for web UI")
+	httpAddr := flag.String("http", ":8001", "HTTP address for web UI")
 	flag.Parse()
+
+	stationNums, err := parseStations(*stationsFlag)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Invalid -stations value: %v\n", err)
+		os.Exit(1)
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -45,15 +51,11 @@ func main() {
 
 	// Create mock stations
 	var wg sync.WaitGroup
-	stationInfos := make([]*console.StationInfo, 0, *stations)
+	stationInfos := make([]*console.StationInfo, 0, len(stationNums))
 
-	for i := 0; i < *stations; i++ {
-		inst := *instance
-		dev := *deviceID
-		if *stations > 1 {
-			inst = fmt.Sprintf("station-%02d", i+1)
-			dev = fmt.Sprintf("PUMP-%02d", i+1)
-		}
+	for _, num := range stationNums {
+		inst := fmt.Sprintf("station-%02d", num)
+		dev := fmt.Sprintf("PUMP-%02d", num)
 
 		pump := mockpump.NewPump(*cooldownHours, *failRate)
 		online := true
@@ -103,6 +105,31 @@ func main() {
 
 	wg.Wait()
 	log.Println("All mock stations stopped")
+}
+
+func parseStations(s string) ([]int, error) {
+	parts := strings.Split(s, ",")
+	nums := make([]int, 0, len(parts))
+	seen := make(map[int]bool)
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		n, err := strconv.Atoi(p)
+		if err != nil {
+			return nil, fmt.Errorf("invalid station number %q", p)
+		}
+		if n < 1 || n > 6 {
+			return nil, fmt.Errorf("station number %d out of range (1-6)", n)
+		}
+		if seen[n] {
+			continue
+		}
+		seen[n] = true
+		nums = append(nums, n)
+	}
+	if len(nums) == 0 {
+		return nil, fmt.Errorf("no station numbers specified")
+	}
+	return nums, nil
 }
 
 // ── Mock Station (moved from arturo-mock-station) ──
@@ -179,6 +206,7 @@ func (s *mockStation) sendHeartbeat(ctx context.Context) {
 		Status:            "online",
 		UptimeSeconds:     uptime,
 		Devices:           []string{s.deviceID},
+		DeviceTypes:       map[string]string{s.deviceID: "mock"},
 		FreeHeap:          245760,
 		WifiRSSI:          -55,
 		CommandsProcessed: &cmdProcessed,

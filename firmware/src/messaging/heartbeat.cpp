@@ -19,6 +19,15 @@ bool buildHeartbeat(JsonDocument& doc, const Source& source,
         devArray.add(data.devices[i]);
     }
 
+    if (data.deviceTypes) {
+        JsonObject typesObj = payload["device_types"].to<JsonObject>();
+        for (int i = 0; i < data.deviceCount; i++) {
+            if (data.deviceTypes[i]) {
+                typesObj[data.devices[i]] = data.deviceTypes[i];
+            }
+        }
+    }
+
     payload["free_heap"] = data.freeHeap;
     payload["min_free_heap"] = data.minFreeHeap;
     payload["wifi_rssi"] = data.wifiRssi;

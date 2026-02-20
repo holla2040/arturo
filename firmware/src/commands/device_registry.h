@@ -7,7 +7,8 @@ struct DeviceInfo {
     const char* deviceId;
     const char* host;
     uint16_t port;
-    const char* protocolType;  // "scpi", "modbus", etc.
+    const char* protocolType;  // "scpi", "modbus", "cti"
+    const char* pumpType;      // "onboard", "cryotorr", or nullptr for non-pumps
 };
 
 // Get device info by device ID

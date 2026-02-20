@@ -20,6 +20,17 @@ static const CtiOnBoardCommandMapping CTI_ONBOARD_COMMANDS[] = {
     {"get_status_1",         "S1"},
     {"get_status_2",         "S2"},
     {"get_status_3",         "S3"},
+    {"get_rough_valve",      "D?"},
+    {"open_rough_valve",     "D1"},
+    {"close_rough_valve",    "D0"},
+    {"get_purge_valve",      "E?"},
+    {"open_purge_valve",     "E1"},
+    {"close_purge_valve",    "E0"},
+    {"start_regen",          "N1"},
+    {"start_fast_regen",     "N2"},
+    {"abort_regen",          "N0"},
+    {"get_regen_step",       "O"},
+    {"get_regen_status",     "O"},
 };
 
 static const int CTI_ONBOARD_COMMAND_COUNT = sizeof(CTI_ONBOARD_COMMANDS) / sizeof(CTI_ONBOARD_COMMANDS[0]);
@@ -84,7 +95,7 @@ bool CtiOnBoardDevice::executeCommand(const char* ctiCmd, char* responseBuf, siz
     }
     _serial->flush();
 
-    LOG_DEBUG("CTI", "TX: %s (%d bytes)", ctiCmd, frameLen);
+    LOG_INFO("CTI", "TX: %s (%d bytes)", ctiCmd, frameLen);
 
     // Receive response line (terminated by \r)
     char rxBuf[128];
@@ -120,7 +131,7 @@ bool CtiOnBoardDevice::executeCommand(const char* ctiCmd, char* responseBuf, siz
     }
 
     if (!ctiIsSuccess(_lastResp.code)) {
-        LOG_ERROR("CTI", "Device error: code=%c", (char)_lastResp.code);
+        LOG_ERROR("CTI", "Device error: %s code=%c", ctiCmd, (char)_lastResp.code);
         // Still copy the response code info for the caller
         snprintf(responseBuf, responseBufLen, "ERR:%c", (char)_lastResp.code);
         return false;

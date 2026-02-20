@@ -41,7 +41,7 @@ func main() {
 
 	// Server mode
 	redisAddr := flag.String("redis", "localhost:6379", "Redis address")
-	listenAddr := flag.String("listen", ":8080", "HTTP listen address")
+	listenAddr := flag.String("listen", ":8002", "HTTP listen address")
 	dbPath := flag.String("db", "arturo.db", "SQLite database path")
 	flag.Parse()
 

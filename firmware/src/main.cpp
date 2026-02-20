@@ -9,6 +9,7 @@
 #include "network/wifi_manager.h"
 #include "network/redis_client.h"
 #include "commands/command_handler.h"
+#include "commands/device_registry.h"
 #include "devices/serial_device.h"
 #include "devices/cti_onboard_device.h"
 #include "safety/watchdog.h"
@@ -78,16 +79,21 @@ bool publishHeartbeat(const char* status) {
     arturo::Source src = {STATION_SERVICE, STATION_INSTANCE, STATION_VERSION};
 
     const char* devices[DEVICE_COUNT + 1];
+    const char* deviceTypes[DEVICE_COUNT + 1];
     for (int i = 0; i < DEVICE_COUNT; i++) {
         devices[i] = DEVICE_IDS[i];
+        const arturo::DeviceInfo* info = arturo::getDevice(DEVICE_IDS[i]);
+        deviceTypes[i] = (info && info->pumpType) ? info->pumpType : nullptr;
     }
     devices[DEVICE_COUNT] = nullptr;
+    deviceTypes[DEVICE_COUNT] = nullptr;
 
     arturo::HeartbeatData data = {};
     data.status = status;
     data.uptimeSeconds = (int64_t)(millis() / 1000);
     data.devices = devices;
     data.deviceCount = DEVICE_COUNT;
+    data.deviceTypes = deviceTypes;
     data.freeHeap = (int64_t)ESP.getFreeHeap();
     data.minFreeHeap = (int64_t)ESP.getMinFreeHeap();
     data.wifiRssi = wifi.rssi();
@@ -105,7 +111,7 @@ bool publishHeartbeat(const char* status) {
         return false;
     }
 
-    char buffer[512];
+    char buffer[768];
     serializeJson(doc, buffer, sizeof(buffer));
 
     if (!redis.publish(CHANNEL_HEARTBEAT, buffer)) {
@@ -238,10 +244,15 @@ void loop() {
         }
     }
 
-    // Poll for incoming commands (100ms block inside)
+    // Poll for incoming commands — drain all queued commands back-to-back
     if (cmdHandler && redis.isConnected()) {
-        cmdHandler->poll();
+        if (cmdHandler->poll(100)) {
+            // Got one — drain remaining without blocking
+            while (cmdHandler->poll(1)) {
+                watchdog.feed();
+            }
+        }
     }
 
-    delay(100);
+    delay(10);
 }

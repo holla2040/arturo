@@ -6,8 +6,7 @@ namespace arturo {
 // Phase 2: Hardcoded device registry
 // In future phases, this will read from YAML profiles
 static const DeviceInfo DEVICES[] = {
-    {"DMM-01",  "192.168.1.100", 5025, "scpi"},  // Fluke 8846A
-    {"PUMP-01", nullptr,         0,    "cti"},    // CTI OnBoard cryopump on UART1
+    {"PUMP-01", nullptr, 0, "cti", "onboard"},  // CTI OnBoard cryopump on UART1
 };
 
 static const int NUM_DEVICES = sizeof(DEVICES) / sizeof(DEVICES[0]);

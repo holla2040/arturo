@@ -9,6 +9,7 @@ struct HeartbeatData {
     int64_t uptimeSeconds;
     const char** devices;     // null-terminated array of device ID strings
     int deviceCount;
+    const char** deviceTypes; // parallel array: pump type per device (e.g. "onboard"), or nullptr
     int64_t freeHeap;
     int64_t minFreeHeap;
     int wifiRssi;

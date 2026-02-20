@@ -86,15 +86,15 @@ CommandHandler::CommandHandler(RedisClient& redis, const char* instance)
     LOG_INFO("CMD", "Listening on stream: %s", _streamName);
 }
 
-void CommandHandler::poll() {
+bool CommandHandler::poll(unsigned long blockMs) {
     char field[32];
     char value[2048];
 
-    int result = _redis.xreadBlock(_streamName, _lastStreamId, 100,
+    int result = _redis.xreadBlock(_streamName, _lastStreamId, blockMs,
                                     field, sizeof(field),
                                     value, sizeof(value));
     if (result <= 0) {
-        return;
+        return false;
     }
 
     // Update last stream ID for next read
@@ -105,6 +105,7 @@ void CommandHandler::poll() {
     }
 
     handleMessage(value);
+    return true;
 }
 
 void CommandHandler::handleMessage(const char* messageJson) {

@@ -102,12 +102,13 @@ void test_parse_scpi_error_no_error(void) {
 // --- DeviceRegistry tests ---
 
 void test_device_registry_find(void) {
-    const DeviceInfo* dev = getDevice("DMM-01");
+    const DeviceInfo* dev = getDevice("PUMP-01");
     TEST_ASSERT_NOT_NULL(dev);
-    TEST_ASSERT_EQUAL_STRING("DMM-01", dev->deviceId);
-    TEST_ASSERT_EQUAL_STRING("192.168.1.100", dev->host);
-    TEST_ASSERT_EQUAL_UINT16(5025, dev->port);
-    TEST_ASSERT_EQUAL_STRING("scpi", dev->protocolType);
+    TEST_ASSERT_EQUAL_STRING("PUMP-01", dev->deviceId);
+    TEST_ASSERT_NULL(dev->host);
+    TEST_ASSERT_EQUAL_UINT16(0, dev->port);
+    TEST_ASSERT_EQUAL_STRING("cti", dev->protocolType);
+    TEST_ASSERT_EQUAL_STRING("onboard", dev->pumpType);
 }
 
 void test_device_registry_not_found(void) {

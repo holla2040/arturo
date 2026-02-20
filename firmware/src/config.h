@@ -29,16 +29,16 @@
 #define FIRMWARE_VERSION   "1.0.0"
 
 // Devices managed by this station
-#define DEVICE_COUNT       2
-static const char* DEVICE_IDS[] = {"DMM-01", "PUMP-01"};
+#define DEVICE_COUNT       1
+static const char* DEVICE_IDS[] = {"PUMP-01"};
 
 // CTI OnBoard serial port pins (UART1 via MAX3232)
 #define CTI_UART_NUM       1
 #define CTI_RX_PIN         17
 #define CTI_TX_PIN         18
 
-// Heartbeat
-#define HEARTBEAT_INTERVAL_MS  30000
+// Heartbeat (must be < registry stale threshold of 5s)
+#define HEARTBEAT_INTERVAL_MS  3000
 #define PRESENCE_TTL_SECONDS   90
 
 // Redis channels (from ARCHITECTURE.md section 2.3)

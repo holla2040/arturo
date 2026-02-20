@@ -62,10 +62,11 @@ type Error struct {
 
 // HeartbeatPayload contains fields from the service.heartbeat payload.
 type HeartbeatPayload struct {
-	Status            string   `json:"status"`
-	UptimeSeconds     int64    `json:"uptime_seconds"`
-	Devices           []string `json:"devices"`
-	FreeHeap          int64    `json:"free_heap"`
+	Status            string            `json:"status"`
+	UptimeSeconds     int64             `json:"uptime_seconds"`
+	Devices           []string          `json:"devices"`
+	DeviceTypes       map[string]string `json:"device_types,omitempty"`
+	FreeHeap          int64             `json:"free_heap"`
 	MinFreeHeap       *int64   `json:"min_free_heap,omitempty"`
 	WifiRSSI          int      `json:"wifi_rssi"`
 	WifiReconnects    *int     `json:"wifi_reconnects,omitempty"`

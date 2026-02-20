@@ -7,8 +7,8 @@ Arturo is an industrial test automation system with ESP32 stations and a central
 **Terminology:** Stations (ESP32 + instruments), Terminal (operator UI), Controller (Go processes), File server (report storage).
 
 - **Station firmware**: C++ with Arduino in `firmware/`
-- **Services**: Go processes in `services/` — arturo-controller, arturo-console, arturo-terminal
-- **Tools**: Go tools in `tools/` — arturo-engine, arturo-monitor
+- **Services**: Go processes in `services/` — controller, console, terminal
+- **Tools**: Go tools in `tools/` — engine, monitor
 - **Redis**: Streams for commands/responses, Pub/Sub for heartbeats/E-stop
 - **Profiles**: Device YAML profiles in `profiles/`
 - **Schemas**: JSON Schema message definitions in `schemas/`
@@ -34,11 +34,11 @@ Arturo is an industrial test automation system with ESP32 stations and a central
 
 ### Controller (Go)
 ```bash
-cd services && go build -o arturo-controller ./cmd/arturo-controller
-cd tools/arturo-engine && go build -o arturo-engine
-cd tools/arturo-monitor && go build -o arturo-monitor
-cd services && go build -o arturo-console ./cmd/arturo-console
-cd services && go build -o arturo-terminal ./cmd/arturo-terminal
+cd services && go build -o controller ./cmd/arturo-controller
+cd tools/arturo-engine && go build -o engine
+cd tools/arturo-monitor && go build -o monitor
+cd services && go build -o console ./cmd/arturo-console
+cd services && go build -o terminal ./cmd/arturo-terminal
 ```
 
 ### Station Firmware (ESP32)
@@ -51,11 +51,12 @@ cd firmware && pio test -e native                     # run unit tests on host
 
 ## Development Guidelines
 
-- Keep service count low. If it can be a function call inside arturo-controller, it is not a separate service.
+- **Always rebuild after changing Go code.** Go is compiled — edits have no effect until you build the affected binary.
+- Keep service count low. If it can be a function call inside the controller, it is not a separate service.
 - Every message must use the Protocol v1.0.0 envelope format.
 - Station firmware uses ArduinoJson v7 with static allocation.
 - Debug output on stations goes to USB serial, controlled by DEBUG_LEVEL in config.h.
-- Use `arturo-monitor` to observe all Redis traffic during development.
+- Use `monitor` to observe all Redis traffic during development.
 - Scripts go in `scripts/` (.art files) with shared libraries in `scripts/lib/` (.artlib files).
 - Script engine interfaces (validation, error reporting, device introspection) must be LLM-usable — structured JSON, no implicit context.
 - Reference material from the original project is in `docs/reference/` and the [arturo-go-archive](https://github.com/holla2040/arturo-go-archive) repo.

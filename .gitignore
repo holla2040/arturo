@@ -1,9 +1,9 @@
 # Go
-services/arturo-console
-services/arturo-controller
-services/arturo-engine
-services/arturo-monitor
-services/arturo-terminal
+services/console
+services/controller
+services/engine
+services/monitor
+services/terminal
 services/arturo.db
 *.exe
 *.test

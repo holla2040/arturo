@@ -35,7 +35,9 @@ class CtiOnBoardDevice;   // forward declare
 class CommandHandler {
 public:
     CommandHandler(RedisClient& redis, const char* instance);
-    void poll();
+    // Poll for one command with given block timeout.
+    // Returns true if a command was processed.
+    bool poll(unsigned long blockMs = 100);
     int commandsProcessed() const { return _processed; }
     int commandsFailed() const { return _failed; }
 

@@ -80,30 +80,19 @@ bool buildCommandResponse(JsonDocument& doc, const Source& source,
 }
 
 #ifdef ARDUINO
-CommandHandler::CommandHandler(RedisClient& redis, const char* instance)
-    : _redis(redis), _instance(instance) {
-    strcpy(_lastStreamId, "0");
-    snprintf(_streamName, sizeof(_streamName), "%s%s",
+CommandHandler::CommandHandler(RedisClient& subRedis, RedisClient& pubRedis, const char* instance)
+    : _subRedis(subRedis), _pubRedis(pubRedis), _instance(instance) {
+    snprintf(_channelName, sizeof(_channelName), "%s%s",
              CHANNEL_COMMANDS_PREFIX, _instance);
-    LOG_INFO("CMD", "Listening on stream: %s", _streamName);
+    LOG_INFO("CMD", "Listening on channel: %s", _channelName);
 }
 
-bool CommandHandler::poll(unsigned long blockMs) {
-    char field[32];
+bool CommandHandler::poll(unsigned long timeoutMs) {
     char value[2048];
 
-    int result = _redis.xreadBlock(_streamName, _lastStreamId, blockMs,
-                                    field, sizeof(field),
-                                    value, sizeof(value));
+    int result = _subRedis.readMessage(value, sizeof(value), timeoutMs);
     if (result <= 0) {
         return false;
-    }
-
-    // Update last stream ID for next read
-    const char* entryId = _redis.lastEntryId();
-    if (entryId[0] != '\0') {
-        strncpy(_lastStreamId, entryId, sizeof(_lastStreamId) - 1);
-        _lastStreamId[sizeof(_lastStreamId) - 1] = '\0';
     }
 
     handleMessage(value);
@@ -196,11 +185,9 @@ void CommandHandler::handleDeviceCommand(const char* messageJson) {
     JsonDocument respDoc;
     Source src = { STATION_SERVICE, STATION_INSTANCE, STATION_VERSION };
 
-    // Generate a simple ID (in main.cpp we have generateUUID, but here we use a counter-based ID)
     char respId[48];
     snprintf(respId, sizeof(respId), "resp-%s-%d", _instance, _processed);
 
-    // Use millis as timestamp fallback (main.cpp has getTimestamp, but we keep it simple here)
     int64_t timestamp = (int64_t)(millis() / 1000);
 
     if (!buildCommandResponse(respDoc, src, respId, timestamp,
@@ -217,16 +204,15 @@ void CommandHandler::handleDeviceCommand(const char* messageJson) {
     char buffer[2048];
     serializeJson(respDoc, buffer, sizeof(buffer));
 
-    // XADD response to reply_to stream
-    char entryId[32];
-    if (!_redis.xadd(req.replyTo, "message", buffer, entryId, sizeof(entryId))) {
-        LOG_ERROR("CMD", "Failed to XADD response to %s", req.replyTo);
+    // PUBLISH response to reply_to channel
+    if (!_pubRedis.publish(req.replyTo, buffer)) {
+        LOG_ERROR("CMD", "Failed to PUBLISH response to %s", req.replyTo);
         _failed++;
         return;
     }
 
     _processed++;
-    LOG_INFO("CMD", "Response sent to %s (entry=%s)", req.replyTo, entryId);
+    LOG_INFO("CMD", "Response published to %s", req.replyTo);
 }
 
 void CommandHandler::handleOTARequest(JsonDocument& doc) {
@@ -310,13 +296,12 @@ void CommandHandler::sendOTAResponse(const char* correlationId, const char* repl
     char buffer[2048];
     serializeJson(respDoc, buffer, sizeof(buffer));
 
-    char entryId[32];
-    if (!_redis.xadd(replyTo, "message", buffer, entryId, sizeof(entryId))) {
-        LOG_ERROR("OTA", "Failed to XADD OTA response to %s", replyTo);
+    if (!_pubRedis.publish(replyTo, buffer)) {
+        LOG_ERROR("OTA", "Failed to PUBLISH OTA response to %s", replyTo);
         return;
     }
 
-    LOG_INFO("OTA", "OTA response sent to %s (entry=%s)", replyTo, entryId);
+    LOG_INFO("OTA", "OTA response published to %s", replyTo);
 }
 #endif
 

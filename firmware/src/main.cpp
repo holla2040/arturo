@@ -17,11 +17,11 @@
 #include "safety/power_recovery.h"
 #include "safety/ota_update.h"
 
-// Globals
+// Globals — two Redis clients: one for subscribe, one for everything else
 arturo::WifiManager wifi;
 arturo::RedisClient redis(REDIS_HOST, REDIS_PORT);
+arturo::RedisClient redisSub(REDIS_HOST, REDIS_PORT);
 arturo::CommandHandler* cmdHandler = nullptr;
-arturo::CommandQueue cmdQueue;
 arturo::Watchdog watchdog;
 
 unsigned long lastHeartbeatMs = 0;
@@ -57,11 +57,28 @@ void buildPresenceKey(char* buf, size_t len) {
     snprintf(buf, len, "%s%s%s", PRESENCE_KEY_PREFIX, STATION_INSTANCE, PRESENCE_KEY_SUFFIX);
 }
 
-// Connect to Redis with optional AUTH
+// Connect main Redis client (for publish, SET, etc.)
 bool connectRedis() {
     const char* user = (strlen(REDIS_USERNAME) > 0) ? REDIS_USERNAME : nullptr;
     const char* pass = (strlen(REDIS_PASSWORD) > 0) ? REDIS_PASSWORD : nullptr;
     return redis.connect(user, pass);
+}
+
+// Connect subscribe Redis client and subscribe to command channel
+bool connectRedisSub() {
+    const char* user = (strlen(REDIS_USERNAME) > 0) ? REDIS_USERNAME : nullptr;
+    const char* pass = (strlen(REDIS_PASSWORD) > 0) ? REDIS_PASSWORD : nullptr;
+    if (!redisSub.connect(user, pass)) {
+        return false;
+    }
+    char channel[64];
+    snprintf(channel, sizeof(channel), "%s%s", CHANNEL_COMMANDS_PREFIX, STATION_INSTANCE);
+    if (!redisSub.subscribe(channel)) {
+        LOG_ERROR("MAIN", "Failed to subscribe to %s", channel);
+        redisSub.disconnect();
+        return false;
+    }
+    return true;
 }
 
 // Refresh presence key with TTL
@@ -142,8 +159,6 @@ void setup() {
     LOG_INFO("MAIN", "Boot reason: %s", arturo::bootReasonToString(reason));
     if (arturo::isAbnormalBoot(reason)) {
         LOG_ERROR("MAIN", "Abnormal boot detected — ensuring safe state");
-        // Relay controller init (Phase 3) already sets all relays OFF,
-        // but log it explicitly for diagnostics
     }
 
     // 1. Register WiFi event handlers for disconnect/reconnect tracking
@@ -159,17 +174,22 @@ void setup() {
     configTime(0, 0, "pool.ntp.org");
     LOG_INFO("MAIN", "NTP sync started");
 
-    // 3. Redis connect
+    // 3. Redis connect — both clients
     while (!connectRedis()) {
-        LOG_ERROR("MAIN", "Redis failed, retrying in 5s...");
+        LOG_ERROR("MAIN", "Redis (main) failed, retrying in 5s...");
+        delay(5000);
+    }
+
+    while (!connectRedisSub()) {
+        LOG_ERROR("MAIN", "Redis (sub) failed, retrying in 5s...");
         delay(5000);
     }
 
     // 4. Set presence key
     refreshPresence();
 
-    // 5. Create command handler
-    static arturo::CommandHandler handler(redis, STATION_INSTANCE);
+    // 5. Create command handler — sub client for reading, main client for publishing
+    static arturo::CommandHandler handler(redisSub, redis, STATION_INSTANCE);
     cmdHandler = &handler;
 
     // 5a. Register OTA update handler
@@ -230,27 +250,20 @@ void loop() {
     // Check WiFi, reconnect if needed
     wifi.checkAndReconnect();
 
-    // Check Redis, reconnect if needed
+    // Check main Redis client, reconnect if needed
     if (wifi.isConnected() && !redis.isConnected()) {
-        LOG_ERROR("MAIN", "Redis disconnected, reconnecting...");
+        LOG_ERROR("MAIN", "Redis (main) disconnected, reconnecting...");
         connectRedis();
     }
 
-    // Drain queued commands after reconnection
-    if (wifi.isConnected() && redis.isConnected() && !cmdQueue.isEmpty()) {
-        LOG_INFO("MAIN", "Draining %d queued commands after reconnect", cmdQueue.count());
-        char queuedCmd[256];
-        int queuedLen = 0;
-        while (cmdQueue.dequeue(queuedCmd, sizeof(queuedCmd), &queuedLen)) {
-            if (cmdHandler) {
-                // Re-publish queued response data
-                LOG_INFO("MAIN", "Replaying queued command (%d bytes)", queuedLen);
-            }
-        }
+    // Check subscribe Redis client, reconnect + re-subscribe if needed
+    if (wifi.isConnected() && !redisSub.isConnected()) {
+        LOG_ERROR("MAIN", "Redis (sub) disconnected, reconnecting...");
+        connectRedisSub();
     }
 
     // Poll for incoming commands — drain all queued commands back-to-back
-    if (cmdHandler && redis.isConnected()) {
+    if (cmdHandler && redisSub.isConnected()) {
         if (cmdHandler->poll(100)) {
             // Got one — drain remaining without blocking
             while (cmdHandler->poll(1)) {

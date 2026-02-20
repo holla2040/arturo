@@ -14,15 +14,11 @@ public:
     bool set(const char* key, const char* value, int exSeconds);
     bool publish(const char* channel, const char* message);
 
-    // Redis Streams
-    bool xadd(const char* stream, const char* field, const char* value,
-              char* entryId, size_t entryIdLen);
-    int xreadBlock(const char* stream, const char* lastId, unsigned long blockMs,
-                   char* field, size_t fieldLen, char* value, size_t valueLen);
+    // Pub/Sub subscribe
+    bool subscribe(const char* channel);
 
-    // After a successful xreadBlock, returns the entry ID of the last read message.
-    // Caller should use this to update lastId for subsequent xreadBlock calls.
-    const char* lastEntryId() const { return _lastEntryId; }
+    // Read next Pub/Sub message. Returns payload length, 0 on timeout, -1 on error.
+    int readMessage(char* buf, size_t bufLen, unsigned long timeoutMs);
 
     int reconnectCount();
 
@@ -33,14 +29,16 @@ private:
     int _reconnects = 0;
     bool _hasConnected = false;
     char _buf[256];
-    char _lastEntryId[32];
 
     bool sendCommand(const char** argv, int argc);
     bool readLine();
+    bool readLineWithTimeout(unsigned long timeoutMs);
     bool expectOK();
     int64_t readInteger();
     int readBulkString(char* out, size_t outLen);
+    int readBulkStringWithTimeout(char* out, size_t outLen, unsigned long timeoutMs);
     int readArrayLen();
+    int readArrayLenWithTimeout(unsigned long timeoutMs);
     bool skipBulkString();
 };
 

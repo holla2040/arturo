@@ -9,7 +9,6 @@ static const unsigned long RESP_TIMEOUT_MS = 2000;
 
 RedisClient::RedisClient(const char* host, uint16_t port)
     : _host(host), _port(port) {
-    _lastEntryId[0] = '\0';
 }
 
 bool RedisClient::connect(const char* username, const char* password) {
@@ -76,6 +75,93 @@ bool RedisClient::publish(const char* channel, const char* message) {
     return true;
 }
 
+bool RedisClient::subscribe(const char* channel) {
+    const char* argv[] = { "SUBSCRIBE", channel };
+    if (!sendCommand(argv, 2)) {
+        return false;
+    }
+
+    // Read confirmation: *3\r\n $9\r\n subscribe\r\n $<len>\r\n <channel>\r\n :1\r\n
+    int arrLen = readArrayLen();
+    if (arrLen != 3) {
+        LOG_ERROR("REDIS", "SUBSCRIBE: expected 3-element array, got %d", arrLen);
+        return false;
+    }
+
+    // Read "subscribe" string
+    char type[16];
+    if (readBulkString(type, sizeof(type)) < 0) {
+        LOG_ERROR("REDIS", "SUBSCRIBE: failed to read type");
+        return false;
+    }
+
+    // Read channel name
+    char ch[64];
+    if (readBulkString(ch, sizeof(ch)) < 0) {
+        LOG_ERROR("REDIS", "SUBSCRIBE: failed to read channel");
+        return false;
+    }
+
+    // Read subscription count (integer)
+    int64_t count = readInteger();
+    if (count < 0) {
+        LOG_ERROR("REDIS", "SUBSCRIBE: failed to read count");
+        return false;
+    }
+
+    LOG_INFO("REDIS", "SUBSCRIBE %s (subscriptions: %lld)", ch, (long long)count);
+    return true;
+}
+
+int RedisClient::readMessage(char* buf, size_t bufLen, unsigned long timeoutMs) {
+    // Wait for data on socket with caller-specified timeout
+    unsigned long start = millis();
+    while (!_socket.available()) {
+        if (millis() - start >= timeoutMs) {
+            return 0; // timeout, no message
+        }
+        if (!_socket.connected()) {
+            return -1; // disconnected
+        }
+        delay(1);
+    }
+
+    // Remaining time for parsing the RESP message
+    unsigned long remaining = timeoutMs - (millis() - start);
+    if (remaining < RESP_TIMEOUT_MS) remaining = RESP_TIMEOUT_MS;
+
+    // Parse *3\r\n $7\r\n message\r\n $<len>\r\n <channel>\r\n $<len>\r\n <payload>\r\n
+    int arrLen = readArrayLenWithTimeout(remaining);
+    if (arrLen != 3) {
+        LOG_ERROR("REDIS", "readMessage: expected 3-element array, got %d", arrLen);
+        return -1;
+    }
+
+    // Read "message" type string
+    char type[16];
+    if (readBulkStringWithTimeout(type, sizeof(type), remaining) < 0) {
+        LOG_ERROR("REDIS", "readMessage: failed to read type");
+        return -1;
+    }
+
+    // Read channel name (discard)
+    char channel[64];
+    if (readBulkStringWithTimeout(channel, sizeof(channel), remaining) < 0) {
+        LOG_ERROR("REDIS", "readMessage: failed to read channel");
+        return -1;
+    }
+
+    // Read payload
+    int payloadLen = readBulkStringWithTimeout(buf, bufLen, remaining);
+    if (payloadLen < 0) {
+        LOG_ERROR("REDIS", "readMessage: failed to read payload");
+        return -1;
+    }
+
+    LOG_DEBUG("REDIS", "Message from %s (%d bytes)", channel, payloadLen);
+    return payloadLen;
+}
+
 int RedisClient::reconnectCount() {
     return _reconnects;
 }
@@ -106,17 +192,21 @@ bool RedisClient::sendCommand(const char** argv, int argc) {
 }
 
 bool RedisClient::readLine() {
+    return readLineWithTimeout(RESP_TIMEOUT_MS);
+}
+
+bool RedisClient::readLineWithTimeout(unsigned long timeoutMs) {
     unsigned long start = millis();
     size_t pos = 0;
 
-    while (millis() - start < RESP_TIMEOUT_MS) {
+    while (millis() - start < timeoutMs) {
         if (_socket.available()) {
             char c = _socket.read();
             if (c == '\r') {
                 // Expect \n next
                 unsigned long crStart = millis();
                 while (!_socket.available()) {
-                    if (millis() - crStart >= RESP_TIMEOUT_MS) {
+                    if (millis() - crStart >= timeoutMs) {
                         LOG_ERROR("REDIS", "Timeout waiting for \\n after \\r");
                         _buf[pos] = '\0';
                         return false;
@@ -166,7 +256,11 @@ int64_t RedisClient::readInteger() {
 }
 
 int RedisClient::readArrayLen() {
-    if (!readLine()) {
+    return readArrayLenWithTimeout(RESP_TIMEOUT_MS);
+}
+
+int RedisClient::readArrayLenWithTimeout(unsigned long timeoutMs) {
+    if (!readLineWithTimeout(timeoutMs)) {
         return -1;
     }
     if (_buf[0] == '*') {
@@ -184,7 +278,11 @@ int RedisClient::readArrayLen() {
 }
 
 int RedisClient::readBulkString(char* out, size_t outLen) {
-    if (!readLine()) {
+    return readBulkStringWithTimeout(out, outLen, RESP_TIMEOUT_MS);
+}
+
+int RedisClient::readBulkStringWithTimeout(char* out, size_t outLen, unsigned long timeoutMs) {
+    if (!readLineWithTimeout(timeoutMs)) {
         return -1;
     }
     if (_buf[0] == '$') {
@@ -198,7 +296,7 @@ int RedisClient::readBulkString(char* out, size_t outLen) {
         size_t toRead = (size_t)len;
         size_t pos = 0;
         unsigned long start = millis();
-        while (pos < toRead && millis() - start < RESP_TIMEOUT_MS) {
+        while (pos < toRead && millis() - start < timeoutMs) {
             if (_socket.available()) {
                 char c = _socket.read();
                 if (pos < outLen - 1) {
@@ -217,7 +315,7 @@ int RedisClient::readBulkString(char* out, size_t outLen) {
         // Consume trailing \r\n
         unsigned long crStart = millis();
         int trailing = 0;
-        while (trailing < 2 && millis() - crStart < RESP_TIMEOUT_MS) {
+        while (trailing < 2 && millis() - crStart < timeoutMs) {
             if (_socket.available()) {
                 _socket.read();
                 trailing++;
@@ -236,127 +334,6 @@ int RedisClient::readBulkString(char* out, size_t outLen) {
 bool RedisClient::skipBulkString() {
     char tmp[1];
     return readBulkString(tmp, 0) >= 0;
-}
-
-bool RedisClient::xadd(const char* stream, const char* field, const char* value,
-                        char* entryId, size_t entryIdLen) {
-    const char* argv[] = { "XADD", stream, "*", field, value };
-    if (!sendCommand(argv, 5)) {
-        return false;
-    }
-    int len = readBulkString(entryId, entryIdLen);
-    if (len < 0) {
-        LOG_ERROR("REDIS", "XADD failed: no entry ID returned");
-        return false;
-    }
-    LOG_DEBUG("REDIS", "XADD to %s -> %s", stream, entryId);
-    return true;
-}
-
-int RedisClient::xreadBlock(const char* stream, const char* lastId,
-                             unsigned long blockMs,
-                             char* field, size_t fieldLen,
-                             char* value, size_t valueLen) {
-    char blockStr[12];
-    snprintf(blockStr, sizeof(blockStr), "%lu", blockMs);
-
-    const char* argv[] = { "XREAD", "COUNT", "1", "BLOCK", blockStr, "STREAMS", stream, lastId };
-    if (!sendCommand(argv, 8)) {
-        return -1;
-    }
-
-    // Response: *1 -> [*2 -> [streamName, *1 -> [*2 -> [entryID, *N -> [f,v,...]]]]]
-    // Or nil (*-1 or $-1) on timeout
-    // Poll for data availability before calling readLine, since BLOCK may take longer
-    // than the normal RESP_TIMEOUT_MS.
-    unsigned long waitStart = millis();
-    unsigned long totalWait = blockMs + 2000; // block time + 2s buffer
-    while (!_socket.available() && millis() - waitStart < totalWait) {
-        delay(10);
-    }
-    if (!_socket.available()) {
-        LOG_DEBUG("REDIS", "XREAD timeout waiting for response");
-        return 0;
-    }
-
-    int streamsCount = readArrayLen();
-    if (streamsCount < 0) {
-        // nil = timeout, no messages
-        return 0;
-    }
-    if (streamsCount == 0) {
-        return 0;
-    }
-
-    // *2 [streamName, entries]
-    int streamTuple = readArrayLen();
-    if (streamTuple < 2) {
-        LOG_ERROR("REDIS", "XREAD: expected stream tuple of 2, got %d", streamTuple);
-        return -1;
-    }
-
-    // Read and discard stream name (bulk string)
-    char streamName[64];
-    if (readBulkString(streamName, sizeof(streamName)) < 0) {
-        return -1;
-    }
-
-    // entries array: *1 (one entry since COUNT 1)
-    int entriesCount = readArrayLen();
-    if (entriesCount < 1) {
-        return 0;
-    }
-
-    // Each entry: *2 [entryID, fieldValues]
-    int entryTuple = readArrayLen();
-    if (entryTuple < 2) {
-        LOG_ERROR("REDIS", "XREAD: expected entry tuple of 2, got %d", entryTuple);
-        return -1;
-    }
-
-    // Read entry ID (stored in _lastEntryId after parsing completes)
-    char entryIdBuf[32];
-    if (readBulkString(entryIdBuf, sizeof(entryIdBuf)) < 0) {
-        return -1;
-    }
-
-    // field-value array: *N (pairs)
-    int fvCount = readArrayLen();
-    if (fvCount < 2) {
-        LOG_ERROR("REDIS", "XREAD: expected at least 2 field-values, got %d", fvCount);
-        return -1;
-    }
-
-    // Read first field-value pair
-    if (readBulkString(field, fieldLen) < 0) {
-        return -1;
-    }
-    if (readBulkString(value, valueLen) < 0) {
-        return -1;
-    }
-
-    // Skip remaining field-value pairs
-    for (int i = 2; i < fvCount; i++) {
-        char skip[1];
-        readBulkString(skip, 0);
-    }
-
-    // Skip remaining entries (shouldn't be any with COUNT 1)
-    for (int i = 1; i < entriesCount; i++) {
-        // skip each entry: entryID + field-values
-        int t = readArrayLen();
-        for (int j = 0; j < t; j++) {
-            char skip[1];
-            readBulkString(skip, 0);
-        }
-    }
-
-    // Store entry ID so caller can update lastId via lastEntryId()
-    strncpy(_lastEntryId, entryIdBuf, sizeof(_lastEntryId) - 1);
-    _lastEntryId[sizeof(_lastEntryId) - 1] = '\0';
-
-    LOG_DEBUG("REDIS", "XREAD from %s entry=%s field=%s", stream, entryIdBuf, field);
-    return 1;
 }
 
 } // namespace arturo

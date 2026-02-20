@@ -35,10 +35,12 @@ class OTAUpdateHandler;   // forward declare
 
 class CommandHandler {
 public:
-    CommandHandler(RedisClient& redis, const char* instance);
-    // Poll for one command with given block timeout.
+    // subRedis: subscribed client for reading commands
+    // pubRedis: general client for publishing responses
+    CommandHandler(RedisClient& subRedis, RedisClient& pubRedis, const char* instance);
+    // Poll for one command with given timeout.
     // Returns true if a command was processed.
-    bool poll(unsigned long blockMs = 100);
+    bool poll(unsigned long timeoutMs = 100);
     int commandsProcessed() const { return _processed; }
     int commandsFailed() const { return _failed; }
 
@@ -49,12 +51,12 @@ public:
     void setOTAHandler(OTAUpdateHandler* handler) { _otaHandler = handler; }
 
 private:
-    RedisClient& _redis;
+    RedisClient& _subRedis;
+    RedisClient& _pubRedis;
     const char* _instance;
-    char _lastStreamId[32];
     int _processed = 0;
     int _failed = 0;
-    char _streamName[64];
+    char _channelName[64];
     CtiOnBoardDevice* _ctiOnBoardDevice = nullptr;
     OTAUpdateHandler* _otaHandler = nullptr;
 

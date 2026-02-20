@@ -42,10 +42,11 @@ static const char* DEVICE_IDS[] = {"PUMP-01"};
 #define PRESENCE_TTL_SECONDS   90
 
 // Redis channels (from ARCHITECTURE.md section 2.3)
-#define CHANNEL_HEARTBEAT      "events:heartbeat"
-#define CHANNEL_COMMANDS_PREFIX "commands:"
-#define PRESENCE_KEY_PREFIX     "device:"
-#define PRESENCE_KEY_SUFFIX     ":alive"
+#define CHANNEL_HEARTBEAT        "events:heartbeat"
+#define CHANNEL_COMMANDS_PREFIX  "commands:"
+#define CHANNEL_RESPONSES_PREFIX "responses:"
+#define PRESENCE_KEY_PREFIX      "device:"
+#define PRESENCE_KEY_SUFFIX      ":alive"
 
 // Debug levels (compile-time, from ARCHITECTURE.md section 6.2)
 #define DEBUG_LEVEL_NONE   0

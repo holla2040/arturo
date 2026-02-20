@@ -1,6 +1,6 @@
 // Package redisrouter implements executor.DeviceRouter by sending protocol
-// messages through Redis streams. It writes command requests to the station's
-// command stream and reads the correlated response from its own response stream.
+// messages through Redis Pub/Sub. It publishes command requests to the station's
+// command channel and subscribes to its own response channel for the correlated response.
 package redisrouter
 
 import (
@@ -14,7 +14,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// RedisRouter sends device commands over Redis streams and waits for responses.
+// RedisRouter sends device commands over Redis Pub/Sub and waits for responses.
 type RedisRouter struct {
 	rdb     *redis.Client
 	source  protocol.Source
@@ -24,7 +24,7 @@ type RedisRouter struct {
 // New creates a RedisRouter.
 //   - rdb: connected go-redis client
 //   - source: protocol Source for this engine instance
-//   - station: station instance id (used to address command stream)
+//   - station: station instance id (used to address command channel)
 func New(rdb *redis.Client, source protocol.Source, station string) *RedisRouter {
 	return &RedisRouter{rdb: rdb, source: source, station: station}
 }
@@ -49,78 +49,67 @@ func (r *RedisRouter) SendCommand(ctx context.Context, deviceID, command string,
 		return nil, fmt.Errorf("marshal message: %w", err)
 	}
 
-	// 3. Send to the station's command stream.
-	streamKey := "commands:" + r.station
-	if err := r.rdb.XAdd(ctx, &redis.XAddArgs{
-		Stream: streamKey,
-		Values: map[string]interface{}{"message": string(data)},
-	}).Err(); err != nil {
-		return nil, fmt.Errorf("XADD %s: %w", streamKey, err)
+	// 3. Subscribe to response channel BEFORE publishing command.
+	responseChannel := "responses:" + r.source.Instance
+	sub := r.rdb.Subscribe(ctx, responseChannel)
+	defer sub.Close()
+
+	ch := sub.Channel()
+
+	// 4. Publish to the station's command channel.
+	channelKey := "commands:" + r.station
+	if err := r.rdb.Publish(ctx, channelKey, string(data)).Err(); err != nil {
+		return nil, fmt.Errorf("PUBLISH %s: %w", channelKey, err)
 	}
 
-	// 4. Read response from our response stream with timeout.
-	responseStream := "responses:" + r.source.Instance
+	// 5. Read response from subscription with timeout.
 	deadline := time.Duration(timeoutMs) * time.Millisecond
+	timer := time.NewTimer(deadline)
+	defer timer.Stop()
 
-	readCtx, cancel := context.WithTimeout(ctx, deadline)
-	defer cancel()
-
-	// Poll for the correlated response.
-	lastID := "0-0"
 	for {
-		streams, readErr := r.rdb.XRead(readCtx, &redis.XReadArgs{
-			Streams: []string{responseStream, lastID},
-			Count:   10,
-			Block:   deadline,
-		}).Result()
-		if readErr != nil {
-			return nil, fmt.Errorf("XREAD %s: %w", responseStream, readErr)
-		}
-
-		for _, stream := range streams {
-			for _, entry := range stream.Messages {
-				lastID = entry.ID
-
-				raw, ok := entry.Values["message"]
-				if !ok {
-					continue
-				}
-				rawStr, ok := raw.(string)
-				if !ok {
-					continue
-				}
-
-				respMsg, parseErr := protocol.Parse([]byte(rawStr))
-				if parseErr != nil {
-					continue
-				}
-
-				// Match by correlation_id.
-				if respMsg.Envelope.CorrelationID != correlationID {
-					continue
-				}
-
-				// 5. Parse command response payload.
-				payload, payloadErr := protocol.ParseCommandResponse(respMsg)
-				if payloadErr != nil {
-					return nil, fmt.Errorf("parse response payload: %w", payloadErr)
-				}
-
-				resp := ""
-				if payload.Response != nil {
-					resp = *payload.Response
-				}
-				dur := 0
-				if payload.DurationMs != nil {
-					dur = *payload.DurationMs
-				}
-
-				return &executor.CommandResult{
-					Success:    payload.Success,
-					Response:   resp,
-					DurationMs: dur,
-				}, nil
+		select {
+		case subMsg, ok := <-ch:
+			if !ok {
+				return nil, fmt.Errorf("subscription channel closed")
 			}
+
+			respMsg, parseErr := protocol.Parse([]byte(subMsg.Payload))
+			if parseErr != nil {
+				continue
+			}
+
+			// Match by correlation_id.
+			if respMsg.Envelope.CorrelationID != correlationID {
+				continue
+			}
+
+			// 6. Parse command response payload.
+			payload, payloadErr := protocol.ParseCommandResponse(respMsg)
+			if payloadErr != nil {
+				return nil, fmt.Errorf("parse response payload: %w", payloadErr)
+			}
+
+			resp := ""
+			if payload.Response != nil {
+				resp = *payload.Response
+			}
+			dur := 0
+			if payload.DurationMs != nil {
+				dur = *payload.DurationMs
+			}
+
+			return &executor.CommandResult{
+				Success:    payload.Success,
+				Response:   resp,
+				DurationMs: dur,
+			}, nil
+
+		case <-timer.C:
+			return nil, fmt.Errorf("timeout waiting for response on %s (correlation_id=%s)", responseChannel, correlationID)
+
+		case <-ctx.Done():
+			return nil, ctx.Err()
 		}
 	}
 }

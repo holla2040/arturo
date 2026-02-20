@@ -20,9 +20,9 @@ import (
 	"github.com/holla2040/arturo/internal/testmanager"
 )
 
-// CommandSender abstracts the Redis XADD operation for testability.
+// CommandSender abstracts the Redis PUBLISH operation for testability.
 type CommandSender interface {
-	SendCommand(ctx context.Context, stream string, msg *protocol.Message) error
+	SendCommand(ctx context.Context, channel string, msg *protocol.Message) error
 }
 
 // commandRequest is the JSON body for POST /devices/{id}/command.

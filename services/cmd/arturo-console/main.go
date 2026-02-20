@@ -262,46 +262,40 @@ func (s *mockStation) presenceLoop(ctx context.Context) {
 }
 
 func (s *mockStation) commandLoop(ctx context.Context) {
-	stream := "commands:" + s.instance
-	lastID := "$"
+	channel := "commands:" + s.instance
 
 	for {
+		if ctx.Err() != nil {
+			return
+		}
+
+		sub := s.rdb.Subscribe(ctx, channel)
+		ch := sub.Channel()
+
+		func() {
+			defer sub.Close()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case msg, ok := <-ch:
+					if !ok {
+						log.Printf("[%s] command subscription closed, reconnecting...", s.instance)
+						return
+					}
+					if !*s.online {
+						continue
+					}
+					s.handleCommand(ctx, msg.Payload)
+				}
+			}
+		}()
+
+		// Back off before retrying
 		select {
 		case <-ctx.Done():
 			return
-		default:
-		}
-
-		result, err := s.rdb.XRead(ctx, &redis.XReadArgs{
-			Streams: []string{stream, lastID},
-			Block:   2 * time.Second,
-			Count:   10,
-		}).Result()
-
-		if err == redis.Nil {
-			continue
-		}
-		if err != nil {
-			if ctx.Err() != nil {
-				return
-			}
-			log.Printf("[%s] XREAD error: %v", s.instance, err)
-			time.Sleep(time.Second)
-			continue
-		}
-
-		for _, str := range result {
-			for _, xmsg := range str.Messages {
-				lastID = xmsg.ID
-				if !*s.online {
-					continue
-				}
-				jsonStr, ok := xmsg.Values["message"].(string)
-				if !ok {
-					continue
-				}
-				s.handleCommand(ctx, jsonStr)
-			}
+		case <-time.After(2 * time.Second):
 		}
 	}
 }
@@ -371,13 +365,9 @@ func (s *mockStation) sendResponse(ctx context.Context, req *protocol.Message, c
 		return
 	}
 
-	_, err = s.rdb.XAdd(ctx, &redis.XAddArgs{
-		Stream: replyTo,
-		Values: map[string]interface{}{"message": string(msgJSON)},
-	}).Result()
-	if err != nil {
+	if err := s.rdb.Publish(ctx, replyTo, string(msgJSON)).Err(); err != nil {
 		if ctx.Err() == nil {
-			log.Printf("[%s] response XADD error: %v", s.instance, err)
+			log.Printf("[%s] response PUBLISH error: %v", s.instance, err)
 		}
 	}
 }

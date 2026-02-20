@@ -289,54 +289,49 @@ func runEstopListener(ctx context.Context, rdb *redis.Client, coord *estop.Coord
 	}
 }
 
-// runResponseListener reads command responses from the response stream.
+// runResponseListener subscribes to the response channel for command responses.
+// It automatically re-subscribes if the connection drops.
 func runResponseListener(ctx context.Context, rdb *redis.Client, dispatcher *api.ResponseDispatcher, hub *api.Hub) {
-	stream := "responses:" + serverSource.Instance
-	lastID := "$" // Only read new messages
+	channel := "responses:" + serverSource.Instance
 
 	for {
+		if ctx.Err() != nil {
+			return
+		}
+
+		sub := rdb.Subscribe(ctx, channel)
+		ch := sub.Channel()
+
+		func() {
+			defer sub.Close()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case msg, ok := <-ch:
+					if !ok {
+						log.Println("response listener: subscription channel closed, reconnecting...")
+						return
+					}
+					parsed, err := protocol.Parse([]byte(msg.Payload))
+					if err != nil {
+						log.Printf("response listener: parse error: %v", err)
+						continue
+					}
+					dispatched := dispatcher.Dispatch(parsed)
+					hub.BroadcastEvent("command_response", parsed.Payload)
+					if !dispatched {
+						log.Printf("response listener: no waiter for correlation_id=%s", parsed.Envelope.CorrelationID)
+					}
+				}
+			}
+		}()
+
+		// Back off before retrying
 		select {
 		case <-ctx.Done():
 			return
-		default:
-		}
-
-		result, err := rdb.XRead(ctx, &redis.XReadArgs{
-			Streams: []string{stream, lastID},
-			Block:   2 * time.Second,
-			Count:   10,
-		}).Result()
-
-		if err == redis.Nil {
-			continue
-		}
-		if err != nil {
-			if ctx.Err() != nil {
-				return
-			}
-			log.Printf("response listener: XREAD error: %v", err)
-			time.Sleep(time.Second)
-			continue
-		}
-
-		for _, s := range result {
-			for _, xmsg := range s.Messages {
-				lastID = xmsg.ID
-				jsonStr, ok := xmsg.Values["message"].(string)
-				if !ok {
-					continue
-				}
-				parsed, err := protocol.Parse([]byte(jsonStr))
-				if err != nil {
-					log.Printf("response listener: parse error: %v", err)
-					continue
-				}
-				dispatched := dispatcher.Dispatch(parsed)
-				hub.BroadcastEvent("command_response", parsed.Payload)
-				if !dispatched {
-					log.Printf("response listener: no waiter for correlation_id=%s", parsed.Envelope.CorrelationID)
-				}
-			}
+		case <-time.After(2 * time.Second):
 		}
 	}
 }
@@ -373,21 +368,17 @@ func runHealthChecker(ctx context.Context, reg *registry.Registry, hub *api.Hub,
 	}
 }
 
-// redisCommandSender implements api.CommandSender using Redis XADD.
+// redisCommandSender implements api.CommandSender using Redis PUBLISH.
 type redisCommandSender struct {
 	rdb *redis.Client
 }
 
-func (s *redisCommandSender) SendCommand(ctx context.Context, stream string, msg *protocol.Message) error {
+func (s *redisCommandSender) SendCommand(ctx context.Context, channel string, msg *protocol.Message) error {
 	msgJSON, err := json.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("marshal command: %w", err)
 	}
-	_, err = s.rdb.XAdd(ctx, &redis.XAddArgs{
-		Stream: stream,
-		Values: map[string]interface{}{"message": string(msgJSON)},
-	}).Result()
-	return err
+	return s.rdb.Publish(ctx, channel, string(msgJSON)).Err()
 }
 
 // --- Legacy "send" subcommand ---
@@ -438,17 +429,13 @@ func runSendCommand() {
 		os.Exit(1)
 	}
 
-	cmdStream := "commands:" + *station
-	_, err = rdb.XAdd(ctx, &redis.XAddArgs{
-		Stream: cmdStream,
-		Values: map[string]interface{}{"message": string(msgJSON)},
-	}).Result()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error sending command to %s: %v\n", cmdStream, err)
+	cmdChannel := "commands:" + *station
+	if err := rdb.Publish(ctx, cmdChannel, string(msgJSON)).Err(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error sending command to %s: %v\n", cmdChannel, err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("Sent command to %s\n", cmdStream)
+	fmt.Printf("Sent command to %s\n", cmdChannel)
 	fmt.Printf("  device:         %s\n", *device)
 	fmt.Printf("  command:        %s\n", *cmd)
 	fmt.Printf("  correlation_id: %s\n", msg.Envelope.CorrelationID)
@@ -489,46 +476,31 @@ func runSendCommand() {
 	}
 }
 
-func waitForResponse(ctx context.Context, rdb *redis.Client, stream, correlationID string, timeout time.Duration) (*protocol.Message, error) {
-	deadline := time.Now().Add(timeout)
-	lastID := "0-0"
+func waitForResponse(ctx context.Context, rdb *redis.Client, channel, correlationID string, timeout time.Duration) (*protocol.Message, error) {
+	sub := rdb.Subscribe(ctx, channel)
+	defer sub.Close()
 
-	for time.Now().Before(deadline) {
-		remaining := time.Until(deadline)
-		if remaining <= 0 {
-			break
-		}
+	ch := sub.Channel()
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
 
-		result, err := rdb.XRead(ctx, &redis.XReadArgs{
-			Streams: []string{stream, lastID},
-			Block:   remaining,
-			Count:   10,
-		}).Result()
-
-		if err == redis.Nil {
-			continue
-		}
-		if err != nil {
-			return nil, fmt.Errorf("XREAD error: %w", err)
-		}
-
-		for _, s := range result {
-			for _, xmsg := range s.Messages {
-				lastID = xmsg.ID
-				jsonStr, ok := xmsg.Values["message"].(string)
-				if !ok {
-					continue
-				}
-				parsed, err := protocol.Parse([]byte(jsonStr))
-				if err != nil {
-					continue
-				}
-				if parsed.Envelope.CorrelationID == correlationID {
-					return parsed, nil
-				}
+	for {
+		select {
+		case msg, ok := <-ch:
+			if !ok {
+				return nil, fmt.Errorf("subscription channel closed")
 			}
+			parsed, err := protocol.Parse([]byte(msg.Payload))
+			if err != nil {
+				continue
+			}
+			if parsed.Envelope.CorrelationID == correlationID {
+				return parsed, nil
+			}
+		case <-timer.C:
+			return nil, fmt.Errorf("timeout waiting for response (correlation_id=%s)", correlationID)
+		case <-ctx.Done():
+			return nil, ctx.Err()
 		}
 	}
-
-	return nil, fmt.Errorf("timeout waiting for response (correlation_id=%s)", correlationID)
 }

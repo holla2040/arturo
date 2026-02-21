@@ -202,7 +202,7 @@ func Handler(stations []*StationInfo, rdb *redis.Client) (http.Handler, func(ctx
 
 	run := func(ctx context.Context) {
 		go hub.Run(ctx)
-		go watchStreams(ctx, rdb, hub)
+		go watchCommands(ctx, rdb, hub)
 		go watchPubSub(ctx, rdb, hub)
 		go pollPresence(ctx, rdb, hub)
 	}
@@ -215,85 +215,51 @@ func writeJSON(w http.ResponseWriter, v interface{}) {
 	json.NewEncoder(w).Encode(v)
 }
 
-// watchStreams monitors commands:* and responses:* streams.
-func watchStreams(ctx context.Context, rdb *redis.Client, hub *api.Hub) {
-	lastIDs := make(map[string]string)
-
+// watchCommands subscribes to commands:* and responses:* via Pub/Sub.
+func watchCommands(ctx context.Context, rdb *redis.Client, hub *api.Hub) {
 	for {
 		if ctx.Err() != nil {
 			return
 		}
 
-		var streamKeys []string
-		iter := rdb.Scan(ctx, 0, "commands:*", 100).Iterator()
-		for iter.Next(ctx) {
-			streamKeys = append(streamKeys, iter.Val())
-		}
-		iter = rdb.Scan(ctx, 0, "responses:*", 100).Iterator()
-		for iter.Next(ctx) {
-			streamKeys = append(streamKeys, iter.Val())
-		}
+		sub := rdb.PSubscribe(ctx, "commands:*", "responses:*")
+		ch := sub.Channel()
 
-		if len(streamKeys) == 0 {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(time.Second):
-				continue
-			}
-		}
-
-		args := &redis.XReadArgs{
-			Block:   time.Second,
-			Count:   100,
-			Streams: make([]string, 0, len(streamKeys)*2),
-		}
-		for _, key := range streamKeys {
-			args.Streams = append(args.Streams, key)
-		}
-		for _, key := range streamKeys {
-			id, ok := lastIDs[key]
-			if !ok {
-				id = "$"
-			}
-			args.Streams = append(args.Streams, id)
-		}
-
-		results, err := rdb.XRead(ctx, args).Result()
-		if err != nil {
-			if err == redis.Nil || ctx.Err() != nil {
-				continue
-			}
-			log.Printf("console: stream read error: %v", err)
-			continue
-		}
-
-		for _, stream := range results {
-			for _, xmsg := range stream.Messages {
-				lastIDs[stream.Stream] = xmsg.ID
-
-				fields := make(map[string]string)
-				for k, v := range xmsg.Values {
-					if s, ok := v.(string); ok {
-						fields[k] = s
+		func() {
+			defer sub.Close()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case redisMsg, ok := <-ch:
+					if !ok {
+						log.Println("console: command/response subscription closed, reconnecting...")
+						return
 					}
-				}
 
-				msg, err := parseStreamFields(fields)
-				if err != nil {
-					continue
-				}
+					var msg protocol.Message
+					if err := json.Unmarshal([]byte(redisMsg.Payload), &msg); err != nil {
+						continue
+					}
 
-				direction := "→"
-				category := "command"
-				if strings.HasPrefix(stream.Stream, "responses:") {
-					direction = "←"
-					category = "response"
-				}
+					direction := "→"
+					category := "command"
+					if strings.HasPrefix(redisMsg.Channel, "responses:") {
+						direction = "←"
+						category = "response"
+					}
 
-				mm := buildMonitorMessage(msg, stream.Stream, direction, category)
-				broadcastMonitor(hub, mm)
+					mm := buildMonitorMessage(&msg, redisMsg.Channel, direction, category)
+					broadcastMonitor(hub, mm)
+				}
 			}
+		}()
+
+		// Back off before retrying
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(2 * time.Second):
 		}
 	}
 }
@@ -427,25 +393,6 @@ func broadcastMonitor(hub *api.Hub, mm *MonitorMessage) {
 		return
 	}
 	hub.Broadcast(data)
-}
-
-// parseStreamFields extracts a protocol.Message from Redis stream fields.
-func parseStreamFields(fields map[string]string) (*protocol.Message, error) {
-	data, ok := fields["data"]
-	if !ok {
-		for _, v := range fields {
-			data = v
-			break
-		}
-	}
-	if data == "" {
-		return nil, fmt.Errorf("no message data in stream fields")
-	}
-	var msg protocol.Message
-	if err := json.Unmarshal([]byte(data), &msg); err != nil {
-		return nil, err
-	}
-	return &msg, nil
 }
 
 // extractInstance pulls the station instance from a Redis key like device:{instance}:alive.

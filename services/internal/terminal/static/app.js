@@ -23,7 +23,7 @@ var App = (function() {
         tempChartData: { timestamps: [], first: [], second: [] }
     };
 
-    var MAX_CHART_POINTS = 720; // 1 hour at 5s intervals
+    var MAX_CHART_POINTS = 8640; // 12 hours at 5s intervals
 
     // =================================================================
     // Utilities
@@ -317,8 +317,31 @@ var App = (function() {
     // =================================================================
     // Station Detail
     // =================================================================
+    function loadContinuousTemperatures(instance) {
+        api('GET', '/stations/' + encodeURIComponent(instance) + '/temperatures', null, function(err, data) {
+            if (!err && Array.isArray(data)) {
+                state.tempChartData = { timestamps: [], first: [], second: [] };
+                for (var i = 0; i < data.length; i++) {
+                    var t = data[i];
+                    state.tempChartData.timestamps.push(new Date(t.Timestamp).getTime());
+                    if (t.Stage === 'first_stage') {
+                        state.tempChartData.first.push(t.TemperatureK);
+                        state.tempChartData.second.push(null);
+                    } else {
+                        state.tempChartData.first.push(null);
+                        state.tempChartData.second.push(t.TemperatureK);
+                    }
+                }
+                renderTempChart();
+            }
+        });
+    }
+
     function loadStationDetail(instance) {
         document.getElementById('detail-station-name').textContent = instance;
+
+        // Always load continuous temperature history (12h rolling window)
+        loadContinuousTemperatures(instance);
 
         // Load station state
         api('GET', '/stations/' + encodeURIComponent(instance) + '/state', null, function(err, data) {
@@ -326,9 +349,8 @@ var App = (function() {
                 state.stationStates[instance] = data;
                 renderStationDetail(instance);
 
-                // Load temperature data if there's an active test
+                // Load test events if there's an active test
                 if (data.test_run_id) {
-                    loadTemperatureData(data.test_run_id);
                     loadTestEvents(data.test_run_id);
                 }
             } else {
@@ -545,14 +567,9 @@ var App = (function() {
         var tMax = Math.max.apply(null, allTimes);
         if (tMax === tMin) tMax = tMin + 60000;
 
-        var allVals = first.map(function(p){return p.v}).concat(second.map(function(p){return p.v}));
-        var vMin = Math.min.apply(null, allVals);
-        var vMax = Math.max.apply(null, allVals);
+        var vMin = 0;
+        var vMax = 320;
         var vRange = vMax - vMin;
-        if (vRange < 10) { vMin -= 5; vMax += 5; vRange = vMax - vMin; }
-        vMin -= vRange * 0.05;
-        vMax += vRange * 0.05;
-        vRange = vMax - vMin;
 
         function xPos(t) { return pad.left + (t - tMin) / (tMax - tMin) * plotW; }
         function yPos(v) { return pad.top + (1 - (v - vMin) / vRange) * plotH; }

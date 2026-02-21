@@ -112,6 +112,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /stations/{id}/state", h.getStationState)
 	mux.HandleFunc("POST /stations/{id}/command", h.stationCommand)
 
+	// Continuous temperature log route
+	mux.HandleFunc("GET /stations/{id}/temperatures", h.getStationTemperatures)
+
 	// Test run data routes
 	mux.HandleFunc("GET /test-runs/{id}/temperatures", h.getTemperatures)
 	mux.HandleFunc("GET /test-runs/{id}/events", h.getTestEvents)
@@ -710,6 +713,27 @@ func (h *Handler) getTemperatures(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, temps)
+}
+
+func (h *Handler) getStationTemperatures(w http.ResponseWriter, r *http.Request) {
+	stationInstance := r.PathValue("id")
+
+	since := time.Now().Add(-12 * time.Hour)
+	if sinceStr := r.URL.Query().Get("since"); sinceStr != "" {
+		parsed, err := time.Parse(time.RFC3339, sinceStr)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid since parameter, use RFC3339"})
+			return
+		}
+		since = parsed
+	}
+
+	entries, err := h.Store.QueryTemperatureLog(stationInstance, since)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to query temperature log"})
+		return
+	}
+	writeJSON(w, http.StatusOK, entries)
 }
 
 func (h *Handler) getTestEvents(w http.ResponseWriter, r *http.Request) {

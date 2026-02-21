@@ -18,6 +18,11 @@ type Broadcaster interface {
 	BroadcastEvent(eventType string, payload interface{})
 }
 
+// TempRecorder persists temperature readings (e.g., to SQLite).
+type TempRecorder interface {
+	RecordTemperatureLog(stationInstance, deviceID, stage string, temperatureK float64) error
+}
+
 // StationPoller periodically queries all online stations for pump status and temperatures.
 type StationPoller struct {
 	source     protocol.Source
@@ -25,17 +30,19 @@ type StationPoller struct {
 	dispatcher *api.ResponseDispatcher
 	registry   *registry.Registry
 	hub        Broadcaster
+	recorder   TempRecorder
 	interval   time.Duration
 }
 
 // New creates a StationPoller with a 5-second interval.
-func New(source protocol.Source, sender api.CommandSender, dispatcher *api.ResponseDispatcher, reg *registry.Registry, hub Broadcaster) *StationPoller {
+func New(source protocol.Source, sender api.CommandSender, dispatcher *api.ResponseDispatcher, reg *registry.Registry, hub Broadcaster, recorder TempRecorder) *StationPoller {
 	return &StationPoller{
 		source:     source,
 		sender:     sender,
 		dispatcher: dispatcher,
 		registry:   reg,
 		hub:        hub,
+		recorder:   recorder,
 		interval:   5 * time.Second,
 	}
 }
@@ -135,6 +142,9 @@ func (p *StationPoller) pollDevice(ctx context.Context, stationInstance, deviceI
 				"temperature_k":    tempK,
 				"timestamp":        now,
 			})
+			if p.recorder != nil {
+				p.recorder.RecordTemperatureLog(stationInstance, deviceID, "first_stage", tempK)
+			}
 		}
 	}
 
@@ -148,6 +158,9 @@ func (p *StationPoller) pollDevice(ctx context.Context, stationInstance, deviceI
 				"temperature_k":    tempK,
 				"timestamp":        now,
 			})
+			if p.recorder != nil {
+				p.recorder.RecordTemperatureLog(stationInstance, deviceID, "second_stage", tempK)
+			}
 		}
 	}
 

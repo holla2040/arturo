@@ -86,6 +86,15 @@ type TestEvent struct {
 	Timestamp  time.Time
 }
 
+type TemperatureLogEntry struct {
+	ID              int64
+	StationInstance string
+	DeviceID        string
+	Stage           string
+	TemperatureK    float64
+	Timestamp       time.Time
+}
+
 type Store struct {
 	db *sql.DB
 }
@@ -176,9 +185,19 @@ CREATE TABLE IF NOT EXISTS test_events (
     timestamp TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS temperature_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    station_instance TEXT NOT NULL,
+    device_id TEXT NOT NULL,
+    stage TEXT NOT NULL,
+    temperature_k REAL NOT NULL,
+    timestamp TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_temperature_samples_run ON temperature_samples(test_run_id);
 CREATE INDEX IF NOT EXISTS idx_temperature_samples_run_ts ON temperature_samples(test_run_id, timestamp);
-CREATE INDEX IF NOT EXISTS idx_test_events_run ON test_events(test_run_id);`
+CREATE INDEX IF NOT EXISTS idx_test_events_run ON test_events(test_run_id);
+CREATE INDEX IF NOT EXISTS idx_temperature_log_station_ts ON temperature_log(station_instance, timestamp);`
 
 	if _, err := db.Exec(schema); err != nil {
 		db.Close()
@@ -887,4 +906,56 @@ func (s *Store) QueryTestEvents(testRunID string) ([]TestEvent, error) {
 		events = append(events, te)
 	}
 	return events, rows.Err()
+}
+
+// ---------------------------------------------------------------------------
+// Temperature Log (continuous, not test-bound)
+// ---------------------------------------------------------------------------
+
+func (s *Store) RecordTemperatureLog(stationInstance, deviceID, stage string, temperatureK float64) error {
+	_, err := s.db.Exec(
+		`INSERT INTO temperature_log (station_instance, device_id, stage, temperature_k, timestamp)
+		 VALUES (?, ?, ?, ?, ?)`,
+		stationInstance, deviceID, stage, temperatureK,
+		time.Now().UTC().Format(time.RFC3339Nano),
+	)
+	return err
+}
+
+func (s *Store) QueryTemperatureLog(stationInstance string, since time.Time) ([]TemperatureLogEntry, error) {
+	rows, err := s.db.Query(
+		`SELECT id, station_instance, device_id, stage, temperature_k, timestamp
+		 FROM temperature_log WHERE station_instance = ? AND timestamp > ? ORDER BY timestamp ASC`,
+		stationInstance, since.UTC().Format(time.RFC3339Nano),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	entries := []TemperatureLogEntry{}
+	for rows.Next() {
+		var e TemperatureLogEntry
+		var timestamp string
+		if err := rows.Scan(&e.ID, &e.StationInstance, &e.DeviceID, &e.Stage, &e.TemperatureK, &timestamp); err != nil {
+			return nil, err
+		}
+		e.Timestamp, err = time.Parse(time.RFC3339Nano, timestamp)
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, e)
+	}
+	return entries, rows.Err()
+}
+
+func (s *Store) PruneTemperatureLog(olderThan time.Time) (int64, error) {
+	result, err := s.db.Exec(
+		`DELETE FROM temperature_log WHERE timestamp < ?`,
+		olderThan.UTC().Format(time.RFC3339Nano),
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

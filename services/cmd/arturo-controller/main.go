@@ -181,8 +181,37 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		stationPoller := poller.New(serverSource, sender, dispatcher, reg, wsHub)
+		stationPoller := poller.New(serverSource, sender, dispatcher, reg, wsHub, db)
 		stationPoller.Run(ctx)
+	}()
+
+	// 9. Temperature log pruner (12-hour rolling window)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		cutoff := 12 * time.Hour
+
+		// Prune immediately on startup
+		if count, err := db.PruneTemperatureLog(time.Now().Add(-cutoff)); err != nil {
+			log.Printf("temperature pruner: startup error: %v", err)
+		} else if count > 0 {
+			log.Printf("temperature pruner: startup pruned %d rows", count)
+		}
+
+		ticker := time.NewTicker(10 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if count, err := db.PruneTemperatureLog(time.Now().Add(-cutoff)); err != nil {
+					log.Printf("temperature pruner: %v", err)
+				} else if count > 0 {
+					log.Printf("temperature pruner: pruned %d rows", count)
+				}
+			}
+		}
 	}()
 
 	// Wait for shutdown signal

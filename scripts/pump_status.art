@@ -1,5 +1,5 @@
 TEST "Pump Motor Status"
-    QUERY "PUMP-01" "pump_status" status TIMEOUT 5000
+    QUERY "pump_status" status TIMEOUT 5000
     LOG INFO "Motor status: " + status
     PASS "Pump responded"
 ENDTEST

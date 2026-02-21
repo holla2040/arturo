@@ -339,7 +339,7 @@ ENDLOOP`
 
 func TestTryCatch(t *testing.T) {
 	src := `TRY
-    SEND dmm "*RST"
+    SEND "reset"
 CATCH err
     LOG ERROR err
 ENDTRY`
@@ -365,11 +365,11 @@ ENDTRY`
 
 func TestTryCatchFinally(t *testing.T) {
 	src := `TRY
-    SEND dmm "*RST"
+    SEND "reset"
 CATCH err
     LOG ERROR err
 FINALLY
-    DISCONNECT dmm
+    LOG INFO "done"
 ENDTRY`
 	prog := parseSource(t, src)
 	requireStmtCount(t, prog, 1)
@@ -453,39 +453,33 @@ func TestDisconnectAll(t *testing.T) {
 }
 
 func TestSend(t *testing.T) {
-	src := `SEND dmm "*RST"`
+	src := `SEND "pump_on"`
 	prog := parseSource(t, src)
 	requireStmtCount(t, prog, 1)
 	s, ok := prog.Statements[0].(*ast.SendStmt)
 	if !ok {
 		t.Fatalf("expected *ast.SendStmt, got %T", prog.Statements[0])
 	}
-	if s.DeviceID != "dmm" {
-		t.Errorf("device: got %q, want %q", s.DeviceID, "dmm")
-	}
 	cmd := s.Command.(*ast.StringLit)
-	if cmd.Value != "*RST" {
-		t.Errorf("command: got %q, want %q", cmd.Value, "*RST")
+	if cmd.Value != "pump_on" {
+		t.Errorf("command: got %q, want %q", cmd.Value, "pump_on")
 	}
 }
 
 func TestQuery(t *testing.T) {
-	src := `QUERY dmm "MEAS:VOLT?" voltage`
+	src := `QUERY "pump_status" status`
 	prog := parseSource(t, src)
 	requireStmtCount(t, prog, 1)
 	s, ok := prog.Statements[0].(*ast.QueryStmt)
 	if !ok {
 		t.Fatalf("expected *ast.QueryStmt, got %T", prog.Statements[0])
 	}
-	if s.DeviceID != "dmm" {
-		t.Errorf("device: got %q, want %q", s.DeviceID, "dmm")
-	}
 	cmd := s.Command.(*ast.StringLit)
-	if cmd.Value != "MEAS:VOLT?" {
-		t.Errorf("command: got %q, want %q", cmd.Value, "MEAS:VOLT?")
+	if cmd.Value != "pump_status" {
+		t.Errorf("command: got %q, want %q", cmd.Value, "pump_status")
 	}
-	if s.ResultVar != "voltage" {
-		t.Errorf("result var: got %q, want %q", s.ResultVar, "voltage")
+	if s.ResultVar != "status" {
+		t.Errorf("result var: got %q, want %q", s.ResultVar, "status")
 	}
 	if s.Timeout != nil {
 		t.Errorf("timeout should be nil")
@@ -493,10 +487,13 @@ func TestQuery(t *testing.T) {
 }
 
 func TestQueryWithTimeout(t *testing.T) {
-	src := `QUERY dmm "MEAS:VOLT?" voltage TIMEOUT 5000`
+	src := `QUERY "get_temp_1st_stage" t1 TIMEOUT 5000`
 	prog := parseSource(t, src)
 	requireStmtCount(t, prog, 1)
 	s := prog.Statements[0].(*ast.QueryStmt)
+	if s.ResultVar != "t1" {
+		t.Errorf("result var: got %q, want %q", s.ResultVar, "t1")
+	}
 	if s.Timeout == nil {
 		t.Fatal("timeout should not be nil")
 	}
@@ -530,8 +527,8 @@ func TestRelaySet(t *testing.T) {
 }
 
 func TestFunctionDef(t *testing.T) {
-	src := `FUNCTION measure(device, channel)
-    QUERY device "MEAS?" result
+	src := `FUNCTION measure(channel)
+    QUERY "measure_dc_voltage" result
     RETURN result
 ENDFUNCTION`
 	prog := parseSource(t, src)
@@ -543,11 +540,11 @@ ENDFUNCTION`
 	if s.Name != "measure" {
 		t.Errorf("name: got %q, want %q", s.Name, "measure")
 	}
-	if len(s.Params) != 2 {
-		t.Fatalf("params: got %d, want 2", len(s.Params))
+	if len(s.Params) != 1 {
+		t.Fatalf("params: got %d, want 1", len(s.Params))
 	}
-	if s.Params[0] != "device" || s.Params[1] != "channel" {
-		t.Errorf("params: got %v, want [device, channel]", s.Params)
+	if s.Params[0] != "channel" {
+		t.Errorf("params: got %v, want [channel]", s.Params)
 	}
 	if len(s.Body) != 2 {
 		t.Fatalf("body: got %d stmts, want 2", len(s.Body))
@@ -782,8 +779,8 @@ func TestDelayStatement(t *testing.T) {
 
 func TestParallelBlock(t *testing.T) {
 	src := `PARALLEL
-    SEND dmm "*RST"
-    SEND psu "*RST"
+    SEND "reset"
+    SEND "clear"
 ENDPARALLEL`
 	prog := parseSource(t, src)
 	requireStmtCount(t, prog, 1)
@@ -1225,7 +1222,7 @@ ENDLIBRARY`
 
 func TestParallelWithTimeout(t *testing.T) {
 	src := `PARALLEL TIMEOUT 5000
-    SEND dmm "*RST"
+    SEND "reset"
 ENDPARALLEL`
 	prog := parseSource(t, src)
 	s := prog.Statements[0].(*ast.ParallelStmt)

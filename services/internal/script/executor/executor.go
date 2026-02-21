@@ -545,17 +545,17 @@ func (e *Executor) execSendStmt(s *ast.SendStmt) error {
 	cmdStr := variable.ToString(cmdVal)
 
 	if e.router == nil {
-		fmt.Fprintf(e.logger, "SEND %s %s (no router)\n", s.DeviceID, cmdStr)
+		fmt.Fprintf(e.logger, "SEND %s (no router)\n", cmdStr)
 		return nil
 	}
 
-	result, routeErr := e.router.SendCommand(e.ctx, s.DeviceID, cmdStr, nil, 0)
+	result, routeErr := e.router.SendCommand(e.ctx, "", cmdStr, nil, 0)
 	if routeErr != nil {
-		return fmt.Errorf("SEND %s: %w", s.DeviceID, routeErr)
+		return fmt.Errorf("SEND %s: %w", cmdStr, routeErr)
 	}
 
 	if e.collector != nil && e.currentTest != "" {
-		e.collector.RecordCommand(e.currentTest, s.DeviceID, cmdStr, result.Success, result.Response, result.DurationMs)
+		e.collector.RecordCommand(e.currentTest, "", cmdStr, result.Success, result.Response, result.DurationMs)
 	}
 
 	return nil
@@ -582,17 +582,17 @@ func (e *Executor) execQueryStmt(s *ast.QueryStmt) error {
 	}
 
 	if e.router == nil {
-		fmt.Fprintf(e.logger, "QUERY %s %s -> %s (no router)\n", s.DeviceID, cmdStr, s.ResultVar)
+		fmt.Fprintf(e.logger, "QUERY %s -> %s (no router)\n", cmdStr, s.ResultVar)
 		return e.env.Set(s.ResultVar, "")
 	}
 
-	result, routeErr := e.router.SendCommand(e.ctx, s.DeviceID, cmdStr, nil, timeoutMs)
+	result, routeErr := e.router.SendCommand(e.ctx, "", cmdStr, nil, timeoutMs)
 	if routeErr != nil {
-		return fmt.Errorf("QUERY %s: %w", s.DeviceID, routeErr)
+		return fmt.Errorf("QUERY %s: %w", cmdStr, routeErr)
 	}
 
 	if e.collector != nil && e.currentTest != "" {
-		e.collector.RecordCommand(e.currentTest, s.DeviceID, cmdStr, result.Success, result.Response, result.DurationMs)
+		e.collector.RecordCommand(e.currentTest, "", cmdStr, result.Success, result.Response, result.DurationMs)
 	}
 
 	return e.env.Set(s.ResultVar, result.Response)

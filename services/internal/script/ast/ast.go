@@ -274,9 +274,8 @@ type DisconnectStmt struct {
 func (n *DisconnectStmt) Pos() token.Position { return n.Position }
 func (n *DisconnectStmt) stmtNode()           {}
 
-// SendStmt represents SEND deviceID command.
+// SendStmt represents SEND command.
 type SendStmt struct {
-	DeviceID string
 	Command  Expression
 	Position token.Position
 }
@@ -284,9 +283,8 @@ type SendStmt struct {
 func (n *SendStmt) Pos() token.Position { return n.Position }
 func (n *SendStmt) stmtNode()           {}
 
-// QueryStmt represents QUERY deviceID command resultVar [TIMEOUT expr].
+// QueryStmt represents QUERY command resultVar [TIMEOUT expr].
 type QueryStmt struct {
-	DeviceID  string
 	Command   Expression
 	ResultVar string
 	Timeout   Expression // may be nil

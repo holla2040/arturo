@@ -1,0 +1,70 @@
+# regen_temp_monitor.art
+# Monitor 1st and 2nd stage temperatures during a full regeneration cycle.
+# Records temperature every 5 seconds until the regen completes.
+
+CONST SAMPLE_INTERVAL 5000
+CONST QUERY_TIMEOUT 5000
+
+TEST "Regen Temperature Monitor"
+    # Verify pump is on before starting regen
+    QUERY "pump_status" status TIMEOUT QUERY_TIMEOUT
+    IF status == "0"
+        LOG WARN "Pump is off — turning on before regen"
+        SEND "pump_on"
+        DELAY 2000
+        QUERY "pump_status" status TIMEOUT QUERY_TIMEOUT
+        ASSERT status == "1" "Pump failed to start"
+    ENDIF
+
+    # Collect initial temperatures
+    QUERY "get_temp_1st_stage" t1 TIMEOUT QUERY_TIMEOUT
+    QUERY "get_temp_2nd_stage" t2 TIMEOUT QUERY_TIMEOUT
+    LOG INFO "Pre-regen temps — 1st stage: " + t1 + " K, 2nd stage: " + t2 + " K"
+
+    # Data collection arrays
+    SET timestamps []
+    SET temps_1st []
+    SET temps_2nd []
+    SET sample_count 0
+
+    # Start regeneration
+    SEND "start_regen"
+    LOG INFO "Regen started"
+    DELAY 2000
+
+    # Poll until regen completes
+    SET regen_active true
+    WHILE regen_active
+        # Read regen step (0 = not in regen)
+        QUERY "get_regen_step" step TIMEOUT QUERY_TIMEOUT
+
+        IF step == 0
+            # Regen finished — take one last sample and exit
+            QUERY "get_temp_1st_stage" t1 TIMEOUT QUERY_TIMEOUT
+            QUERY "get_temp_2nd_stage" t2 TIMEOUT QUERY_TIMEOUT
+            APPEND timestamps NOW()
+            APPEND temps_1st FLOAT(t1)
+            APPEND temps_2nd FLOAT(t2)
+            SET sample_count sample_count + 1
+            LOG INFO "Regen complete — final temps — 1st: " + t1 + " K, 2nd: " + t2 + " K"
+            SET regen_active false
+        ELSE
+            # Record temperatures
+            QUERY "get_temp_1st_stage" t1 TIMEOUT QUERY_TIMEOUT
+            QUERY "get_temp_2nd_stage" t2 TIMEOUT QUERY_TIMEOUT
+            APPEND timestamps NOW()
+            APPEND temps_1st FLOAT(t1)
+            APPEND temps_2nd FLOAT(t2)
+            SET sample_count sample_count + 1
+            LOG INFO "Sample " + sample_count + " (step " + step + ") — 1st: " + t1 + " K, 2nd: " + t2 + " K"
+            DELAY SAMPLE_INTERVAL
+        ENDIF
+    ENDWHILE
+
+    # Summary
+    LOG INFO "Total samples collected: " + sample_count
+    LOG INFO "1st stage temps: " + temps_1st
+    LOG INFO "2nd stage temps: " + temps_2nd
+
+    PASS "Regen completed, " + sample_count + " temperature samples recorded"
+ENDTEST

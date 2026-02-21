@@ -1,12 +1,12 @@
 TEST "Pump On/Off Cycle"
-    SEND "PUMP-01" "pump_on"
+    SEND "pump_on"
     DELAY 2000
-    QUERY "PUMP-01" "pump_status" status TIMEOUT 5000
+    QUERY "pump_status" status TIMEOUT 5000
     LOG INFO "Status after on: " + status
 
-    SEND "PUMP-01" "pump_off"
+    SEND "pump_off"
     DELAY 2000
-    QUERY "PUMP-01" "pump_status" status TIMEOUT 5000
+    QUERY "pump_status" status TIMEOUT 5000
     LOG INFO "Status after off: " + status
 
     PASS "Pump cycle complete"

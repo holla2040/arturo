@@ -693,7 +693,7 @@ ENDTRY`
 func TestDeviceCommands(t *testing.T) {
 	t.Run("SEND routes to mock router", func(t *testing.T) {
 		router := &mockRouter{}
-		src := `SEND dmm "*RST"`
+		src := `SEND "pump_on"`
 		_, err := parseAndExec(t, src, WithRouter(router))
 		if err != nil {
 			t.Fatal(err)
@@ -701,35 +701,32 @@ func TestDeviceCommands(t *testing.T) {
 		if len(router.commands) != 1 {
 			t.Fatalf("expected 1 command, got %d", len(router.commands))
 		}
-		if router.commands[0].deviceID != "dmm" {
-			t.Fatalf("expected deviceID dmm, got %s", router.commands[0].deviceID)
-		}
-		if router.commands[0].command != "*RST" {
-			t.Fatalf("expected command *RST, got %s", router.commands[0].command)
+		if router.commands[0].command != "pump_on" {
+			t.Fatalf("expected command pump_on, got %s", router.commands[0].command)
 		}
 	})
 
 	t.Run("QUERY routes and stores response", func(t *testing.T) {
 		router := &mockRouter{
-			response: &CommandResult{Success: true, Response: "1.234", DurationMs: 5},
+			response: &CommandResult{Success: true, Response: "65.3", DurationMs: 5},
 		}
-		src := `QUERY dmm "MEAS?" result`
+		src := `QUERY "get_temp_1st_stage" t1`
 		exec, err := parseAndExec(t, src, WithRouter(router))
 		if err != nil {
 			t.Fatal(err)
 		}
-		v, ok := exec.Env().Get("result")
+		v, ok := exec.Env().Get("t1")
 		if !ok {
-			t.Fatal("result not found")
+			t.Fatal("t1 not found")
 		}
-		if v != "1.234" {
-			t.Fatalf("expected 1.234, got %v", v)
+		if v != "65.3" {
+			t.Fatalf("expected 65.3, got %v", v)
 		}
 	})
 
 	t.Run("QUERY with TIMEOUT", func(t *testing.T) {
 		router := &mockRouter{}
-		src := `QUERY dmm "MEAS?" result TIMEOUT 5000`
+		src := `QUERY "pump_status" status TIMEOUT 5000`
 		_, err := parseAndExec(t, src, WithRouter(router))
 		if err != nil {
 			t.Fatal(err)
@@ -744,9 +741,9 @@ func TestDeviceCommands(t *testing.T) {
 
 	t.Run("multiple SEND commands", func(t *testing.T) {
 		router := &mockRouter{}
-		src := `SEND dmm "*RST"
-SEND dmm "CONF:VOLT:DC 10"
-SEND psu "OUTP ON"`
+		src := `SEND "pump_on"
+SEND "start_regen"
+SEND "pump_off"`
 		_, err := parseAndExec(t, src, WithRouter(router))
 		if err != nil {
 			t.Fatal(err)
@@ -760,7 +757,7 @@ SEND psu "OUTP ON"`
 		router := &mockRouter{
 			err: errors.New("connection refused"),
 		}
-		src := `SEND dmm "*RST"`
+		src := `SEND "pump_on"`
 		_, err := parseAndExec(t, src, WithRouter(router))
 		if err == nil {
 			t.Fatal("expected error")

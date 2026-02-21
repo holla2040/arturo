@@ -21,6 +21,8 @@ Arturo is an industrial test automation system with ESP32 stations and a central
 - 5 message types: `device.command.request`, `device.command.response`, `service.heartbeat`, `system.emergency_stop`, `system.ota.request`
 - Test definitions are `.art` script files — the single unit of orchestration (see ARCHITECTURE.md section 2.8)
 - Scripts are authorable by humans and LLMs; the engine provides parse-only validation and structured JSON errors
+- Scripts are **station-scoped** — they run on one station, never address stations or devices by name
+- Scripts **must follow the HAL** (`docs/SCRIPTING_HAL.md`). SEND and QUERY take a logical command name only — no device IDs, no raw protocol commands. The device profile maps the command name to the wire protocol. Example: `SEND "pump_on"`, `QUERY "get_temp_1st_stage" t1 TIMEOUT 5000`
 
 ## Redis Channel Conventions
 
@@ -64,8 +66,10 @@ cd firmware && pio test -e native                     # run unit tests on host
 ## Key Files
 
 - `docs/architecture/ARCHITECTURE.md` - Architecture decisions, protocol spec, phasing, debugging setup
+- `docs/SCRIPTING_HAL.md` - HAL reference for script authors (abstract command vocabulary per device type)
 - `docs/reference/PROTOCOL_ORIGINAL.md` - Original protocol spec (reference)
 - `docs/reference/SCRIPTING_LANGUAGE_ORIGINAL.md` - Arturo DSL reference
+- `SCRIPTING_DISCUSSION.md` - Scripting design decisions, engine status, and open questions
 - `schemas/` - JSON Schema message contracts
 - `profiles/` - Device YAML profiles (SCPI, Modbus, CTI, etc.)
 - `scripts/` - Test scripts (.art) and shared libraries (.artlib)

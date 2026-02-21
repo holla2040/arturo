@@ -651,11 +651,9 @@ func (p *Parser) parseDisconnectStmt() *ast.DisconnectStmt {
 
 func (p *Parser) parseSendStmt() *ast.SendStmt {
 	tok := p.advance() // consume SEND
-	deviceID := p.expectDeviceID()
 	command := p.parseExpression()
 
 	return &ast.SendStmt{
-		DeviceID: deviceID,
 		Command:  command,
 		Position: tok.Pos,
 	}
@@ -663,12 +661,10 @@ func (p *Parser) parseSendStmt() *ast.SendStmt {
 
 func (p *Parser) parseQueryStmt() *ast.QueryStmt {
 	tok := p.advance() // consume QUERY
-	deviceID := p.expectDeviceID()
 	command := p.parseExpression()
 	resultTok := p.expect(token.TOKEN_IDENT)
 
 	node := &ast.QueryStmt{
-		DeviceID:  deviceID,
 		Command:   command,
 		ResultVar: resultTok.Literal,
 		Position:  tok.Pos,

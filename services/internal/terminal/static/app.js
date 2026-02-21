@@ -696,6 +696,65 @@ var App = (function() {
         renderTempChart();
     }
 
+    function exportTempCSV() {
+        var cd = state.tempChartData;
+        if (cd.timestamps.length === 0) return;
+
+        // Determine time range
+        var x0, x1;
+        if (state.userZoom) {
+            x0 = new Date(state.userZoom.x0).getTime();
+            x1 = new Date(state.userZoom.x1).getTime();
+        }
+
+        // Normalize timestamps to the second and merge first/second into one row
+        var rows = {};
+        for (var i = 0; i < cd.timestamps.length; i++) {
+            var ts = cd.timestamps[i];
+            if (x0 != null && (ts < x0 || ts > x1)) continue;
+            var sec = Math.floor(ts / 1000) * 1000; // truncate to second
+            if (!rows[sec]) rows[sec] = { first: null, second: null };
+            if (cd.first[i] != null) rows[sec].first = cd.first[i];
+            if (cd.second[i] != null) rows[sec].second = cd.second[i];
+        }
+
+        var keys = Object.keys(rows).sort(function(a, b) { return a - b; });
+        if (keys.length === 0) return;
+
+        // Format timestamp in America/Denver timezone
+        var fmt = new Intl.DateTimeFormat('en-US', {
+            timeZone: 'America/Denver',
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', second: '2-digit',
+            hour12: false
+        });
+
+        var csv = 'Timestamp (MST/MDT),1st Stage (K),2nd Stage (K)\n';
+        for (var j = 0; j < keys.length; j++) {
+            var r = rows[keys[j]];
+            var d = new Date(Number(keys[j]));
+            var parts = fmt.formatToParts(d);
+            var p = {};
+            for (var k = 0; k < parts.length; k++) p[parts[k].type] = parts[k].value;
+            var tsStr = p.year + '-' + p.month + '-' + p.day + ' ' + p.hour + ':' + p.minute + ':' + p.second;
+            csv += tsStr + ',' + (r.first != null ? r.first : '') + ',' + (r.second != null ? r.second : '') + '\n';
+        }
+
+        var station = state.detailStation || 'station';
+        var date = new Date().toISOString().slice(0, 10);
+        var filename = station + '-temps-' + date + '.csv';
+
+        var blob = new Blob([csv], { type: 'text/csv' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
     // =================================================================
     // Test Control Actions
     // =================================================================
@@ -1318,6 +1377,7 @@ var App = (function() {
         downloadArtifact: downloadArtifact,
         downloadPDF: downloadPDF,
         setTempWindow: setTempWindow,
+        exportTempCSV: exportTempCSV,
         toggleTheme: toggleTheme
     };
 })();

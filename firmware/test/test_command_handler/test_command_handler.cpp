@@ -75,7 +75,7 @@ void test_parse_command_request_wrong_type(void) {
 
 void test_build_command_response_success(void) {
     JsonDocument doc;
-    Source src = {"arturo-station", "station-01", "1.0.0"};
+    Source src = {"station", "station-01", "1.0.0"};
 
     bool result = buildCommandResponse(doc, src,
                                         "resp-001", 1700000000,
@@ -104,7 +104,7 @@ void test_build_command_response_success(void) {
 
 void test_build_command_response_error(void) {
     JsonDocument doc;
-    Source src = {"arturo-station", "station-01", "1.0.0"};
+    Source src = {"station", "station-01", "1.0.0"};
 
     bool result = buildCommandResponse(doc, src,
                                         "resp-002", 1700000000,
@@ -130,7 +130,7 @@ void test_build_command_response_error(void) {
 void test_roundtrip_response(void) {
     // Build a response
     JsonDocument buildDoc;
-    Source src = {"arturo-station", "station-01", "1.0.0"};
+    Source src = {"station", "station-01", "1.0.0"};
 
     buildCommandResponse(buildDoc, src,
                          "resp-rt", 1700000000,
@@ -159,7 +159,7 @@ void test_roundtrip_response(void) {
 
     // Verify source
     JsonObject source = envelope["source"];
-    TEST_ASSERT_EQUAL_STRING("arturo-station", source["service"].as<const char*>());
+    TEST_ASSERT_EQUAL_STRING("station", source["service"].as<const char*>());
     TEST_ASSERT_EQUAL_STRING("station-01", source["instance"].as<const char*>());
     TEST_ASSERT_EQUAL_STRING("1.0.0", source["version"].as<const char*>());
 

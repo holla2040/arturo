@@ -14,9 +14,9 @@ Go services that run on the controller machine. These are the processes that mus
 
 ```bash
 cd services
-go build -o controller ./cmd/arturo-controller
-go build -o console ./cmd/arturo-console
-go build -o terminal ./cmd/arturo-terminal
+go build -o controller ./cmd/controller
+go build -o console ./cmd/console
+go build -o terminal ./cmd/terminal
 ```
 
 ## Run
@@ -47,9 +47,9 @@ The module root is this directory. All import paths use `github.com/holla2040/ar
 ```
 services/
 ├── cmd/
-│   ├── arturo-controller/       # Controller entry point
-│   ├── arturo-console/          # Console entry point
-│   └── arturo-terminal/         # Terminal entry point
+│   ├── controller/              # Controller entry point
+│   ├── console/                 # Console entry point
+│   └── terminal/                # Terminal entry point
 ├── internal/
 │   ├── api/                     # REST API handlers, WebSocket hub, response dispatcher
 │   ├── artifact/                # Test artifact storage (PDF reports, data files)

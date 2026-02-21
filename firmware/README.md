@@ -123,7 +123,7 @@ ESP32 has dual OTA partitions built into the bootloader. Partition A runs while 
 **Update flow:**
 
 1. Controller sends `system.ota.request` to station via Redis Stream
-2. Station downloads `.bin` from controller over HTTP (`http://192.168.1.10:8080/firmware/arturo-relay-v1.1.0.bin`)
+2. Station downloads `.bin` from controller over HTTP (`http://192.168.1.10:8080/firmware/relay-v1.1.0.bin`)
 3. ESP32 writes to inactive partition using ESP-IDF OTA API
 4. ESP32 verifies SHA256 checksum
 5. ESP32 reboots to new partition
@@ -136,7 +136,7 @@ ESP32 has dual OTA partitions built into the bootloader. Partition A runs while 
 {
   "envelope": { "type": "system.ota.request" },
   "payload": {
-    "firmware_url": "http://192.168.1.10:8080/firmware/arturo-relay-v1.1.0.bin",
+    "firmware_url": "http://192.168.1.10:8080/firmware/relay-v1.1.0.bin",
     "version": "1.1.0",
     "sha256": "abc123...",
     "force": false
@@ -163,7 +163,7 @@ Every station prints structured debug logs to USB serial at 115200 baud.
 **Example output at INFO level:**
 
 ```
-[12:04:00.000] [WIFI] Connected to "arturo-lab" rssi=-42
+[12:04:00.000] [WIFI] Connected to "lab" rssi=-42
 [12:04:00.150] [REDIS] Connected to 192.168.1.10:6379
 [12:04:00.160] [REDIS] XREAD BLOCK commands:relay-board-01
 [12:04:01.123] [CMD] Received: device.command.request corr=a1b2c3

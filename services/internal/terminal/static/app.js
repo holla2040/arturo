@@ -31,7 +31,7 @@ var App = (function() {
     // Theme
     // =================================================================
     function initTheme() {
-        var saved = localStorage.getItem('arturo-theme') || 'dark';
+        var saved = localStorage.getItem('theme') || 'dark';
         if (saved === 'light') {
             document.documentElement.dataset.theme = 'light';
         }
@@ -41,7 +41,7 @@ var App = (function() {
         var current = document.documentElement.dataset.theme || 'dark';
         var next = current === 'dark' ? 'light' : 'dark';
         document.documentElement.dataset.theme = next;
-        localStorage.setItem('arturo-theme', next);
+        localStorage.setItem('theme', next);
         // Defer so computed styles settle before Plotly reads them
         requestAnimationFrame(function() {
             var el = document.getElementById('temp-chart');

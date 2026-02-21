@@ -34,7 +34,7 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("arturo-terminal listening on %s (controller: %s, mode: %s)", *listenAddr, *controllerURL, mode)
+		log.Printf("terminal listening on %s (controller: %s, mode: %s)", *listenAddr, *controllerURL, mode)
 		if err := server.ListenAndServe(); err != http.ErrServerClosed {
 			log.Fatalf("HTTP server error: %v", err)
 		}

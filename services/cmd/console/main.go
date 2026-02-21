@@ -132,7 +132,7 @@ func parseStations(s string) ([]int, error) {
 	return nums, nil
 }
 
-// ── Mock Station (moved from arturo-mock-station) ──
+// ── Mock Station ──
 
 type mockStation struct {
 	rdb      *redis.Client

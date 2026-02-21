@@ -9,7 +9,7 @@ void tearDown(void) {}
 
 void test_build_envelope_has_required_fields(void) {
     JsonDocument doc;
-    Source src = {"arturo-station", "station-01", "1.0.0"};
+    Source src = {"station", "station-01", "1.0.0"};
 
     bool result = buildEnvelope(doc, src, "service.heartbeat", "test-id-123", 1700000000);
     TEST_ASSERT_TRUE(result);
@@ -22,14 +22,14 @@ void test_build_envelope_has_required_fields(void) {
 
     JsonObject source = envelope["source"];
     TEST_ASSERT_FALSE(source.isNull());
-    TEST_ASSERT_EQUAL_STRING("arturo-station", source["service"].as<const char*>());
+    TEST_ASSERT_EQUAL_STRING("station", source["service"].as<const char*>());
     TEST_ASSERT_EQUAL_STRING("station-01", source["instance"].as<const char*>());
     TEST_ASSERT_EQUAL_STRING("1.0.0", source["version"].as<const char*>());
 }
 
 void test_build_envelope_schema_version(void) {
     JsonDocument doc;
-    Source src = {"arturo-station", "station-01", "1.0.0"};
+    Source src = {"station", "station-01", "1.0.0"};
 
     buildEnvelope(doc, src, "service.heartbeat", "test-id", 1700000000);
 
@@ -38,7 +38,7 @@ void test_build_envelope_schema_version(void) {
 
 void test_build_envelope_with_correlation(void) {
     JsonDocument doc;
-    Source src = {"arturo-station", "station-01", "1.0.0"};
+    Source src = {"station", "station-01", "1.0.0"};
 
     buildEnvelope(doc, src, "device.command.response", "test-id", 1700000000,
                   "corr-123", "reply-456");
@@ -50,7 +50,7 @@ void test_build_envelope_with_correlation(void) {
 
 void test_build_envelope_without_correlation(void) {
     JsonDocument doc;
-    Source src = {"arturo-station", "station-01", "1.0.0"};
+    Source src = {"station", "station-01", "1.0.0"};
 
     buildEnvelope(doc, src, "service.heartbeat", "test-id", 1700000000);
 
@@ -67,7 +67,7 @@ void test_parse_envelope_valid(void) {
     envelope["schema_version"] = "v1.0.0";
     envelope["type"] = "service.heartbeat";
     JsonObject source = envelope["source"].to<JsonObject>();
-    source["service"] = "arturo-station";
+    source["service"] = "station";
     source["instance"] = "station-02";
     source["version"] = "1.0.0";
 
@@ -86,7 +86,7 @@ void test_parse_envelope_valid(void) {
     TEST_ASSERT_TRUE(result);
     TEST_ASSERT_EQUAL_STRING("parse-test-id", id);
     TEST_ASSERT_EQUAL_INT64(1700000000, timestamp);
-    TEST_ASSERT_EQUAL_STRING("arturo-station", service);
+    TEST_ASSERT_EQUAL_STRING("station", service);
     TEST_ASSERT_EQUAL_STRING("station-02", instance);
     TEST_ASSERT_EQUAL_STRING("1.0.0", version);
     TEST_ASSERT_EQUAL_STRING("v1.0.0", schemaVersion);
@@ -101,7 +101,7 @@ void test_parse_envelope_missing_field(void) {
     envelope["schema_version"] = "v1.0.0";
     // "type" is intentionally missing
     JsonObject source = envelope["source"].to<JsonObject>();
-    source["service"] = "arturo-station";
+    source["service"] = "station";
     source["instance"] = "station-02";
     source["version"] = "1.0.0";
 
@@ -136,7 +136,7 @@ void test_validate_envelope_type_invalid(void) {
 void test_roundtrip_build_parse(void) {
     // Build
     JsonDocument buildDoc;
-    Source src = {"arturo-station", "station-01", "1.0.0"};
+    Source src = {"station", "station-01", "1.0.0"};
     buildEnvelope(buildDoc, src, "device.command.request", "roundtrip-id", 1700000099,
                   "corr-rt", "reply-rt");
 
@@ -165,7 +165,7 @@ void test_roundtrip_build_parse(void) {
     TEST_ASSERT_TRUE(result);
     TEST_ASSERT_EQUAL_STRING("roundtrip-id", id);
     TEST_ASSERT_EQUAL_INT64(1700000099, timestamp);
-    TEST_ASSERT_EQUAL_STRING("arturo-station", service);
+    TEST_ASSERT_EQUAL_STRING("station", service);
     TEST_ASSERT_EQUAL_STRING("station-01", instance);
     TEST_ASSERT_EQUAL_STRING("1.0.0", version);
     TEST_ASSERT_EQUAL_STRING("v1.0.0", schemaVersion);

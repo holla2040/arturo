@@ -24,7 +24,7 @@
 #endif
 
 // Station identity
-#define STATION_SERVICE    "arturo-station"
+#define STATION_SERVICE    "station"
 #define STATION_VERSION    "1.0.0"
 #define FIRMWARE_VERSION   "1.0.0"
 

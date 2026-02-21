@@ -61,12 +61,12 @@ arturo/
 ├── services/                            # Go services that run on the controller machine
 │   ├── README.md                       # Service architecture and build instructions
 │   ├── cmd/
-│   │   ├── arturo-controller/           # API, device registry, health, data storage
-│   │   ├── arturo-console/             # Mock stations + web console (development)
-│   │   └── arturo-terminal/            # Operator web UI (reverse proxy to controller)
+│   │   ├── controller/                 # API, device registry, health, data storage
+│   │   ├── console/                   # Mock stations + web console (development)
+│   │   └── terminal/                  # Operator web UI (reverse proxy to controller)
 ├── tools/                              # Tools (invoke and exit)
-│   ├── arturo-engine/                  # Script parser + executor
-│   └── arturo-monitor/                 # Redis traffic monitor (debugging)
+│   ├── engine/                        # Script parser + executor
+│   └── monitor/                       # Redis traffic monitor (debugging)
 ├── firmware/                           # Station firmware (ESP32 Arduino)
 │   ├── README.md                       # Firmware architecture decisions
 │   ├── src/

@@ -265,7 +265,7 @@ The ESP32-S3 is recommended for all variants: dual-core 240MHz, 512KB SRAM, WiFi
 ### 4.2 Firmware Module Structure
 
 ```
-arturo-esp32/
+esp32/
 ├── platformio.ini
 ├── src/
 │   ├── main.cpp
@@ -371,7 +371,7 @@ XACK the command (mark as processed)
 
 ```
 ┌──────────────────────────────────────────┐
-│ arturo-controller                            │
+│ controller                                   │
 │                                          │
 │  Device Registry     REST API            │
 │  Health Monitor      WebSocket           │
@@ -381,7 +381,7 @@ XACK the command (mark as processed)
 └──────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────┐
-│ arturo-engine                            │
+│ engine                                   │
 │                                          │
 │  Script Parser (.art DSL)                │
 │  Script Executor (sends commands via     │
@@ -396,8 +396,8 @@ XACK the command (mark as processed)
 ```
 
 Optional standalone tools (keep small, run when needed):
-- `arturo-repl` - Redis message monitor (from original component 01 concept)
-- `arturo-console` - Interactive device command CLI (from component 40 concept)
+- `repl` - Redis message monitor (from original component 01 concept)
+- `console` - Interactive device command CLI (from component 40 concept)
 
 ### 5.2 Device Registry (core new concept)
 
@@ -447,12 +447,12 @@ This is the single biggest change in the controller code. Everything else (parse
 
 Debugging is not a phase. It's infrastructure that exists before the first command is sent.
 
-### 6.1 `arturo-monitor` - The Eyes on the System
+### 6.1 `monitor` - The Eyes on the System
 
 A standalone Go tool that shows everything flowing through Redis in real-time. Build this in Phase 1 alongside the first heartbeat.
 
 ```
-$ arturo-monitor
+$ monitor
 
 ┌─ STREAMS ──────────────────────────────────────────────────────────────────┐
 │ 12:04:01.123 commands:relay-board-01     → device.command.request         │
@@ -483,19 +483,19 @@ $ arturo-monitor
 - Color-coded: green=success, red=error/offline, yellow=warning/slow, cyan=heartbeat
 - Correlates requests with responses (matches `correlation_id`, shows round-trip time)
 - Flags anomalies: missing responses (timeout), unexpected message types, malformed JSON
-- Filterable: `arturo-monitor --station relay-board-01` or `arturo-monitor --type heartbeat`
+- Filterable: `monitor --station relay-board-01` or `monitor --type heartbeat`
 
 **Modes:**
 ```bash
-arturo-monitor                             # Everything, default view
-arturo-monitor --streams                   # Command/response streams only
-arturo-monitor --pubsub                    # Pub/Sub only
-arturo-monitor --presence                  # Presence keys only
-arturo-monitor --station dmm-station-01    # Filter to one station
-arturo-monitor --type device.command.*     # Filter by message type
-arturo-monitor --corr a1b2c3              # Track one correlation chain
-arturo-monitor --json                      # Raw JSON output (pipe to jq)
-arturo-monitor --log /tmp/debug.jsonl      # Log all messages to file (JSONL)
+monitor                             # Everything, default view
+monitor --streams                   # Command/response streams only
+monitor --pubsub                    # Pub/Sub only
+monitor --presence                  # Presence keys only
+monitor --station dmm-station-01    # Filter to one station
+monitor --type device.command.*     # Filter by message type
+monitor --corr a1b2c3              # Track one correlation chain
+monitor --json                      # Raw JSON output (pipe to jq)
+monitor --log /tmp/debug.jsonl      # Log all messages to file (JSONL)
 ```
 
 **This is ~300-400 lines of Go.** It's the single most valuable debugging tool in the system.
@@ -505,7 +505,7 @@ arturo-monitor --log /tmp/debug.jsonl      # Log all messages to file (JSONL)
 Every ESP32 prints structured debug logs to its USB serial port (115200 baud). Connect a USB cable, open a terminal, see everything:
 
 ```
-[12:04:00.000] [WIFI] Connected to SSID "arturo-lab" rssi=-42
+[12:04:00.000] [WIFI] Connected to SSID "lab" rssi=-42
 [12:04:00.150] [REDIS] Connected to 192.168.1.10:6379 as relay-board-01
 [12:04:00.155] [REDIS] SET device:relay-board-01:alive EX 90
 [12:04:00.160] [REDIS] XREAD BLOCK 1000 STREAMS commands:relay-board-01 $
@@ -616,7 +616,7 @@ redis-cli PUBLISH events:emergency_stop \
 
 ### 6.4 Message Logging to Disk
 
-`arturo-monitor --log /var/log/arturo/messages.jsonl` writes every message as one JSON object per line:
+`monitor --log /var/log/arturo/messages.jsonl` writes every message as one JSON object per line:
 
 ```json
 {"ts":"2026-02-17T12:04:01.123Z","channel":"commands:relay-board-01","redis_type":"stream","stream_id":"1708171441123-0","message":{...}}
@@ -667,7 +667,7 @@ Each ESP32 heartbeat includes diagnostic fields the controller and monitor displ
 }
 ```
 
-`arturo-monitor` flags warning thresholds:
+`monitor` flags warning thresholds:
 - `free_heap < 50KB` -> yellow warning
 - `free_heap < 20KB` -> red alert
 - `wifi_rssi < -70dBm` -> yellow
@@ -699,7 +699,7 @@ Each ESP32 heartbeat includes diagnostic fields the controller and monitor displ
 4. Check Redis ACL - can this user PUBLISH to `events:heartbeat`?
 
 **Command sent but no response:**
-1. `arturo-monitor --corr <id>` - did the command reach the stream?
+1. `monitor --corr <id>` - did the command reach the stream?
 2. `redis-cli XLEN commands:<station>` - is the stream growing?
 3. `redis-cli XPENDING commands:<station> esp32-group` - is the message pending (read but not ACKed)?
 4. Check ESP32 serial output - did it receive and parse the command?
@@ -714,7 +714,7 @@ Each ESP32 heartbeat includes diagnostic fields the controller and monitor displ
 5. Check Redis `XPENDING` - commands piling up unacknowledged?
 
 **Messages arriving but malformed:**
-1. `arturo-monitor --json | jq .` - parse the raw JSON
+1. `monitor --json | jq .` - parse the raw JSON
 2. Validate against schema: `check-jsonschema --schemafile schemas/device.command.request.v1.json message.json`
 3. Check ESP32 `DEBUG_LEVEL_TRACE` for raw bytes - encoding issue?
 
@@ -746,7 +746,7 @@ ESP32:
 - Serial debug output at INFO level from day one
 
 Controller:
-- **Build `arturo-monitor` first** (before any other controller code)
+- **Build `monitor` first** (before any other controller code)
 - Verify ESP32 heartbeats appear in monitor with color coding
 - Verify presence key TTL works, OFFLINE detection triggers
 
@@ -769,10 +769,10 @@ Controller:
 - Command sender (XADD to device's command stream)
 - Response reader (XREAD on own response stream, match correlation_id)
 - Simple CLI or HTTP endpoint to trigger a command
-- `arturo-monitor` now shows: command sent -> response received, with correlation tracking and round-trip time
+- `monitor` now shows: command sent -> response received, with correlation tracking and round-trip time
 - Enable `--log` to JSONL file for post-mortem analysis
 
-**Validate with a real DMM:** send `*IDN?`, get back the instrument identification string. Watch the entire flow in `arturo-monitor --corr <id>` while simultaneously watching raw SCPI bytes on the ESP32 serial console.
+**Validate with a real DMM:** send `*IDN?`, get back the instrument identification string. Watch the entire flow in `monitor --corr <id>` while simultaneously watching raw SCPI bytes on the ESP32 serial console.
 
 ### Phase 3: Relay and Serial Variants (Weeks 5-7)
 
@@ -804,8 +804,8 @@ Controller:
 - Run a real multi-step test script end-to-end
 
 LLM-readiness (build into the engine, not bolted on after):
-- `arturo-engine validate <script.art>` — parse-only mode, no hardware contact. Returns JSON: `{"valid": true}` or `{"valid": false, "errors": [{"line": 12, "col": 5, "message": "unknown command QUERR, did you mean QUERY?"}]}`
-- `arturo-engine devices` — dump available device profiles as JSON (device ID, protocol, supported commands with parameter schemas). This is the vocabulary an LLM needs before writing a script
+- `engine validate <script.art>` — parse-only mode, no hardware contact. Returns JSON: `{"valid": true}` or `{"valid": false, "errors": [{"line": 12, "col": 5, "message": "unknown command QUERR, did you mean QUERY?"}]}`
+- `engine devices` — dump available device profiles as JSON (device ID, protocol, supported commands with parameter schemas). This is the vocabulary an LLM needs before writing a script
 - All runtime errors (device timeout, assertion failure, connection refused) surface as structured JSON in the test report, not just log lines
 - Script directory convention: `scripts/` at project root, one `.art` file per test, with a `scripts/lib/` for shared `.artlib` libraries
 
@@ -840,10 +840,10 @@ Lessons from the original 39-component system:
 | Don't Build | Why |
 |-------------|-----|
 | Process supervisor (systemg) | Use systemd for 2 Go processes |
-| Separate WebSocket service | Build into arturo-controller |
-| Separate REST API service | Build into arturo-controller |
-| Separate health check service | Build into arturo-controller |
-| Separate config management service | Build into arturo-controller |
+| Separate WebSocket service | Build into controller |
+| Separate REST API service | Build into controller |
+| Separate health check service | Build into controller |
+| Separate config management service | Build into controller |
 | Separate auth service | Simple middleware, not a service |
 | Separate metrics service | Prometheus endpoint, not a service |
 | Separate file operations service | Standard library calls |
@@ -855,7 +855,7 @@ Lessons from the original 39-component system:
 | Communication hub | Redis IS the communication hub |
 | 14 other services | Just don't |
 
-**Rule: If it can be a function call inside arturo-controller, it's not a service.**
+**Rule: If it can be a function call inside the controller, it's not a service.**
 
 ---
 
@@ -890,7 +890,7 @@ Day 4-5:
 - Implement minimal Redis client on ESP32 (PUBLISH + SET + SUBSCRIBE)
 - Implement serial debug output on ESP32 (structured, leveled, timestamped)
 - Publish first heartbeat message
-- Build `arturo-monitor` v0.1 (subscribe to `events:*`, print with timestamps + color)
+- Build `monitor` v0.1 (subscribe to `events:*`, print with timestamps + color)
 - Verify heartbeat appears in monitor AND in ESP32 serial output
 - Verify the JSON matches your schema
 - Test: unplug ESP32, watch monitor show OFFLINE after TTL expires. Replug, watch it come back.

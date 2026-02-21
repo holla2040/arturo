@@ -1,10 +1,10 @@
-// Command arturo-engine is the CLI entry-point for the Arturo script engine.
+// Command engine is the CLI entry-point for the Arturo script engine.
 //
 // Usage:
 //
-//	arturo-engine validate <file.art>       Validate a script (JSON to stdout)
-//	arturo-engine devices  --profiles <dir> List device profiles as JSON
-//	arturo-engine run      <file.art>       Execute a script (requires Redis)
+//	engine validate <file.art>       Validate a script (JSON to stdout)
+//	engine devices  --profiles <dir> List device profiles as JSON
+//	engine run      <file.art>       Execute a script (requires Redis)
 package main
 
 import (
@@ -47,9 +47,9 @@ func main() {
 
 func usage() {
 	fmt.Fprintln(os.Stderr, "Usage:")
-	fmt.Fprintln(os.Stderr, "  arturo-engine validate <file.art>                           Validate a script")
-	fmt.Fprintln(os.Stderr, "  arturo-engine devices --profiles <dir>                      List device profiles")
-	fmt.Fprintln(os.Stderr, "  arturo-engine run [--redis addr] [--station id] <file.art>  Execute a script")
+	fmt.Fprintln(os.Stderr, "  engine validate <file.art>                           Validate a script")
+	fmt.Fprintln(os.Stderr, "  engine devices --profiles <dir>                      List device profiles")
+	fmt.Fprintln(os.Stderr, "  engine run [--redis addr] [--station id] <file.art>  Execute a script")
 }
 
 // ---------------------------------------------------------------------------
@@ -176,7 +176,7 @@ func cmdRun(args []string) {
 	defer rdb.Close()
 
 	engineSource := protocol.Source{
-		Service:  "arturo-engine",
+		Service:  "engine",
 		Instance: "engine-01",
 		Version:  "1.0.0",
 	}

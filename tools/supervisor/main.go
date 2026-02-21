@@ -1,9 +1,9 @@
-// Command arturo-supervisor keeps the three Arturo services running and
+// Command supervisor keeps the three Arturo services running and
 // restarts them automatically whenever their executables change on disk.
 //
 // Usage:
 //
-//	arturo-supervisor [-dir ../services]
+//	supervisor [-dir ../services]
 //
 // The supervisor watches the controller, console, and terminal binaries in
 // the given directory using inotify.  When a binary is written (e.g. after

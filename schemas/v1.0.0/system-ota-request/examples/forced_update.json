@@ -13,7 +13,7 @@
     "reply_to": "responses:controller:ctrl-01"
   },
   "payload": {
-    "firmware_url": "http://192.168.1.10:8080/firmware/arturo-relay-controller-v1.0.0.bin",
+    "firmware_url": "http://192.168.1.10:8080/firmware/relay-controller-v1.0.0.bin",
     "version": "1.0.0",
     "sha256": "f0e1d2c3b4a5f6e7d8c9b0a1f2e3d4c5b6a7f8e9d0c1b2a3f4e5d6c7b8a9f0e1",
     "force": true

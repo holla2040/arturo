@@ -115,7 +115,7 @@ func main() {
 	mux.HandleFunc("GET /ws", wsHub.HandleWebSocket)
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"service":"arturo-controller","version":"` + serverVersion + `"}`))
+		w.Write([]byte(`{"service":"controller","version":"` + serverVersion + `"}`))
 	})
 
 	server := &http.Server{

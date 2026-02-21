@@ -34,11 +34,11 @@ Arturo is an industrial test automation system with ESP32 stations and a central
 
 ### Controller (Go)
 ```bash
-cd services && go build -o controller ./cmd/arturo-controller
-cd tools/arturo-engine && go build -o engine
-cd tools/arturo-monitor && go build -o monitor
-cd services && go build -o console ./cmd/arturo-console
-cd services && go build -o terminal ./cmd/arturo-terminal
+cd services && go build -o controller ./cmd/controller
+cd tools/engine && go build -o engine
+cd tools/monitor && go build -o monitor
+cd services && go build -o console ./cmd/console
+cd services && go build -o terminal ./cmd/terminal
 ```
 
 ### Station Firmware (ESP32)

@@ -75,7 +75,7 @@ type Handler struct {
 	RedisHealth RedisHealthChecker       // nil means no health checking
 	TestMgr     *testmanager.TestManager // nil means no test management
 	ReportDir   string                   // local report storage (e.g., /var/lib/arturo/reports)
-	SMBMountDir string                   // CIFS mount point (e.g., /mnt/arturo-reports)
+	SMBMountDir string                   // CIFS mount point (e.g., /mnt/reports)
 }
 
 // RegisterRoutes adds all API routes to the given ServeMux.

@@ -160,11 +160,11 @@ The station responds using a standard `device.command.response` message with `co
 The controller hosts firmware binaries over HTTP:
 
 ```
-http://192.168.1.10:8080/firmware/arturo-tcp-bridge-v1.1.0.bin
-http://192.168.1.10:8080/firmware/arturo-relay-controller-v1.1.0.bin
+http://192.168.1.10:8080/firmware/tcp-bridge-v1.1.0.bin
+http://192.168.1.10:8080/firmware/relay-controller-v1.1.0.bin
 ```
 
-File naming convention: `arturo-{variant}-v{version}.bin`
+File naming convention: `{variant}-v{version}.bin`
 
 | Variant | Description |
 |---------|-------------|

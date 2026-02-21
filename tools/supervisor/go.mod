@@ -1,4 +1,4 @@
-module github.com/holla2040/arturo/tools/arturo-supervisor
+module github.com/holla2040/arturo/tools/supervisor
 
 go 1.24.0
 

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Arturo - Cryo Test System</title>
 <link rel="stylesheet" href="/static/style.css">
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 </head>
 <body>
 
@@ -102,20 +103,17 @@
             <div class="panel span-full">
                 <div class="panel-header">
                     <div class="panel-title">Temperature</div>
-                    <div class="chart-legend">
-                        <div class="chart-legend-item">
-                            <div class="chart-legend-dot" style="background:#4a9eff"></div>
-                            <span>1st Stage</span>
-                        </div>
-                        <div class="chart-legend-item">
-                            <div class="chart-legend-dot" style="background:#22c55e"></div>
-                            <span>2nd Stage</span>
-                        </div>
+                    <div class="btn-group" id="temp-time-presets">
+                        <button class="btn btn-sm" onclick="App.setTempWindow(1)">1h</button>
+                        <button class="btn btn-sm" onclick="App.setTempWindow(2)">2h</button>
+                        <button class="btn btn-sm" onclick="App.setTempWindow(4)">4h</button>
+                        <button class="btn btn-sm" onclick="App.setTempWindow(8)">8h</button>
+                        <button class="btn btn-sm" onclick="App.setTempWindow(null)">Full</button>
                     </div>
                 </div>
                 <div class="panel-body">
                     <div class="chart-container">
-                        <canvas id="temp-chart"></canvas>
+                        <div id="temp-chart"></div>
                     </div>
                     <div style="display:flex;gap:24px;margin-top:12px">
                         <div class="temp-display">

@@ -20,7 +20,8 @@ var App = (function() {
         detailRMA: null,      // currently viewing RMA ID
         startTestStation: null,
         startTestRMAId: null,
-        tempChartData: { timestamps: [], first: [], second: [] }
+        tempChartData: { timestamps: [], first: [], second: [] },
+        tempWindowHours: null  // null = autorange, number = hours preset
     };
 
     var MAX_CHART_POINTS = 8640; // 12 hours at 5s intervals (used by handleTemperature trimming)
@@ -311,6 +312,7 @@ var App = (function() {
     function openStation(instance) {
         state.detailStation = instance;
         state.tempChartData = { timestamps: [], first: [], second: [] };
+        state.tempWindowHours = null;
         showView('station-detail');
     }
 
@@ -564,7 +566,11 @@ var App = (function() {
                 linecolor: '#2a3a5c',
                 tickformat: '%I:%M %p',
                 hoverformat: '%I:%M:%S %p',
-                tickfont: { size: 24 }
+                tickfont: { size: 24 },
+                autorange: state.tempWindowHours == null,
+                range: state.tempWindowHours != null
+                    ? [new Date(Date.now() - state.tempWindowHours * 3600000), new Date()]
+                    : undefined
             },
             yaxis: {
                 range: [0, 320],
@@ -597,6 +603,19 @@ var App = (function() {
         };
 
         Plotly.react(el, traces, layout, config);
+
+        // Clear preset when user clicks autoscale or double-clicks to reset
+        el.removeAllListeners('plotly_relayout');
+        el.on('plotly_relayout', function(ev) {
+            if (ev['xaxis.autorange']) {
+                state.tempWindowHours = null;
+            }
+        });
+    }
+
+    function setTempWindow(hours) {
+        state.tempWindowHours = hours;
+        renderTempChart();
     }
 
     // =================================================================
@@ -1217,6 +1236,7 @@ var App = (function() {
         closeRMA: closeRMA,
         closeModal: closeModal,
         downloadArtifact: downloadArtifact,
-        downloadPDF: downloadPDF
+        downloadPDF: downloadPDF,
+        setTempWindow: setTempWindow
     };
 })();

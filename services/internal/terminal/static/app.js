@@ -27,6 +27,40 @@ var App = (function() {
     var MAX_CHART_POINTS = 8640; // 12 hours at 5s intervals (used by handleTemperature trimming)
 
     // =================================================================
+    // Theme
+    // =================================================================
+    function initTheme() {
+        var saved = localStorage.getItem('arturo-theme') || 'dark';
+        if (saved === 'light') {
+            document.documentElement.dataset.theme = 'light';
+        }
+    }
+
+    function toggleTheme() {
+        var current = document.documentElement.dataset.theme || 'dark';
+        var next = current === 'dark' ? 'light' : 'dark';
+        document.documentElement.dataset.theme = next;
+        localStorage.setItem('arturo-theme', next);
+        // Defer so computed styles settle before Plotly reads them
+        requestAnimationFrame(function() {
+            var el = document.getElementById('temp-chart');
+            if (el && el.data) {
+                Plotly.relayout(el, {
+                    paper_bgcolor: chartColors().paper,
+                    plot_bgcolor: chartColors().paper,
+                    'font.color': chartColors().text,
+                    'xaxis.gridcolor': chartColors().grid,
+                    'xaxis.linecolor': chartColors().line,
+                    'yaxis.gridcolor': chartColors().grid,
+                    'yaxis.linecolor': chartColors().line,
+                    'legend.font.color': chartColors().legend,
+                    'shapes[0].line.color': chartColors().line
+                });
+            }
+        });
+    }
+
+    // =================================================================
     // Utilities
     // =================================================================
     function escapeHtml(s) {
@@ -517,11 +551,23 @@ var App = (function() {
     // =================================================================
     // Temperature Chart (Plotly)
     // =================================================================
+    function chartColors() {
+        var s = getComputedStyle(document.documentElement);
+        return {
+            paper: s.getPropertyValue('--bg-input').trim(),
+            grid: s.getPropertyValue('--bg-card').trim(),
+            line: s.getPropertyValue('--border-color').trim(),
+            text: s.getPropertyValue('--text-muted').trim(),
+            legend: s.getPropertyValue('--text-secondary').trim()
+        };
+    }
+
     function renderTempChart() {
         var el = document.getElementById('temp-chart');
         if (!el) return;
 
         var cd = state.tempChartData;
+        var cc = chartColors();
 
         // Build separate arrays for first/second stage
         var firstX = [], firstY = [], secondX = [], secondY = [];
@@ -556,14 +602,14 @@ var App = (function() {
         ];
 
         var layout = {
-            paper_bgcolor: '#0f1629',
-            plot_bgcolor: '#0f1629',
-            font: { color: '#5a6578', family: 'monospace' },
+            paper_bgcolor: cc.paper,
+            plot_bgcolor: cc.paper,
+            font: { color: cc.text, family: 'monospace' },
             margin: { t: 20, r: 20, b: 40, l: 55 },
             xaxis: {
                 type: 'date',
-                gridcolor: '#1e2a47',
-                linecolor: '#2a3a5c',
+                gridcolor: cc.grid,
+                linecolor: cc.line,
                 tickformat: '%I:%M %p',
                 hoverformat: '%I:%M:%S %p',
                 tickfont: { size: 24 },
@@ -577,22 +623,22 @@ var App = (function() {
                 dtick: 40,
                 title: { text: 'K', standoff: 5, font: { size: 24 } },
                 tickfont: { size: 24 },
-                gridcolor: '#1e2a47',
-                linecolor: '#2a3a5c',
+                gridcolor: cc.grid,
+                linecolor: cc.line,
                 showline: true
             },
             legend: {
                 orientation: 'h',
                 x: 0.5, xanchor: 'center',
                 y: 1.02, yanchor: 'bottom',
-                font: { color: '#8a95a8', size: 24 }
+                font: { color: cc.legend, size: 24 }
             },
             hovermode: 'x unified',
             shapes: [{
                 type: 'line',
                 x0: 0, x1: 1, xref: 'paper',
                 y0: 320, y1: 320, yref: 'y',
-                line: { color: '#2a3a5c', width: 1 }
+                line: { color: cc.line, width: 1 }
             }]
         };
 
@@ -1192,6 +1238,9 @@ var App = (function() {
         }
     }, 1000);
 
+    // Initialize theme from localStorage
+    initTheme();
+
     // Auto-login with pre-filled credentials
     login();
 
@@ -1237,6 +1286,7 @@ var App = (function() {
         closeModal: closeModal,
         downloadArtifact: downloadArtifact,
         downloadPDF: downloadPDF,
-        setTempWindow: setTempWindow
+        setTempWindow: setTempWindow,
+        toggleTheme: toggleTheme
     };
 })();

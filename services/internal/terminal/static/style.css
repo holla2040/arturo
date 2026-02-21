@@ -47,6 +47,47 @@
     --radius-lg: 12px;
 }
 
+[data-theme="light"] {
+    --bg-primary: #f0f2f5;
+    --bg-secondary: #ffffff;
+    --bg-card: #ffffff;
+    --bg-card-hover: #f5f7fa;
+    --bg-input: #f5f7fa;
+    --border-color: #d1d5db;
+    --border-light: #e5e7eb;
+    --text-primary: #1a1a2e;
+    --text-secondary: #4b5563;
+    --text-muted: #9ca3af;
+    --accent-blue: #2563eb;
+    --accent-blue-dim: #1d4ed8;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+/* Theme toggle */
+.theme-toggle {
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    padding: 4px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    transition: color 0.2s, border-color 0.2s;
+}
+.theme-toggle:hover {
+    color: var(--text-primary);
+    border-color: var(--border-light);
+}
+.theme-toggle svg { width: 16px; height: 16px; }
+.theme-icon-sun { display: none; }
+.theme-icon-moon { display: block; }
+[data-theme="light"] .theme-icon-sun { display: block; }
+[data-theme="light"] .theme-icon-moon { display: none; }
+
 html { font-size: 14px; }
 
 body {
@@ -581,25 +622,9 @@ button.pump-indicator:hover {
     border: 1px solid var(--border-color);
     overflow: hidden;
 }
-.chart-container canvas {
+.chart-container #temp-chart {
     width: 100%;
     height: 100%;
-}
-.chart-legend {
-    display: flex;
-    gap: 20px;
-    margin-top: 8px;
-    font-size: 0.8rem;
-}
-.chart-legend-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-.chart-legend-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
 }
 
 /* Control buttons */

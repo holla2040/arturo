@@ -21,7 +21,8 @@ var App = (function() {
         startTestStation: null,
         startTestRMAId: null,
         tempChartData: { timestamps: [], first: [], second: [] },
-        tempWindowHours: null  // null = autorange, number = hours preset
+        tempWindowHours: null,  // null = autorange, number = hours preset
+        userZoom: null          // {x0, x1, y0, y1} when user drags a zoom region
     };
 
     var MAX_CHART_POINTS = 8640; // 12 hours at 5s intervals (used by handleTemperature trimming)
@@ -54,7 +55,8 @@ var App = (function() {
                     'yaxis.gridcolor': chartColors().grid,
                     'yaxis.linecolor': chartColors().line,
                     'legend.font.color': chartColors().legend,
-                    'shapes[0].line.color': chartColors().line
+                    'shapes[0].line.color': chartColors().line,
+                    'shapes[1].line.color': '#22c55e'
                 });
             }
         });
@@ -347,6 +349,7 @@ var App = (function() {
         state.detailStation = instance;
         state.tempChartData = { timestamps: [], first: [], second: [] };
         state.tempWindowHours = null;
+        state.userZoom = null;
         showView('station-detail');
     }
 
@@ -613,15 +616,19 @@ var App = (function() {
                 tickformat: '%I:%M %p',
                 hoverformat: '%I:%M:%S %p',
                 tickfont: { size: 24 },
-                autorange: state.tempWindowHours == null,
-                range: state.tempWindowHours != null
-                    ? [new Date(Date.now() - state.tempWindowHours * 3600000), new Date()]
-                    : undefined
+                autorange: !state.userZoom && state.tempWindowHours == null,
+                range: state.userZoom
+                    ? [state.userZoom.x0, state.userZoom.x1]
+                    : state.tempWindowHours != null
+                        ? [new Date(Date.now() - state.tempWindowHours * 3600000), new Date()]
+                        : undefined
             },
             yaxis: {
-                range: [0, 320],
-                dtick: 40,
-                title: { text: 'K', standoff: 5, font: { size: 24 } },
+                range: state.userZoom ? [state.userZoom.y0, state.userZoom.y1] : [0, 320],
+                autorange: false,
+                tickmode: 'array',
+                tickvals: [0, 20, 40, 80, 120, 160, 200, 240, 280, 320],
+                title: '',
                 tickfont: { size: 24 },
                 gridcolor: cc.grid,
                 linecolor: cc.line,
@@ -634,12 +641,20 @@ var App = (function() {
                 font: { color: cc.legend, size: 24 }
             },
             hovermode: 'x unified',
-            shapes: [{
-                type: 'line',
-                x0: 0, x1: 1, xref: 'paper',
-                y0: 320, y1: 320, yref: 'y',
-                line: { color: cc.line, width: 1 }
-            }]
+            shapes: [
+                {
+                    type: 'line',
+                    x0: 0, x1: 1, xref: 'paper',
+                    y0: 320, y1: 320, yref: 'y',
+                    line: { color: cc.line, width: 1 }
+                },
+                {
+                    type: 'line',
+                    x0: 0, x1: 1, xref: 'paper',
+                    y0: 20, y1: 20, yref: 'y',
+                    line: { color: '#22c55e', width: 1, dash: 'dash' }
+                }
+            ]
         };
 
         var config = {
@@ -650,10 +665,20 @@ var App = (function() {
 
         Plotly.react(el, traces, layout, config);
 
-        // Clear preset when user clicks autoscale or double-clicks to reset
+        // Track user zoom / reset
         el.removeAllListeners('plotly_relayout');
         el.on('plotly_relayout', function(ev) {
-            if (ev['xaxis.autorange']) {
+            if (ev['xaxis.autorange'] || ev['yaxis.autorange']) {
+                state.userZoom = null;
+                state.tempWindowHours = null;
+            } else if (ev['xaxis.range[0]'] && ev['xaxis.range[1]'] &&
+                       ev['yaxis.range[0]'] != null && ev['yaxis.range[1]'] != null) {
+                state.userZoom = {
+                    x0: ev['xaxis.range[0]'],
+                    x1: ev['xaxis.range[1]'],
+                    y0: ev['yaxis.range[0]'],
+                    y1: ev['yaxis.range[1]']
+                };
                 state.tempWindowHours = null;
             }
         });
@@ -661,6 +686,7 @@ var App = (function() {
 
     function setTempWindow(hours) {
         state.tempWindowHours = hours;
+        state.userZoom = null;
         renderTempChart();
     }
 

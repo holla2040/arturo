@@ -23,7 +23,7 @@ var App = (function() {
         tempChartData: { timestamps: [], first: [], second: [] }
     };
 
-    var MAX_CHART_POINTS = 8640; // 12 hours at 5s intervals
+    var MAX_CHART_POINTS = 8640; // 12 hours at 5s intervals (used by handleTemperature trimming)
 
     // =================================================================
     // Utilities
@@ -513,124 +513,90 @@ var App = (function() {
     }
 
     // =================================================================
-    // Temperature Chart (Canvas)
+    // Temperature Chart (Plotly)
     // =================================================================
     function renderTempChart() {
-        var canvas = document.getElementById('temp-chart');
-        if (!canvas) return;
-        var ctx = canvas.getContext('2d');
-        var rect = canvas.parentElement.getBoundingClientRect();
-
-        canvas.width = rect.width * (window.devicePixelRatio || 1);
-        canvas.height = rect.height * (window.devicePixelRatio || 1);
-        canvas.style.width = rect.width + 'px';
-        canvas.style.height = rect.height + 'px';
-        ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
-
-        var w = rect.width;
-        var h = rect.height;
-        var pad = { top: 20, right: 20, bottom: 30, left: 55 };
-        var plotW = w - pad.left - pad.right;
-        var plotH = h - pad.top - pad.bottom;
-
-        // Clear
-        ctx.fillStyle = '#0f1629';
-        ctx.fillRect(0, 0, w, h);
+        var el = document.getElementById('temp-chart');
+        if (!el) return;
 
         var cd = state.tempChartData;
-        // Build separate arrays for first/second stage
-        var first = [];
-        var second = [];
-        var times = [];
 
-        // Merge interleaved data into aligned arrays
+        // Build separate arrays for first/second stage
+        var firstX = [], firstY = [], secondX = [], secondY = [];
         for (var i = 0; i < cd.timestamps.length; i++) {
             if (cd.first[i] != null) {
-                first.push({ t: cd.timestamps[i], v: cd.first[i] });
+                firstX.push(new Date(cd.timestamps[i]));
+                firstY.push(cd.first[i]);
             }
             if (cd.second[i] != null) {
-                second.push({ t: cd.timestamps[i], v: cd.second[i] });
+                secondX.push(new Date(cd.timestamps[i]));
+                secondY.push(cd.second[i]);
             }
         }
 
-        if (first.length === 0 && second.length === 0) {
-            ctx.fillStyle = '#5a6578';
-            ctx.font = '14px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('No temperature data', w / 2, h / 2);
-            return;
-        }
-
-        // Find data range
-        var allTimes = first.map(function(p){return p.t}).concat(second.map(function(p){return p.t}));
-        var tMin = Math.min.apply(null, allTimes);
-        var tMax = Math.max.apply(null, allTimes);
-        if (tMax === tMin) tMax = tMin + 60000;
-
-        var vMin = 0;
-        var vMax = 320;
-        var vRange = vMax - vMin;
-
-        function xPos(t) { return pad.left + (t - tMin) / (tMax - tMin) * plotW; }
-        function yPos(v) { return pad.top + (1 - (v - vMin) / vRange) * plotH; }
-
-        // Grid lines
-        ctx.strokeStyle = '#1e2a47';
-        ctx.lineWidth = 1;
-        var nGridY = 5;
-        for (var g = 0; g <= nGridY; g++) {
-            var gy = pad.top + g * plotH / nGridY;
-            ctx.beginPath();
-            ctx.moveTo(pad.left, gy);
-            ctx.lineTo(w - pad.right, gy);
-            ctx.stroke();
-
-            var gv = vMax - g * vRange / nGridY;
-            ctx.fillStyle = '#5a6578';
-            ctx.font = '11px monospace';
-            ctx.textAlign = 'right';
-            ctx.fillText(gv.toFixed(0) + ' K', pad.left - 6, gy + 4);
-        }
-
-        // Time axis labels
-        ctx.textAlign = 'center';
-        ctx.fillStyle = '#5a6578';
-        var nGridX = Math.min(6, Math.max(2, Math.floor(plotW / 80)));
-        for (var gx = 0; gx <= nGridX; gx++) {
-            var gt = tMin + gx * (tMax - tMin) / nGridX;
-            var gxp = xPos(gt);
-            var d = new Date(gt);
-            ctx.fillText(d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), gxp, h - 6);
-        }
-
-        // Plot first stage (blue)
-        if (first.length > 1) {
-            ctx.strokeStyle = '#4a9eff';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(xPos(first[0].t), yPos(first[0].v));
-            for (var f = 1; f < first.length; f++) {
-                ctx.lineTo(xPos(first[f].t), yPos(first[f].v));
+        var traces = [
+            {
+                x: firstX, y: firstY,
+                name: '1st Stage',
+                type: 'scattergl',
+                mode: 'lines',
+                line: { color: '#4a9eff', width: 2 },
+                connectgaps: false
+            },
+            {
+                x: secondX, y: secondY,
+                name: '2nd Stage',
+                type: 'scattergl',
+                mode: 'lines',
+                line: { color: '#22c55e', width: 2 },
+                connectgaps: false
             }
-            ctx.stroke();
-        }
+        ];
 
-        // Plot second stage (green)
-        if (second.length > 1) {
-            ctx.strokeStyle = '#22c55e';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(xPos(second[0].t), yPos(second[0].v));
-            for (var s2 = 1; s2 < second.length; s2++) {
-                ctx.lineTo(xPos(second[s2].t), yPos(second[s2].v));
-            }
-            ctx.stroke();
-        }
+        var layout = {
+            paper_bgcolor: '#0f1629',
+            plot_bgcolor: '#0f1629',
+            font: { color: '#5a6578', family: 'monospace' },
+            margin: { t: 20, r: 20, b: 40, l: 55 },
+            xaxis: {
+                type: 'date',
+                gridcolor: '#1e2a47',
+                linecolor: '#2a3a5c',
+                tickformat: '%I:%M %p',
+                hoverformat: '%I:%M:%S %p',
+                tickfont: { size: 24 }
+            },
+            yaxis: {
+                range: [0, 320],
+                dtick: 40,
+                title: { text: 'K', standoff: 5, font: { size: 24 } },
+                tickfont: { size: 24 },
+                gridcolor: '#1e2a47',
+                linecolor: '#2a3a5c',
+                showline: true
+            },
+            legend: {
+                orientation: 'h',
+                x: 0.5, xanchor: 'center',
+                y: 1.02, yanchor: 'bottom',
+                font: { color: '#8a95a8', size: 24 }
+            },
+            hovermode: 'x unified',
+            shapes: [{
+                type: 'line',
+                x0: 0, x1: 1, xref: 'paper',
+                y0: 320, y1: 320, yref: 'y',
+                line: { color: '#2a3a5c', width: 1 }
+            }]
+        };
 
-        // Plot border
-        ctx.strokeStyle = '#2a3a5c';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(pad.left, pad.top, plotW, plotH);
+        var config = {
+            responsive: true,
+            displaylogo: false,
+            modeBarButtonsToRemove: ['lasso2d', 'select2d']
+        };
+
+        Plotly.react(el, traces, layout, config);
     }
 
     // =================================================================

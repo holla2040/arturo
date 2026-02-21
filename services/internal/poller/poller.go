@@ -100,13 +100,13 @@ func (p *StationPoller) pollDevice(ctx context.Context, stationInstance, deviceI
 			purgeValveOpen = *pv == "1"
 		}
 
-		// Poll regen status character when in regen
+		// Always poll regen status character — derive regen active from it
+		// (status byte 1 bit 2 is purge valve, not regen)
 		regenStatus := ""
-		if status1&4 != 0 {
-			if rs := p.queryCommand(ctx, deviceID, "get_regen_status", commandStream); rs != nil {
-				regenStatus = *rs
-			}
+		if rs := p.queryCommand(ctx, deviceID, "get_regen_status", commandStream); rs != nil {
+			regenStatus = *rs
 		}
+		regenActive := regenStatus != "" && regenStatus != "A" && regenStatus != "P" && regenStatus != "V"
 
 		p.hub.BroadcastEvent("pump_status", map[string]interface{}{
 			"station_instance": stationInstance,
@@ -115,8 +115,8 @@ func (p *StationPoller) pollDevice(ctx context.Context, stationInstance, deviceI
 			"status_2":         status2,
 			"status_3":         status3,
 			"pump_on":          status1&1 != 0,
-			"at_temp":          status1&2 != 0,
-			"regen":            status1&4 != 0,
+			"at_temp":          false, // TODO: derive from temperatures, not status byte
+			"regen":            regenActive,
 			"regen_status":     regenStatus,
 			"rough_valve_open": roughValveOpen,
 			"purge_valve_open": purgeValveOpen,

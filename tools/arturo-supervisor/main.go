@@ -28,9 +28,10 @@ import (
 
 // service describes one managed binary.
 type service struct {
-	name string   // human label
-	bin  string   // absolute path to executable
-	args []string // extra CLI flags
+	name    string   // human label
+	bin     string   // absolute path to executable
+	args    []string // extra CLI flags
+	workDir string   // working directory (empty = inherit)
 
 	mu   sync.Mutex
 	cmd  *exec.Cmd
@@ -56,7 +57,7 @@ func main() {
 	services := []*service{
 		{name: "controller", bin: filepath.Join(absDir, "controller")},
 		{name: "console", bin: filepath.Join(absDir, "console")},
-		{name: "terminal", bin: filepath.Join(absDir, "terminal"), args: []string{"-dev"}},
+		{name: "terminal", bin: filepath.Join(absDir, "terminal"), args: []string{"-dev"}, workDir: absDir},
 	}
 
 	// Verify all binaries exist before starting.
@@ -148,6 +149,9 @@ func startService(s *service) {
 	cmd := exec.Command(s.bin, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	if s.workDir != "" {
+		cmd.Dir = s.workDir
+	}
 	// Give each child its own process group so we can kill it cleanly.
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 

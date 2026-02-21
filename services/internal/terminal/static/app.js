@@ -911,63 +911,62 @@ var App = (function() {
                 document.getElementById('rma-detail-info').innerHTML = '<div class="empty-state">Failed to load RMA</div>';
                 return;
             }
-            renderRMADetail(data);
+            // API returns {"rma": {...}, "runs": [...]}
+            var rma = data && data.rma ? data.rma : data;
+            var runs = data && data.runs ? data.runs : [];
+            renderRMADetail(rma, runs);
         });
     }
 
-    function renderRMADetail(rma) {
+    function renderRMADetail(rma, runs) {
         if (!rma) return;
-        document.getElementById('rma-detail-number').textContent = rma.RMANumber || rma.rma_number || '--';
+        document.getElementById('rma-detail-number').textContent = rma.RMANumber || '--';
 
-        var status = rma.Status || rma.status || 'open';
+        var status = rma.Status || 'open';
         var statusBadge = document.getElementById('rma-detail-status');
         statusBadge.textContent = status;
         statusBadge.className = 'rma-status-badge ' + status;
 
         // Info blocks
         var infoHtml = '';
-        infoHtml += '<div class="info-block"><div class="info-block-label">Customer</div><div class="info-block-value">' + escapeHtml(rma.CustomerName || rma.customer_name || '--') + '</div></div>';
-        infoHtml += '<div class="info-block"><div class="info-block-label">Serial Number</div><div class="info-block-value">' + escapeHtml(rma.PumpSerialNumber || rma.pump_serial_number || '--') + '</div></div>';
-        infoHtml += '<div class="info-block"><div class="info-block-label">Pump Model</div><div class="info-block-value">' + escapeHtml(rma.PumpModel || rma.pump_model || '--') + '</div></div>';
+        infoHtml += '<div class="info-block"><div class="info-block-label">Customer</div><div class="info-block-value">' + escapeHtml(rma.CustomerName || '--') + '</div></div>';
+        infoHtml += '<div class="info-block"><div class="info-block-label">Serial Number</div><div class="info-block-value">' + escapeHtml(rma.PumpSerialNumber || '--') + '</div></div>';
+        infoHtml += '<div class="info-block"><div class="info-block-label">Pump Model</div><div class="info-block-value">' + escapeHtml(rma.PumpModel || '--') + '</div></div>';
         document.getElementById('rma-detail-info').innerHTML = infoHtml;
 
         // Actions
         var actionsHtml = '';
         if (status === 'open') {
-            actionsHtml += '<button class="btn btn-sm" onclick="App.downloadArtifact(\'' + escapeHtml(rma.ID || rma.id) + '\')">Download JSON</button>';
-            actionsHtml += '<button class="btn btn-sm" onclick="App.downloadPDF(\'' + escapeHtml(rma.ID || rma.id) + '\')">Download PDF</button>';
-            actionsHtml += '<button class="btn btn-sm btn-danger" onclick="App.closeRMA(\'' + escapeHtml(rma.ID || rma.id) + '\')">Close RMA</button>';
+            actionsHtml += '<button class="btn btn-sm" onclick="App.downloadArtifact(\'' + escapeHtml(rma.ID) + '\')">Download JSON</button>';
+            actionsHtml += '<button class="btn btn-sm" onclick="App.downloadPDF(\'' + escapeHtml(rma.ID) + '\')">Download PDF</button>';
+            actionsHtml += '<button class="btn btn-sm btn-danger" onclick="App.closeRMA(\'' + escapeHtml(rma.ID) + '\')">Close RMA</button>';
         } else {
-            actionsHtml += '<button class="btn btn-sm" onclick="App.downloadArtifact(\'' + escapeHtml(rma.ID || rma.id) + '\')">Download JSON</button>';
-            actionsHtml += '<button class="btn btn-sm" onclick="App.downloadPDF(\'' + escapeHtml(rma.ID || rma.id) + '\')">Download PDF</button>';
+            actionsHtml += '<button class="btn btn-sm" onclick="App.downloadArtifact(\'' + escapeHtml(rma.ID) + '\')">Download JSON</button>';
+            actionsHtml += '<button class="btn btn-sm" onclick="App.downloadPDF(\'' + escapeHtml(rma.ID) + '\')">Download PDF</button>';
         }
         document.getElementById('rma-detail-actions').innerHTML = actionsHtml;
 
-        // Test runs
-        var rmaId = rma.ID || rma.id;
-        api('GET', '/rmas/' + encodeURIComponent(rmaId), null, function(err, fullData) {
-            // Fetch test runs for this RMA
-            var runsEl = document.getElementById('rma-detail-runs');
-            if (fullData && fullData.TestRuns && fullData.TestRuns.length > 0) {
-                var html = '';
-                for (var i = 0; i < fullData.TestRuns.length; i++) {
-                    var run = fullData.TestRuns[i];
-                    var statusClass = run.Status || 'error';
-                    html += '<div class="test-run-item ' + escapeHtml(statusClass) + '">';
-                    html += '<div class="test-run-info">';
-                    html += '<div class="test-run-script">' + escapeHtml(run.ScriptName) + '</div>';
-                    html += '<div class="test-run-meta">';
-                    html += '<span>' + formatDateTime(run.StartedAt) + '</span>';
-                    if (run.Summary) html += '<span>' + escapeHtml(run.Summary) + '</span>';
-                    html += '</div></div>';
-                    html += '<span class="test-run-status ' + escapeHtml(statusClass) + '">' + (statusClass.charAt(0).toUpperCase() + statusClass.slice(1)) + '</span>';
-                    html += '</div>';
-                }
-                runsEl.innerHTML = html;
-            } else {
-                runsEl.innerHTML = '<div class="empty-state">No test runs for this RMA</div>';
+        // Test runs (already provided from the same API call)
+        var runsEl = document.getElementById('rma-detail-runs');
+        if (runs && runs.length > 0) {
+            var html = '';
+            for (var i = 0; i < runs.length; i++) {
+                var run = runs[i];
+                var statusClass = run.Status || 'error';
+                html += '<div class="test-run-item ' + escapeHtml(statusClass) + '">';
+                html += '<div class="test-run-info">';
+                html += '<div class="test-run-script">' + escapeHtml(run.ScriptName) + '</div>';
+                html += '<div class="test-run-meta">';
+                html += '<span>' + formatDateTime(run.StartedAt) + '</span>';
+                if (run.Summary) html += '<span>' + escapeHtml(run.Summary) + '</span>';
+                html += '</div></div>';
+                html += '<span class="test-run-status ' + escapeHtml(statusClass) + '">' + (statusClass.charAt(0).toUpperCase() + statusClass.slice(1)) + '</span>';
+                html += '</div>';
             }
-        });
+            runsEl.innerHTML = html;
+        } else {
+            runsEl.innerHTML = '<div class="empty-state">No test runs for this RMA</div>';
+        }
     }
 
     function createRMA() {

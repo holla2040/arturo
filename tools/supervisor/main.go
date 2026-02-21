@@ -19,6 +19,8 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -84,6 +86,11 @@ func main() {
 		byBase[filepath.Base(s.bin)] = s
 	}
 
+	// Kill any lingering instances from a previous run.
+	for _, s := range services {
+		killLingering(s)
+	}
+
 	// Start all services.
 	for _, s := range services {
 		startService(s)
@@ -138,6 +145,28 @@ func main() {
 			log.Printf("watcher error: %v", err)
 		}
 	}
+}
+
+// killLingering finds and kills any already-running instances of the binary
+// left over from a previous supervisor run.
+func killLingering(s *service) {
+	bin := s.bin
+	out, err := exec.Command("pgrep", "-f", bin).Output()
+	if err != nil || len(out) == 0 {
+		return
+	}
+
+	myPid := os.Getpid()
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		pid, err := strconv.Atoi(line)
+		if err != nil || pid == myPid {
+			continue
+		}
+		log.Printf("killing lingering %s (pid %d)", s.name, pid)
+		_ = syscall.Kill(pid, syscall.SIGKILL)
+	}
+	// Brief pause to let the OS clean up.
+	time.Sleep(100 * time.Millisecond)
 }
 
 // startService launches the binary as a child process.

@@ -484,67 +484,230 @@ textarea { resize: vertical; min-height: 60px; }
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
-    margin-bottom: 10px;
+    margin-bottom: 0;
 }
 .temp-display {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 0;
 }
 .temp-display .temp-label {
     font-size: 1.5rem;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    line-height: 1;
+    margin-bottom: -2px;
 }
 .temp-display .temp-value {
     font-size: clamp(4rem, 12vw, 128pt);
     font-weight: 600;
     color: var(--text-primary);
+    line-height: 0.85;
 }
 .station-pump-status {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    margin-bottom: 8px;
+    gap: 0;
+    margin: 0;
 }
-.pump-controls {
+/* ---- P&ID Schematic ---- */
+.pid-schematic {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 0 12px;
+}
+.pid-main {
     display: flex;
     align-items: center;
-    gap: 6px;
+    justify-content: center;
+    gap: 0;
 }
-.pump-indicator {
-    font-size: 2.1rem;
-    font-weight: 700;
-    padding: 6px 18px;
-    border-radius: var(--radius-sm);
-    letter-spacing: 0.5px;
-}
-.pump-indicator.on {
-    background: var(--status-online-bg);
-    color: var(--status-online);
-    border: 1px solid var(--status-online);
-}
-.pump-indicator.off {
-    background: var(--status-offline-bg);
-    color: var(--status-offline);
-    border: 1px solid var(--status-offline);
-}
-.pump-indicator.regen-off {
-    background: var(--status-paused-bg);
-    color: var(--status-paused);
-    border: 1px solid var(--status-paused);
-}
-button.pump-indicator {
-    cursor: pointer;
+/* Pump motor symbol */
+.pid-pump {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    background: none;
+    border: none;
     font-family: inherit;
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    flex-shrink: 0;
 }
-button.pump-indicator.on { border: 1px solid var(--status-online); }
-button.pump-indicator.off { border: 1px solid var(--status-offline); }
-button.pump-indicator.regen-off { border: 1px solid var(--status-paused); }
-button.pump-indicator:hover {
-    filter: brightness(1.3);
+button.pid-pump { cursor: pointer; }
+button.pid-pump:hover { background: rgba(255,255,255,0.06); }
+.pid-pump-symbol {
+    width: 108px;
+    height: 108px;
+    border-radius: 50%;
+    border: 5px solid var(--text-muted);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.pid-pump-symbol::after {
+    content: '';
+    width: 0;
+    height: 0;
+    border-left: 24px solid var(--text-muted);
+    border-top: 18px solid transparent;
+    border-bottom: 18px solid transparent;
+    margin-left: 6px;
+}
+.pid-pump.on .pid-pump-symbol {
+    border-color: var(--status-online);
+    box-shadow: 0 0 24px rgba(34,197,94,0.4);
+    animation: pid-pulse-green 2s ease-in-out infinite;
+}
+.pid-pump.on .pid-pump-symbol::after {
+    border-left-color: var(--status-online);
+}
+.pid-pump-label {
+    font-size: 3.3rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-align: center;
+    line-height: 1.2;
+}
+.pid-pump-label small {
+    font-weight: 400;
+    color: var(--text-muted);
+    font-size: 2.8rem;
+}
+/* Flow line from pump to branch split */
+.pid-trunk {
+    width: 60px;
+    height: 5px;
+    background: var(--text-muted);
+    flex-shrink: 0;
+    align-self: center;
+}
+.pid-trunk.active { background: var(--status-online); }
+/* Branch container */
+.pid-branches {
+    display: flex;
+    flex-direction: column;
+    border-left: 5px solid var(--text-muted);
+    gap: 0;
+    flex-shrink: 0;
+}
+.pid-branches.active { border-left-color: var(--status-online); }
+.pid-branch {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 18px 0;
+}
+.pid-line {
+    width: 48px;
+    height: 5px;
+    background: var(--text-muted);
+    flex-shrink: 0;
+}
+.pid-branch.active .pid-line { background: var(--status-online); }
+/* Valve bowtie symbol */
+.pid-valve {
+    display: flex;
+    align-items: center;
+    background: none;
+    border: none;
+    font-family: inherit;
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    gap: 0;
+    flex-shrink: 0;
+}
+button.pid-valve { cursor: pointer; }
+button.pid-valve:hover { background: rgba(255,255,255,0.06); }
+.pid-valve-symbol {
+    display: flex;
+    align-items: center;
+    gap: 0;
+}
+.pid-valve-tri-l, .pid-valve-tri-r {
+    width: 0;
+    height: 0;
+}
+.pid-valve-tri-l {
+    border-top: 24px solid transparent;
+    border-bottom: 24px solid transparent;
+    border-left: 30px solid var(--text-muted);
+}
+.pid-valve-tri-r {
+    border-top: 24px solid transparent;
+    border-bottom: 24px solid transparent;
+    border-right: 30px solid var(--text-muted);
+}
+.pid-valve.open .pid-valve-tri-l { border-left-color: var(--status-online); }
+.pid-valve.open .pid-valve-tri-r { border-right-color: var(--status-online); }
+.pid-valve.closed .pid-valve-tri-l { border-left-color: var(--status-offline); opacity: 0.6; }
+.pid-valve.closed .pid-valve-tri-r { border-right-color: var(--status-offline); opacity: 0.6; }
+.pid-valve-label {
+    font-size: 3.3rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-left: 18px;
+    white-space: nowrap;
+    min-width: 14ch;
+}
+.pid-valve-label small {
+    font-weight: 400;
+    color: var(--text-muted);
+    font-size: 2.8rem;
+}
+/* Regen row */
+.pid-regen-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 30px;
+    padding-top: 6px;
+}
+.pid-regen {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    background: none;
+    border: none;
+    font-family: inherit;
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    font-size: 3.3rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+button.pid-regen { cursor: pointer; }
+button.pid-regen:hover { background: rgba(255,255,255,0.06); }
+.pid-regen-symbol {
+    width: 42px;
+    height: 42px;
+    transform: rotate(45deg);
+    border: 5px solid var(--text-muted);
+    flex-shrink: 0;
+}
+.pid-regen.on .pid-regen-symbol {
+    border-color: var(--status-paused);
+    background: var(--status-paused);
+    box-shadow: 0 0 18px rgba(249,115,22,0.5);
+    animation: pid-pulse-amber 2s ease-in-out infinite;
+}
+.pid-regen small {
+    font-weight: 400;
+    color: var(--text-muted);
+    font-size: 2.8rem;
+}
+@keyframes pid-pulse-green {
+    0%, 100% { box-shadow: 0 0 4px rgba(34,197,94,0.3); }
+    50% { box-shadow: 0 0 14px rgba(34,197,94,0.6); }
+}
+@keyframes pid-pulse-amber {
+    0%, 100% { box-shadow: 0 0 4px rgba(249,115,22,0.3); }
+    50% { box-shadow: 0 0 12px rgba(249,115,22,0.6); }
 }
 .pump-flag {
     font-size: 0.65rem;

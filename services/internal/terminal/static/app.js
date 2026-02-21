@@ -267,6 +267,58 @@ var App = (function() {
         return state.stationStates[instance] || {};
     }
 
+    function buildPIDSchematic(ps, canControl, pInst, pDevId, stopProp) {
+        var sp = stopProp ? 'event.stopPropagation(); ' : '';
+        var pumpTag = canControl ? 'button' : 'div';
+        var pumpClick = canControl ? ' onclick="' + sp + 'App.togglePump(\'' + pInst + '\', \'' + pDevId + '\')"' : '';
+        var h = '<div class="pid-schematic">';
+        h += '<div class="pid-main">';
+        // Pump motor
+        h += '<' + pumpTag + ' class="pid-pump ' + (ps.pump_on ? 'on' : 'off') + '"' + pumpClick + '>';
+        h += '<span class="pid-pump-symbol"></span>';
+        h += '<span class="pid-pump-label">PUMP<br><small>' + (ps.pump_on ? 'Running' : 'Stopped') + '</small></span>';
+        h += '</' + pumpTag + '>';
+        // Trunk line
+        h += '<span class="pid-trunk' + (ps.pump_on ? ' active' : '') + '"></span>';
+        // Branch split
+        h += '<div class="pid-branches' + (ps.pump_on ? ' active' : '') + '">';
+        // Rough valve branch
+        var roughTag = canControl ? 'button' : 'div';
+        var roughClick = canControl ? ' onclick="' + sp + 'App.toggleRoughValve(\'' + pInst + '\', \'' + pDevId + '\')"' : '';
+        h += '<div class="pid-branch' + (ps.rough_valve_open ? ' active' : '') + '">';
+        h += '<span class="pid-line"></span>';
+        h += '<' + roughTag + ' class="pid-valve ' + (ps.rough_valve_open ? 'open' : 'closed') + '"' + roughClick + '>';
+        h += '<span class="pid-valve-symbol"><span class="pid-valve-tri-l"></span><span class="pid-valve-tri-r"></span></span>';
+        h += '<span class="pid-valve-label">ROUGH <small>' + (ps.rough_valve_open ? 'Open' : 'Closed') + '</small></span>';
+        h += '</' + roughTag + '>';
+        h += '</div>';
+        // Purge valve branch
+        var purgeTag = canControl ? 'button' : 'div';
+        var purgeClick = canControl ? ' onclick="' + sp + 'App.togglePurgeValve(\'' + pInst + '\', \'' + pDevId + '\')"' : '';
+        h += '<div class="pid-branch' + (ps.purge_valve_open ? ' active' : '') + '">';
+        h += '<span class="pid-line"></span>';
+        h += '<' + purgeTag + ' class="pid-valve ' + (ps.purge_valve_open ? 'open' : 'closed') + '"' + purgeClick + '>';
+        h += '<span class="pid-valve-symbol"><span class="pid-valve-tri-l"></span><span class="pid-valve-tri-r"></span></span>';
+        h += '<span class="pid-valve-label">PURGE <small>' + (ps.purge_valve_open ? 'Open' : 'Closed') + '</small></span>';
+        h += '</' + purgeTag + '>';
+        h += '</div>';
+        h += '</div>'; // pid-branches
+        h += '</div>'; // pid-main
+        // Regen + AT TEMP row
+        h += '<div class="pid-regen-row">';
+        var regenTag = canControl ? 'button' : 'div';
+        var regenClick = canControl ? ' onclick="' + sp + 'App.toggleRegen(\'' + pInst + '\', \'' + pDevId + '\')"' : '';
+        h += '<' + regenTag + ' class="pid-regen ' + (ps.regen ? 'on' : 'off') + '"' + regenClick + '>';
+        h += '<span class="pid-regen-symbol"></span>';
+        h += '<span>REGEN <small>' + (ps.regen ? 'On' : 'Off') + '</small></span>';
+        h += '</' + regenTag + '>';
+        if (ps.at_temp) h += '<span class="pump-flag at-temp">AT TEMP</span>';
+        h += '</div>';
+        if (ps.regen && ps.regen_status) h += '<span class="regen-desc">' + escapeHtml(regenDescription(ps.regen_status)) + '</span>';
+        h += '</div>'; // pid-schematic
+        return h;
+    }
+
     function renderStationGrid() {
         var grid = document.getElementById('station-grid');
         var keys = Object.keys(state.stations).sort();
@@ -305,24 +357,7 @@ var App = (function() {
                 var pDevId = escapeHtml(ps.device_id || '');
                 var pInst = escapeHtml(keys[i]);
                 html += '<div class="station-pump-status">';
-                html += '<div class="pump-controls">';
-                if (canControl) {
-                    html += '<button class="pump-indicator ' + (ps.pump_on ? 'on' : 'off') + '" onclick="event.stopPropagation(); App.togglePump(\'' + pInst + '\', \'' + pDevId + '\')">' + (ps.pump_on ? 'PUMP ON' : 'PUMP OFF') + '</button>';
-                    html += '<button class="pump-indicator ' + (ps.rough_valve_open ? 'off' : 'on') + '" onclick="event.stopPropagation(); App.toggleRoughValve(\'' + pInst + '\', \'' + pDevId + '\')">' + (ps.rough_valve_open ? 'ROUGH OPEN' : 'ROUGH CLOSED') + '</button>';
-                    html += '<button class="pump-indicator ' + (ps.purge_valve_open ? 'off' : 'on') + '" onclick="event.stopPropagation(); App.togglePurgeValve(\'' + pInst + '\', \'' + pDevId + '\')">' + (ps.purge_valve_open ? 'PURGE OPEN' : 'PURGE CLOSED') + '</button>';
-                } else {
-                    html += '<span class="pump-indicator ' + (ps.pump_on ? 'on' : 'off') + '">' + (ps.pump_on ? 'PUMP ON' : 'PUMP OFF') + '</span>';
-                    html += '<span class="pump-indicator ' + (ps.rough_valve_open ? 'off' : 'on') + '">' + (ps.rough_valve_open ? 'ROUGH OPEN' : 'ROUGH CLOSED') + '</span>';
-                    html += '<span class="pump-indicator ' + (ps.purge_valve_open ? 'off' : 'on') + '">' + (ps.purge_valve_open ? 'PURGE OPEN' : 'PURGE CLOSED') + '</span>';
-                }
-                html += '</div>';
-                if (ps.at_temp) html += '<span class="pump-flag at-temp">AT TEMP</span>';
-                if (canControl) {
-                    html += '<button class="pump-indicator ' + (ps.regen ? 'on' : 'regen-off') + '" onclick="event.stopPropagation(); App.toggleRegen(\'' + pInst + '\', \'' + pDevId + '\')">' + (ps.regen ? 'REGEN ON' : 'REGEN OFF') + '</button>';
-                } else {
-                    html += '<span class="pump-indicator ' + (ps.regen ? 'on' : 'regen-off') + '">' + (ps.regen ? 'REGEN ON' : 'REGEN OFF') + '</span>';
-                }
-                if (ps.regen && ps.regen_status) html += '<span class="regen-desc">' + escapeHtml(regenDescription(ps.regen_status)) + '</span>';
+                html += buildPIDSchematic(ps, canControl, pInst, pDevId, true);
                 html += '</div>';
             }
 
@@ -431,24 +466,7 @@ var App = (function() {
             var pDevId = escapeHtml(ps.device_id || '');
             var pInst = escapeHtml(instance);
             pumpHtml += '<div class="station-pump-status">';
-            pumpHtml += '<div class="pump-controls">';
-            if (canControl) {
-                pumpHtml += '<button class="pump-indicator ' + (ps.pump_on ? 'on' : 'off') + '" onclick="App.togglePump(\'' + pInst + '\', \'' + pDevId + '\')">' + (ps.pump_on ? 'PUMP ON' : 'PUMP OFF') + '</button>';
-                pumpHtml += '<button class="pump-indicator ' + (ps.rough_valve_open ? 'off' : 'on') + '" onclick="App.toggleRoughValve(\'' + pInst + '\', \'' + pDevId + '\')">' + (ps.rough_valve_open ? 'ROUGH OPEN' : 'ROUGH CLOSED') + '</button>';
-                pumpHtml += '<button class="pump-indicator ' + (ps.purge_valve_open ? 'off' : 'on') + '" onclick="App.togglePurgeValve(\'' + pInst + '\', \'' + pDevId + '\')">' + (ps.purge_valve_open ? 'PURGE OPEN' : 'PURGE CLOSED') + '</button>';
-            } else {
-                pumpHtml += '<span class="pump-indicator ' + (ps.pump_on ? 'on' : 'off') + '">' + (ps.pump_on ? 'PUMP ON' : 'PUMP OFF') + '</span>';
-                pumpHtml += '<span class="pump-indicator ' + (ps.rough_valve_open ? 'off' : 'on') + '">' + (ps.rough_valve_open ? 'ROUGH OPEN' : 'ROUGH CLOSED') + '</span>';
-                pumpHtml += '<span class="pump-indicator ' + (ps.purge_valve_open ? 'off' : 'on') + '">' + (ps.purge_valve_open ? 'PURGE OPEN' : 'PURGE CLOSED') + '</span>';
-            }
-            pumpHtml += '</div>';
-            if (ps.at_temp) pumpHtml += '<span class="pump-flag at-temp">AT TEMP</span>';
-            if (canControl) {
-                pumpHtml += '<button class="pump-indicator ' + (ps.regen ? 'on' : 'regen-off') + '" onclick="App.toggleRegen(\'' + pInst + '\', \'' + pDevId + '\')">' + (ps.regen ? 'REGEN ON' : 'REGEN OFF') + '</button>';
-            } else {
-                pumpHtml += '<span class="pump-indicator ' + (ps.regen ? 'on' : 'regen-off') + '">' + (ps.regen ? 'REGEN ON' : 'REGEN OFF') + '</span>';
-            }
-            if (ps.regen && ps.regen_status) pumpHtml += '<span class="regen-desc">' + escapeHtml(regenDescription(ps.regen_status)) + '</span>';
+            pumpHtml += buildPIDSchematic(ps, canControl, pInst, pDevId, false);
             pumpHtml += '</div>';
         }
         document.getElementById('detail-pump-status').innerHTML = pumpHtml;

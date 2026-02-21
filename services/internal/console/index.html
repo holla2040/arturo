@@ -104,6 +104,8 @@ body {
 .btn-on { border-color: #4fc3f7; color: #4fc3f7; }
 .btn-off { border-color: #ef5350; color: #ef5350; }
 .btn-regen { border-color: #ffa726; color: #ffa726; }
+.btn-valve-open { border-color: #ef5350; color: #ef5350; }
+.btn-valve-closed { border-color: #81c784; color: #81c784; }
 
 .override-row {
   display: flex;
@@ -262,6 +264,18 @@ function regenDesc(ch) {
   }
 }
 
+function regenErrorDesc(code) {
+  if (!code) return '--';
+  switch (code) {
+    case '@': return 'None';
+    case 'F': return 'Manual Abort';
+    case 'E': return 'ROR Limit Exceeded';
+    case 'B': return 'Warmup Timeout';
+    case 'G': return 'Roughing Timeout';
+    default: return 'Error (' + code + ')';
+  }
+}
+
 // ── Station Control ──
 const stationsContainer = document.getElementById('stations-container');
 
@@ -286,8 +300,12 @@ function renderStations(stations) {
         <span class="label">2nd Stage</span><span class="value">${p.second_stage_k.toFixed(1)} K</span>
         <span class="label">Pressure</span><span class="value">${p.pressure_atm.toExponential(2)} atm</span>
         <span class="label">Op Hours</span><span class="value">${p.operating_hours.toFixed(1)} h</span>
-        <span class="label">Regen Step</span><span class="value">${p.regen_step}</span>
+        <span class="label">Regen Phase</span><span class="value">${p.regen_phase_name !== 'none' ? p.regen_phase_name : '--'}</span>
         <span class="label">Regen Status</span><span class="value">${regenDesc(p.regen_status)}</span>
+        <span class="label">Heaters</span><span class="value">${p.heaters_on ? 'ON' : 'off'}</span>
+        <span class="label">Regen Press</span><span class="value">${p.regen_pressure > 0 ? p.regen_pressure.toExponential(2) + ' Torr' : '--'}</span>
+        <span class="label">ROR Retries</span><span class="value">${p.regen_retries > 0 ? p.regen_retries : '--'}</span>
+        <span class="label">Regen Error</span><span class="value">${p.regen_error !== '@' ? regenErrorDesc(p.regen_error) : '--'}</span>
         <span class="label">Fail Rate</span><span class="value">${(p.fail_rate * 100).toFixed(0)}%</span>
       </div>
       <div class="btn-row">
@@ -299,11 +317,11 @@ function renderStations(stations) {
       </div>
       <div class="btn-row">
         <span style="color:#888;font-size:11px;line-height:24px">Rough</span>
-        <button class="btn ${p.rough_valve_open ? 'btn-on' : ''}" onclick="setRoughValve('${s.instance}',true)">Open</button>
-        <button class="btn ${!p.rough_valve_open ? 'btn-off' : ''}" onclick="setRoughValve('${s.instance}',false)">Close</button>
+        <button class="btn ${p.rough_valve_open ? 'btn-valve-open' : ''}" onclick="setRoughValve('${s.instance}',true)">Open</button>
+        <button class="btn ${!p.rough_valve_open ? 'btn-valve-closed' : ''}" onclick="setRoughValve('${s.instance}',false)">Close</button>
         <span style="color:#888;font-size:11px;line-height:24px;margin-left:8px">Purge</span>
-        <button class="btn ${p.purge_valve_open ? 'btn-on' : ''}" onclick="setPurgeValve('${s.instance}',true)">Open</button>
-        <button class="btn ${!p.purge_valve_open ? 'btn-off' : ''}" onclick="setPurgeValve('${s.instance}',false)">Close</button>
+        <button class="btn ${p.purge_valve_open ? 'btn-valve-open' : ''}" onclick="setPurgeValve('${s.instance}',true)">Open</button>
+        <button class="btn ${!p.purge_valve_open ? 'btn-valve-closed' : ''}" onclick="setPurgeValve('${s.instance}',false)">Close</button>
       </div>
       <div class="override-row">
         <label>1st Stage K</label>

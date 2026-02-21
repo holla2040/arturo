@@ -114,7 +114,7 @@ func Handler(stations []*StationInfo, rdb *redis.Client) (http.Handler, func(ctx
 		})
 
 		mux.HandleFunc("POST "+prefix+"/abort-regen", func(w http.ResponseWriter, r *http.Request) {
-			st.Pump.SetState(mockpump.StateOff)
+			st.Pump.AbortRegen()
 			writeJSON(w, map[string]string{"status": "ok"})
 		})
 

@@ -778,49 +778,53 @@ var App = (function() {
     // =================================================================
     function startTest(instance) {
         state.startTestStation = instance;
-        state.startTestRMAId = null;
-        document.getElementById('test-rma-search').value = '';
-        document.getElementById('test-rma-results').innerHTML = '';
-        document.getElementById('test-script').value = '';
         showError('start-test-error', '');
         openModal('start-test-modal');
 
-        // Setup RMA search
-        var searchInput = document.getElementById('test-rma-search');
-        searchInput.oninput = function() {
-            var q = searchInput.value.trim();
-            if (q.length < 2) {
-                document.getElementById('test-rma-results').innerHTML = '';
-                state.startTestRMAId = null;
+        // Populate RMA dropdown with open RMAs
+        var rmaSelect = document.getElementById('test-rma-select');
+        rmaSelect.innerHTML = '<option value="">Loading...</option>';
+        api('GET', '/rmas?status=open', null, function(err, data) {
+            if (err || !Array.isArray(data)) {
+                rmaSelect.innerHTML = '<option value="">Failed to load RMAs</option>';
                 return;
             }
-            api('GET', '/rmas/search?q=' + encodeURIComponent(q), null, function(err, data) {
-                if (err || !Array.isArray(data)) return;
-                var html = '';
-                for (var i = 0; i < data.length && i < 5; i++) {
-                    html += '<div style="padding:4px 0;cursor:pointer;color:var(--accent-blue)" onclick="App.selectTestRMA(\'' + escapeHtml(data[i].ID) + '\',\'' + escapeHtml(data[i].RMANumber) + '\')">';
-                    html += escapeHtml(data[i].RMANumber) + ' - ' + escapeHtml(data[i].CustomerName) + ' (' + escapeHtml(data[i].PumpSerialNumber) + ')';
-                    html += '</div>';
-                }
-                if (data.length === 0) html = '<div style="color:var(--text-muted)">No matching RMAs</div>';
-                document.getElementById('test-rma-results').innerHTML = html;
-            });
-        };
-    }
+            var html = '<option value="">-- Select RMA --</option>';
+            for (var i = 0; i < data.length; i++) {
+                var r = data[i];
+                html += '<option value="' + escapeHtml(r.ID) + '">'
+                    + escapeHtml(r.RMANumber) + ' - ' + escapeHtml(r.CustomerName)
+                    + ' (' + escapeHtml(r.PumpSerialNumber) + ')</option>';
+            }
+            if (data.length === 0) html = '<option value="">No open RMAs</option>';
+            rmaSelect.innerHTML = html;
+        });
 
-    function selectTestRMA(id, number) {
-        state.startTestRMAId = id;
-        document.getElementById('test-rma-search').value = number;
-        document.getElementById('test-rma-results').innerHTML = '<div style="color:var(--success-green)">Selected: ' + escapeHtml(number) + '</div>';
+        // Populate script dropdown
+        var scriptSelect = document.getElementById('test-script-select');
+        scriptSelect.innerHTML = '<option value="">Loading...</option>';
+        api('GET', '/scripts', null, function(err, data) {
+            if (err || !Array.isArray(data)) {
+                scriptSelect.innerHTML = '<option value="">Failed to load scripts</option>';
+                return;
+            }
+            var html = '<option value="">-- Select Script --</option>';
+            for (var i = 0; i < data.length; i++) {
+                html += '<option value="' + escapeHtml(data[i].path) + '">'
+                    + escapeHtml(data[i].name) + '</option>';
+            }
+            if (data.length === 0) html = '<option value="">No scripts found</option>';
+            scriptSelect.innerHTML = html;
+        });
     }
 
     function confirmStartTest() {
         var instance = state.startTestStation;
-        var rmaId = state.startTestRMAId;
-        var script = document.getElementById('test-script').value.trim();
+        var rmaId = document.getElementById('test-rma-select').value;
+        var script = document.getElementById('test-script-select').value;
 
         if (!rmaId) { showError('start-test-error', 'Select an RMA'); return; }
-        if (!script) { showError('start-test-error', 'Script path required'); return; }
+        if (!script) { showError('start-test-error', 'Select a script'); return; }
 
         api('POST', '/stations/' + encodeURIComponent(instance) + '/test/start', {
             rma_id: rmaId,
@@ -1374,7 +1378,6 @@ var App = (function() {
         logout: logout,
         openStation: openStation,
         startTest: startTest,
-        selectTestRMA: selectTestRMA,
         confirmStartTest: confirmStartTest,
         pauseTest: pauseTest,
         resumeTest: resumeTest,

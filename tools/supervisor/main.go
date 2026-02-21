@@ -56,8 +56,12 @@ func main() {
 		log.Fatalf("bad directory: %v", err)
 	}
 
+	// Project root is two levels up from the services dir.
+	projectRoot := filepath.Join(absDir, "..")
+	scriptsDir := filepath.Join(projectRoot, "scripts")
+
 	services := []*service{
-		{name: "controller", bin: filepath.Join(absDir, "controller")},
+		{name: "controller", bin: filepath.Join(absDir, "controller"), args: []string{"-scripts", scriptsDir}},
 		{name: "console", bin: filepath.Join(absDir, "console")},
 		{name: "terminal", bin: filepath.Join(absDir, "terminal"), args: []string{"-dev"}, workDir: absDir},
 	}

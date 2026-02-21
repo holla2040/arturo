@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -76,6 +79,7 @@ type Handler struct {
 	TestMgr     *testmanager.TestManager // nil means no test management
 	ReportDir   string                   // local report storage (e.g., /var/lib/arturo/reports)
 	SMBMountDir string                   // CIFS mount point (e.g., /mnt/reports)
+	ScriptsDir  string                   // directory containing .art scripts
 }
 
 // RegisterRoutes adds all API routes to the given ServeMux.
@@ -122,6 +126,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	// Artifact routes
 	mux.HandleFunc("GET /rmas/{id}/artifact", h.getRMAArtifact)
 	mux.HandleFunc("GET /rmas/{id}/pdf", h.getRMAPDF)
+
+	// Script listing
+	mux.HandleFunc("GET /scripts", h.listScripts)
 }
 
 func (h *Handler) listDevices(w http.ResponseWriter, r *http.Request) {
@@ -774,6 +781,42 @@ func (h *Handler) getRMAPDF(w http.ResponseWriter, r *http.Request) {
 	if err := artifact.GeneratePDF(w, h.Store, id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Script listing
+// ---------------------------------------------------------------------------
+
+type scriptEntry struct {
+	Name string `json:"name"`
+	Path string `json:"path"`
+}
+
+func (h *Handler) listScripts(w http.ResponseWriter, r *http.Request) {
+	if h.ScriptsDir == "" {
+		writeJSON(w, http.StatusOK, []scriptEntry{})
+		return
+	}
+
+	var scripts []scriptEntry
+	filepath.Walk(h.ScriptsDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(info.Name(), ".art") {
+			rel, _ := filepath.Rel(h.ScriptsDir, path)
+			scripts = append(scripts, scriptEntry{
+				Name: rel,
+				Path: path,
+			})
+		}
+		return nil
+	})
+
+	if scripts == nil {
+		scripts = []scriptEntry{}
+	}
+	writeJSON(w, http.StatusOK, scripts)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {

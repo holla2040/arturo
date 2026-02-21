@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
@@ -43,6 +44,7 @@ func main() {
 	redisAddr := flag.String("redis", "localhost:6379", "Redis address")
 	listenAddr := flag.String("listen", ":8002", "HTTP listen address")
 	dbPath := flag.String("db", "arturo.db", "SQLite database path")
+	scriptsDir := flag.String("scripts", "scripts", "Directory containing .art test scripts")
 	flag.Parse()
 
 	// Context for graceful shutdown
@@ -98,6 +100,13 @@ func main() {
 		}),
 	)
 
+	// Resolve scripts directory to absolute path
+	absScriptsDir, err := filepath.Abs(*scriptsDir)
+	if err != nil {
+		log.Printf("Warning: could not resolve scripts dir %q: %v", *scriptsDir, err)
+		absScriptsDir = *scriptsDir
+	}
+
 	// HTTP handler
 	handler := &api.Handler{
 		Registry:    reg,
@@ -108,6 +117,7 @@ func main() {
 		Source:      serverSource,
 		RedisHealth: redisMon,
 		TestMgr:     testMgr,
+		ScriptsDir:  absScriptsDir,
 	}
 
 	mux := http.NewServeMux()

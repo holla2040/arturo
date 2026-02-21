@@ -25,7 +25,7 @@ var App = (function() {
         userZoom: null          // {x0, x1, y0, y1} when user drags a zoom region
     };
 
-    var MAX_CHART_POINTS = 8640; // 12 hours at 5s intervals (used by handleTemperature trimming)
+    var MAX_CHART_POINTS = 17280; // 12 hours at 5s intervals, 2 stages interleaved
 
     // =================================================================
     // Theme
@@ -370,6 +370,12 @@ var App = (function() {
                         state.tempChartData.first.push(null);
                         state.tempChartData.second.push(t.TemperatureK);
                     }
+                }
+                // Trim to max so first WebSocket point doesn't cause a sudden jump
+                while (state.tempChartData.timestamps.length > MAX_CHART_POINTS) {
+                    state.tempChartData.timestamps.shift();
+                    state.tempChartData.first.shift();
+                    state.tempChartData.second.shift();
                 }
                 renderTempChart();
             }

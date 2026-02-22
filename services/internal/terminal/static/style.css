@@ -88,13 +88,14 @@
 [data-theme="light"] .theme-icon-sun { display: block; }
 [data-theme="light"] .theme-icon-moon { display: none; }
 
-html { font-size: 14px; }
+html { font-size: clamp(10px, 0.75vw, 24px); overflow: hidden; height: 100vh; }
 
 body {
     font-family: var(--font-sans);
     background: var(--bg-primary);
     color: var(--text-primary);
-    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
     line-height: 1.5;
 }
 
@@ -105,7 +106,7 @@ body {
     display: none;
     background: var(--estop-red);
     color: #fff;
-    padding: 16px 24px;
+    padding: 1rem 1.5rem;
     text-align: center;
     font-size: 1.2rem;
     font-weight: 700;
@@ -134,7 +135,7 @@ body {
 .header {
     background: var(--bg-secondary);
     border-bottom: 1px solid var(--border-color);
-    padding: 12px 24px;
+    padding: 0.6rem 1.2rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -225,10 +226,11 @@ body {
    Views
    ===================================================================== */
 .view { display: none; }
-.view.active { display: flex; flex-direction: column; min-height: calc(100vh - 60px); }
+.view.active { display: flex; flex-direction: column; height: calc(100vh - 3.5rem); overflow: hidden; }
 .main {
-    padding: 20px 24px;
-    width: 90%;
+    width: 100%;
+    padding: 1rem 1.5rem;
+    min-height: 0;
     margin: 0 auto;
     flex: 1;
     display: flex;
@@ -365,10 +367,10 @@ textarea { resize: vertical; min-height: 60px; }
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
     overflow: hidden;
-    margin-bottom: 20px;
+    margin-bottom: 1.2rem;
 }
 .panel-header {
-    padding: 14px 20px;
+    padding: 0.8rem 1.2rem;
     border-bottom: 1px solid var(--border-color);
     display: flex;
     align-items: center;
@@ -392,9 +394,9 @@ textarea { resize: vertical; min-height: 60px; }
     border: 1px solid var(--border-color);
     font-family: var(--font-mono);
 }
-.panel-body { padding: 16px 20px; }
+.panel-body { padding: 0.8rem 1.2rem; }
 .panel-body.no-pad { padding: 0; }
-.panel-body.scrollable { max-height: 400px; overflow-y: auto; }
+.panel-body.scrollable { max-height: 25rem; overflow-y: auto; }
 .panel-body.scrollable::-webkit-scrollbar { width: 6px; }
 .panel-body.scrollable::-webkit-scrollbar-track { background: var(--bg-secondary); }
 .panel-body.scrollable::-webkit-scrollbar-thumb {
@@ -407,25 +409,31 @@ textarea { resize: vertical; min-height: 60px; }
    ===================================================================== */
 #view-stations .panel {
     flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
 }
 #view-stations .panel-body {
     flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
 }
 .station-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 16px;
+    grid-template-rows: 1fr 1fr;
+    gap: 1rem;
     flex: 1;
+    min-height: 0;
 }
 .station-card {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
-    padding: 24px;
+    padding: 0.8rem;
+    min-height: 0;
+    overflow: hidden;
     cursor: pointer;
     transition: border-color 0.2s, box-shadow 0.2s;
     display: flex;
@@ -444,7 +452,7 @@ textarea { resize: vertical; min-height: 60px; }
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 12px;
+    margin-bottom: 0.3rem;
 }
 .station-name {
     font-weight: 600;
@@ -500,7 +508,7 @@ textarea { resize: vertical; min-height: 60px; }
     margin-bottom: -2px;
 }
 .temp-display .temp-value {
-    font-size: clamp(4rem, 12vw, 128pt);
+    font-size: clamp(2.5rem, 5vw, 6rem);
     font-weight: 600;
     color: var(--text-primary);
     line-height: 0.85;
@@ -516,8 +524,8 @@ textarea { resize: vertical; min-height: 60px; }
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
-    padding: 0 12px;
+    gap: 2px;
+    padding: 0 0.5rem;
 }
 .pid-main {
     display: flex;
@@ -530,21 +538,21 @@ textarea { resize: vertical; min-height: 60px; }
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
+    gap: 0.2rem;
     background: none;
     border: none;
     font-family: inherit;
-    padding: 12px;
+    padding: 0.2rem;
     border-radius: var(--radius-sm);
     flex-shrink: 0;
 }
 button.pid-pump { cursor: pointer; }
 button.pid-pump:hover { background: rgba(255,255,255,0.06); }
 .pid-pump-symbol {
-    width: 108px;
-    height: 108px;
+    width: 4rem;
+    height: 4rem;
     border-radius: 50%;
-    border: 5px solid var(--text-muted);
+    border: 0.3rem solid var(--text-muted);
     position: relative;
     display: flex;
     align-items: center;
@@ -554,10 +562,10 @@ button.pid-pump:hover { background: rgba(255,255,255,0.06); }
     content: '';
     width: 0;
     height: 0;
-    border-left: 24px solid var(--text-muted);
-    border-top: 18px solid transparent;
-    border-bottom: 18px solid transparent;
-    margin-left: 6px;
+    border-left: 1.5rem solid var(--text-muted);
+    border-top: 1.1rem solid transparent;
+    border-bottom: 1.1rem solid transparent;
+    margin-left: 0.4rem;
 }
 .pid-pump.on .pid-pump-symbol {
     border-color: var(--status-online);
@@ -582,8 +590,8 @@ button.pid-pump:hover { background: rgba(255,255,255,0.06); }
 }
 /* Flow line from pump to branch split */
 .pid-trunk {
-    width: 60px;
-    height: 5px;
+    width: 3.5rem;
+    height: 0.3rem;
     background: var(--text-muted);
     flex-shrink: 0;
     align-self: center;
@@ -593,7 +601,7 @@ button.pid-pump:hover { background: rgba(255,255,255,0.06); }
 .pid-branches {
     display: flex;
     flex-direction: column;
-    border-left: 5px solid var(--text-muted);
+    border-left: 0.3rem solid var(--text-muted);
     gap: 0;
     flex-shrink: 0;
 }
@@ -602,11 +610,11 @@ button.pid-pump:hover { background: rgba(255,255,255,0.06); }
     display: flex;
     align-items: center;
     gap: 0;
-    padding: 18px 0;
+    padding: 0.3rem 0;
 }
 .pid-line {
-    width: 48px;
-    height: 5px;
+    width: 3rem;
+    height: 0.3rem;
     background: var(--text-muted);
     flex-shrink: 0;
 }
@@ -618,7 +626,7 @@ button.pid-pump:hover { background: rgba(255,255,255,0.06); }
     background: none;
     border: none;
     font-family: inherit;
-    padding: 12px;
+    padding: 0.2rem;
     border-radius: var(--radius-sm);
     gap: 0;
     flex-shrink: 0;
@@ -635,14 +643,14 @@ button.pid-valve:hover { background: rgba(255,255,255,0.06); }
     height: 0;
 }
 .pid-valve-tri-l {
-    border-top: 24px solid transparent;
-    border-bottom: 24px solid transparent;
-    border-left: 30px solid var(--text-muted);
+    border-top: 1.5rem solid transparent;
+    border-bottom: 1.5rem solid transparent;
+    border-left: 1.8rem solid var(--text-muted);
 }
 .pid-valve-tri-r {
-    border-top: 24px solid transparent;
-    border-bottom: 24px solid transparent;
-    border-right: 30px solid var(--text-muted);
+    border-top: 1.5rem solid transparent;
+    border-bottom: 1.5rem solid transparent;
+    border-right: 1.8rem solid var(--text-muted);
 }
 .pid-valve.open .pid-valve-tri-l { border-left-color: var(--status-online); }
 .pid-valve.open .pid-valve-tri-r { border-right-color: var(--status-online); }
@@ -652,7 +660,7 @@ button.pid-valve:hover { background: rgba(255,255,255,0.06); }
     font-size: 3.3rem;
     font-weight: 600;
     color: var(--text-secondary);
-    margin-left: 18px;
+    margin-left: 1.1rem;
     white-space: nowrap;
     min-width: 14ch;
 }
@@ -666,17 +674,17 @@ button.pid-valve:hover { background: rgba(255,255,255,0.06); }
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 30px;
-    padding-top: 6px;
+    gap: 0.5rem;
+    padding-top: 2px;
 }
 .pid-regen {
     display: flex;
     align-items: center;
-    gap: 18px;
+    gap: 0.5rem;
     background: none;
     border: none;
     font-family: inherit;
-    padding: 12px;
+    padding: 0.2rem;
     border-radius: var(--radius-sm);
     font-size: 3.3rem;
     font-weight: 600;
@@ -685,10 +693,10 @@ button.pid-valve:hover { background: rgba(255,255,255,0.06); }
 button.pid-regen { cursor: pointer; }
 button.pid-regen:hover { background: rgba(255,255,255,0.06); }
 .pid-regen-symbol {
-    width: 42px;
-    height: 42px;
+    width: 1.5rem;
+    height: 1.5rem;
     transform: rotate(45deg);
-    border: 5px solid var(--text-muted);
+    border: 0.3rem solid var(--text-muted);
     flex-shrink: 0;
 }
 .pid-regen.on .pid-regen-symbol {
@@ -780,7 +788,7 @@ button.pid-regen:hover { background: rgba(255,255,255,0.06); }
 .chart-container {
     position: relative;
     width: 100%;
-    height: 1000px;
+    height: 250px;
     background: var(--bg-input);
     border-radius: var(--radius-md);
     border: 1px solid var(--border-color);
@@ -1017,8 +1025,8 @@ button.pid-regen:hover { background: rgba(255,255,255,0.06); }
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
     padding: 24px;
-    min-width: 400px;
-    max-width: 500px;
+    min-width: 25rem;
+    max-width: 32rem;
     box-shadow: var(--shadow-lg);
 }
 .modal h3 {
@@ -1042,12 +1050,12 @@ button.pid-regen:hover { background: rgba(255,255,255,0.06); }
 /* =====================================================================
    Responsive
    ===================================================================== */
-@media (max-width: 1200px) {
+@media (max-width: 75em) {
     .station-grid { grid-template-columns: repeat(2, 1fr); }
     .detail-grid { grid-template-columns: 1fr; }
     .rma-detail-info { grid-template-columns: 1fr 1fr; }
 }
-@media (max-width: 800px) {
+@media (max-width: 50em) {
     .header { flex-direction: column; gap: 12px; }
     .status-bar { flex-wrap: wrap; gap: 12px; }
     .station-grid { grid-template-columns: 1fr; }

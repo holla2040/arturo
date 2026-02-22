@@ -339,17 +339,16 @@ var App = (function() {
             var t1 = formatTemp(temps.first_stage);
             var t2 = formatTemp(temps.second_stage);
 
+            var stationNum = keys[i].replace(/\D+/g, '').replace(/^0+/, '') || keys[i];
             html += '<div class="station-card state-' + escapeHtml(stateStr) + '" onclick="App.openStation(\'' + escapeHtml(keys[i]) + '\')">';
-            html += '<div class="station-card-header">';
-            html += '<span class="station-name">' + escapeHtml(keys[i]) + '</span>';
+            html += '<div class="station-top-row">';
+            html += '<span class="station-name">' + escapeHtml(stationNum) + '</span>';
+            html += '<span class="temp-label">1st</span><span class="temp-value">' + t1 + '</span>';
+            html += '<span class="temp-label">2nd</span><span class="temp-value">' + t2 + '</span>';
             html += '<span class="status-badge ' + escapeHtml(stateStr) + '">' + stateLabel + '</span>';
             html += '</div>';
 
             if (stateStr !== 'offline') {
-            html += '<div class="station-temps">';
-            html += '<div class="temp-display"><span class="temp-label">1st Stage</span><span class="temp-value">' + t1 + '</span></div>';
-            html += '<div class="temp-display"><span class="temp-label">2nd Stage</span><span class="temp-value">' + t2 + '</span></div>';
-            html += '</div>';
 
             var ps = state.stationPumpStatus[keys[i]];
             if (ps) {

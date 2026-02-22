@@ -4,8 +4,10 @@ services/controller
 services/engine
 services/monitor
 services/terminal
+tools/engine/engine
 tools/supervisor/supervisor
 services/arturo.db
+tools/supervisor/arturo.db
 *.exe
 *.test
 *.out

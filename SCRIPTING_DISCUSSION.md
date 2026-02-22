@@ -57,16 +57,24 @@ The engine has three modes:
 - PARALLEL — parses but executes sequentially
 - RESERVE — parses but doesn't enforce
 
+### HAL Reference (docs/SCRIPTING_HAL.md) — Complete for Pump
+
+The HAL reference defines the abstract command vocabulary for script authors. It documents every logical command name, what it returns, units, and which layer implements it (profile, firmware, mock). No protocol details — just "here's what you can do with a pump."
+
+- **Pump:** Fully documented — 42 profile commands covering control, temperature, pressure, regen (with phase/error descriptions), valves, operating data, PFR, status bytes, diagnostics. Implementation status tracked per command.
+- **Temperature controller, relay board, DMM, power supply:** Placeholder sections with commands from their profiles.
+
 ### Profiles (profiles/) — Well-Designed
 
 YAML files with manufacturer, model, protocol type, packetizer config, and command maps.
 
 Existing profiles:
-- `cti_onboard.yaml` — 70+ commands (pump control, temps, pressure, regen, valves)
-- `keysight_34461a.yaml` — SCPI DMM, 10 commands
-- `fluke_8846a.yaml` — SCPI DMM
-- `rigol_dp832.yaml` — SCPI power supply
-- `modbus_tcp_device.yaml` — generic Modbus template
+- `cti_onboard.yaml` — 42 commands (pump control, temps, pressure, regen, valves, PFR, diagnostics)
+- `keysight_34461a.yaml` — SCPI DMM, 11 commands
+- `fluke_8846a.yaml` — SCPI DMM, 8 commands
+- `rigol_dp832.yaml` — SCPI power supply, 12 commands
+- `omega_cn7500.yaml` — Modbus temperature controller, 3 commands
+- `usb_relay_8ch.yaml` — ASCII relay board, 8 commands
 
 Profile loading and introspection already work in the engine.
 

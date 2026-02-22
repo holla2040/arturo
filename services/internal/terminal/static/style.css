@@ -150,6 +150,10 @@ body {
     align-items: center;
     gap: 16px;
 }
+.header-center {
+    display: flex;
+    gap: 8px;
+}
 .header-logo {
     font-size: 1.3rem;
     font-weight: 700;
@@ -229,7 +233,7 @@ body {
 .view.active { display: flex; flex-direction: column; height: calc(100vh - 3.5rem); overflow: hidden; }
 .main {
     width: 100%;
-    padding: 1rem 1.5rem;
+    padding: 5px;
     min-height: 0;
     margin: 0 auto;
     flex: 1;
@@ -367,7 +371,7 @@ textarea { resize: vertical; min-height: 60px; }
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
     overflow: hidden;
-    margin-bottom: 1.2rem;
+    margin-bottom: 0;
 }
 .panel-header {
     padding: 0.8rem 1.2rem;

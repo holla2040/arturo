@@ -25,6 +25,10 @@
         <div class="header-logo" onclick="App.showView('stations')">Arturo</div>
         <div class="header-subtitle">Cryo Test System</div>
     </div>
+    <div class="header-center">
+        <button class="btn btn-sm" onclick="App.showView('rma-list')">RMAs</button>
+        <button class="btn btn-sm btn-primary" onclick="App.showView('rma-new')">New RMA</button>
+    </div>
     <div class="status-bar">
         <button class="theme-toggle" onclick="App.toggleTheme()" title="Toggle theme">
             <svg class="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
@@ -72,14 +76,7 @@
     <main class="main">
         <!-- Station Grid -->
         <div class="panel">
-            <div class="panel-header">
-                <div class="panel-title">Stations</div>
-                <div class="btn-group">
-                    <button class="btn btn-sm" onclick="App.showView('rma-list')">RMAs</button>
-                    <button class="btn btn-sm btn-primary" onclick="App.showView('rma-new')">New RMA</button>
-                </div>
-            </div>
-            <div class="panel-body">
+            <div class="panel-body no-pad">
                 <div class="station-grid" id="station-grid">
                     <div class="empty-state"><div>No stations reporting</div></div>
                 </div>

@@ -40,6 +40,22 @@ bool Display::begin() {
     lv_obj_set_width(_statusLabel, 280);
     lv_obj_set_pos(_statusLabel, 1024 - 280 - 10, 10);
 
+    // System stats — left column, below title
+    _systemStatsLabel = lv_label_create(lv_scr_act());
+    lv_label_set_text(_systemStatsLabel, "");
+    lv_obj_set_style_text_font(_systemStatsLabel, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(_systemStatsLabel, lv_color_make(0x66, 0x66, 0x66), 0);
+    lv_obj_set_width(_systemStatsLabel, 440);
+    lv_obj_set_pos(_systemStatsLabel, 60, 360);
+
+    // Ops stats — right column, below title
+    _opsStatsLabel = lv_label_create(lv_scr_act());
+    lv_label_set_text(_opsStatsLabel, "");
+    lv_obj_set_style_text_font(_opsStatsLabel, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(_opsStatsLabel, lv_color_make(0x66, 0x66, 0x66), 0);
+    lv_obj_set_width(_opsStatsLabel, 440);
+    lv_obj_set_pos(_opsStatsLabel, 524, 360);
+
     display_unlock();
     display_start();
     _ready = true;
@@ -68,6 +84,8 @@ void Display::loop() {
     if (now - _lastUpdateMs >= 1000) {
         _lastUpdateMs = now;
         updateStatusLabel();
+        updateSystemStatsLabel();
+        updateOpsStatsLabel();
     }
 
     display_unlock();
@@ -113,6 +131,82 @@ void Display::updateStatusLabel() {
     if (strcmp(buf, _lastStatusBuf) != 0) {
         lv_label_set_text(_statusLabel, buf);
         memcpy(_lastStatusBuf, buf, sizeof(_lastStatusBuf));
+    }
+}
+
+void Display::setSystemStats(uint32_t freeHeapKB, uint32_t minFreeHeapKB,
+                             uint32_t freePsramKB, uint32_t uptimeSecs,
+                             const char* bootReason, int watchdogResets) {
+    _freeHeapKB = freeHeapKB;
+    _minFreeHeapKB = minFreeHeapKB;
+    _freePsramKB = freePsramKB;
+    _uptimeSecs = uptimeSecs;
+    if (bootReason) {
+        strncpy(_bootReason, bootReason, sizeof(_bootReason) - 1);
+        _bootReason[sizeof(_bootReason) - 1] = '\0';
+    }
+    _watchdogResets = watchdogResets;
+}
+
+void Display::setOpsStats(int cmdsOk, int cmdsFail,
+                          int ctiTxn, int ctiErr,
+                          int heartbeats,
+                          int wifiReconnects, unsigned long wifiDownMs,
+                          int redisReconnects) {
+    _cmdsOk = cmdsOk;
+    _cmdsFail = cmdsFail;
+    _ctiTxn = ctiTxn;
+    _ctiErr = ctiErr;
+    _heartbeats = heartbeats;
+    _wifiReconnects = wifiReconnects;
+    _wifiDownMs = wifiDownMs;
+    _redisReconnects = redisReconnects;
+}
+
+void Display::updateSystemStatsLabel() {
+    unsigned long s = _uptimeSecs;
+    int h = s / 3600;
+    int m = (s % 3600) / 60;
+    int sec = s % 60;
+
+    char buf[192];
+    snprintf(buf, sizeof(buf),
+        "SYSTEM\n"
+        "Heap: %luKB / Min: %luKB\n"
+        "PSRAM: %luKB free\n"
+        "Uptime: %dh %02dm %02ds\n"
+        "Boot: %s\n"
+        "WDT resets: %d",
+        (unsigned long)_freeHeapKB, (unsigned long)_minFreeHeapKB,
+        (unsigned long)_freePsramKB,
+        h, m, sec,
+        _bootReason,
+        _watchdogResets);
+
+    if (strcmp(buf, _lastSystemStatsBuf) != 0) {
+        lv_label_set_text(_systemStatsLabel, buf);
+        memcpy(_lastSystemStatsBuf, buf, sizeof(_lastSystemStatsBuf));
+    }
+}
+
+void Display::updateOpsStatsLabel() {
+    char buf[192];
+    snprintf(buf, sizeof(buf),
+        "OPERATIONS\n"
+        "Commands: %d ok / %d fail\n"
+        "CTI: %d txn / %d err\n"
+        "Heartbeats: %d\n"
+        "WiFi reconn: %d / down %lums\n"
+        "Redis reconn: %d",
+        _cmdsOk, _cmdsFail,
+        _ctiTxn, _ctiErr,
+        _heartbeats,
+        _wifiReconnects, _wifiDownMs,
+        _redisReconnects);
+
+    if (strcmp(buf, _lastOpsStatsBuf) != 0) {
+        lv_label_set_text(_opsStatsLabel, buf);
+        memcpy(_lastOpsStatsBuf, buf, sizeof(_lastOpsStatsBuf));
     }
 }
 

@@ -33,6 +33,7 @@ bool Station::begin() {
     // 0b. Check boot reason for power failure recovery
     BootReason reason = detectBootReason();
     LOG_INFO("MAIN", "Boot reason: %s", bootReasonToString(reason));
+    strncpy(_bootReasonStr, bootReasonToString(reason), sizeof(_bootReasonStr) - 1);
     if (isAbnormalBoot(reason)) {
         LOG_ERROR("MAIN", "Abnormal boot detected — ensuring safe state");
     }
@@ -208,6 +209,27 @@ void Station::displayTask() {
             _display.setWifiStatus(false, nullptr, 0);
         }
         _display.setRedisStatus(_redis.isConnected(), REDIS_HOST, REDIS_PORT);
+
+        _display.setSystemStats(
+            ESP.getFreeHeap() / 1024,
+            ESP.getMinFreeHeap() / 1024,
+            ESP.getFreePsram() / 1024,
+            millis() / 1000,
+            _bootReasonStr,
+            _watchdog.resetCount()
+        );
+
+        _display.setOpsStats(
+            _cmdHandler ? _cmdHandler->commandsProcessed() : 0,
+            _cmdHandler ? _cmdHandler->commandsFailed() : 0,
+            _ctiDevice.transactionCount(),
+            _ctiDevice.errorCount(),
+            _heartbeatCount,
+            _wifi.reconnectCount(),
+            _wifi.totalDisconnectedMs(),
+            _redis.reconnectCount()
+        );
+
         _display.loop();
 
         vTaskDelayUntil(&xLastWakeTime, xFrequency);

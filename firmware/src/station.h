@@ -40,6 +40,7 @@ private:
     // Timing
     unsigned long _lastHeartbeatMs = 0;
     int _heartbeatCount = 0;
+    char _bootReasonStr[16] = {};
 
     // FreeRTOS tasks
     static void commTaskEntry(void* param);

@@ -130,8 +130,8 @@
  * Others
  *-----------*/
 
-/*1: Show CPU usage and FPS count — enabled for bring-up verification*/
-#define LV_USE_PERF_MONITOR 1
+/*1: Show CPU usage and FPS count — disabled to eliminate permanent dirty area*/
+#define LV_USE_PERF_MONITOR 0
 #if LV_USE_PERF_MONITOR
     #define LV_USE_PERF_MONITOR_POS LV_ALIGN_BOTTOM_RIGHT
 #endif
@@ -317,7 +317,7 @@
 #if LV_USE_THEME_DEFAULT
     #define LV_THEME_DEFAULT_DARK 0
     #define LV_THEME_DEFAULT_GROW 1
-    #define LV_THEME_DEFAULT_TRANSITION_TIME 80
+    #define LV_THEME_DEFAULT_TRANSITION_TIME 0
 #endif
 
 #define LV_USE_THEME_BASIC 1

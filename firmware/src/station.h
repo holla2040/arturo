@@ -12,6 +12,8 @@
 #include "safety/watchdog.h"
 #include "safety/ota_update.h"
 #include "display/display.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 namespace arturo {
 
@@ -19,8 +21,8 @@ class Station {
 public:
     Station();
 
-    bool begin();   // Full setup sequence
-    void loop();    // Full loop body
+    bool begin();   // Full setup sequence — creates FreeRTOS tasks
+    void loop();    // Idles — all work in FreeRTOS tasks
 
 private:
     // Subsystems — owned, not global
@@ -37,6 +39,12 @@ private:
     // Timing
     unsigned long _lastHeartbeatMs = 0;
     int _heartbeatCount = 0;
+
+    // FreeRTOS tasks
+    static void commTaskEntry(void* param);
+    static void displayTaskEntry(void* param);
+    void commTask();
+    void displayTask();
 
     // Methods extracted from main.cpp
     bool connectRedis();

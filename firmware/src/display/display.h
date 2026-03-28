@@ -30,6 +30,9 @@ private:
     char _redisHost[64] = {};
     uint16_t _redisPort = 0;
 
+    // Last rendered status text — skip redraw when unchanged
+    char _lastStatusBuf[128] = {};
+
     void updateStatusLabel();
 };
 

@@ -87,71 +87,117 @@ bool Station::begin() {
     // 6. First heartbeat (status="starting")
     publishHeartbeat("starting");
 
-    // 7. Initialize hardware watchdog (8s timeout, fed every 4s from loop)
-    if (!_watchdog.init()) {
-        LOG_ERROR("MAIN", "Watchdog init failed — continuing without HW watchdog");
-    }
+    // 7. Watchdog initialized in commTask (must subscribe the feeding task, not setup)
 
     // 8. Log free heap
     LOG_INFO("MAIN", "Boot complete. Free heap: %lu bytes", (unsigned long)ESP.getFreeHeap());
 
     _lastHeartbeatMs = millis();
+
+    // 9. Create FreeRTOS tasks — pendant2 pattern: all app tasks on Core 1 with LVGL
+    //    Core 0: WiFi system tasks only (no application competition for PSRAM DMA)
+    //    Core 1: LVGL (priority 10), comm (priority 5), display update (priority 3)
+    xTaskCreatePinnedToCore(commTaskEntry, "tComm", 4096, this, 5, nullptr, 1);
+    xTaskCreatePinnedToCore(displayTaskEntry, "tDisplay", 3072, this, 3, nullptr, 1);
+
+    LOG_INFO("MAIN", "FreeRTOS tasks started — loop() idling");
     return true;
 }
 
 void Station::loop() {
-    unsigned long now = millis();
+    // Empty — all work runs in FreeRTOS tasks (pendant2 pattern).
+    // Keeps loop() off the CPU so it can't cause PSRAM bus contention with display DMA.
+    vTaskDelay(portMAX_DELAY);
+}
 
-    // Feed watchdog — must happen every loop iteration to prevent reset
-    if (watchdogIsLateFeed(_watchdog.lastFeedMs(), now, WATCHDOG_LATE_THRESHOLD_MS)) {
-        LOG_ERROR("WDT", "Late feed! %lu ms since last feed",
-                  watchdogElapsed(_watchdog.lastFeedMs(), now));
+// --- FreeRTOS task entry points (static → instance) ---
+
+void Station::commTaskEntry(void* param) {
+    static_cast<Station*>(param)->commTask();
+}
+
+void Station::displayTaskEntry(void* param) {
+    static_cast<Station*>(param)->displayTask();
+}
+
+// Communication task — Core 1, priority 5
+// Handles: watchdog, heartbeat, WiFi/Redis reconnection, command polling
+void Station::commTask() {
+    // Initialize watchdog HERE so it subscribes this task (not the setup task)
+    if (!_watchdog.init()) {
+        LOG_ERROR("WDT", "Watchdog init failed — continuing without HW watchdog");
     }
-    _watchdog.feed();
 
-    // Heartbeat every 30s
-    if (now - _lastHeartbeatMs >= HEARTBEAT_INTERVAL_MS) {
-        _lastHeartbeatMs = now;
-        if (_wifi.isConnected() && _redis.isConnected()) {
-            refreshPresence();
-            publishHeartbeat("running");
+    const TickType_t xFrequency = pdMS_TO_TICKS(250);  // 4 Hz — reduces WiFi/PSRAM contention with display DMA
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+
+    for (;;) {
+        unsigned long now = millis();
+
+        // Feed watchdog
+        if (watchdogIsLateFeed(_watchdog.lastFeedMs(), now, WATCHDOG_LATE_THRESHOLD_MS)) {
+            LOG_ERROR("WDT", "Late feed! %lu ms since last feed",
+                      watchdogElapsed(_watchdog.lastFeedMs(), now));
         }
-    }
+        _watchdog.feed();
 
-    // Check WiFi, reconnect if needed
-    _wifi.checkAndReconnect();
-
-    // Check main Redis client, reconnect if needed
-    if (_wifi.isConnected() && !_redis.isConnected()) {
-        LOG_ERROR("MAIN", "Redis (main) disconnected, reconnecting...");
-        connectRedis();
-    }
-
-    // Check subscribe Redis client, reconnect + re-subscribe if needed
-    if (_wifi.isConnected() && !_redisSub.isConnected()) {
-        LOG_ERROR("MAIN", "Redis (sub) disconnected, reconnecting...");
-        connectRedisSub();
-    }
-
-    // Poll for incoming commands — drain all queued commands back-to-back
-    if (_cmdHandler && _redisSub.isConnected()) {
-        if (_cmdHandler->poll(100)) {
-            while (_cmdHandler->poll(1)) {
-                _watchdog.feed();
+        // Heartbeat every HEARTBEAT_INTERVAL_MS
+        if (now - _lastHeartbeatMs >= HEARTBEAT_INTERVAL_MS) {
+            _lastHeartbeatMs = now;
+            if (_wifi.isConnected() && _redis.isConnected()) {
+                refreshPresence();
+                publishHeartbeat("running");
             }
         }
-    }
 
-    // Update display with current state
-    if (_wifi.isConnected()) {
-        _display.setWifiStatus(true, WiFi.localIP().toString().c_str(), _wifi.rssi());
-    } else {
-        _display.setWifiStatus(false, nullptr, 0);
-    }
-    _display.setRedisStatus(_redis.isConnected(), REDIS_HOST, REDIS_PORT);
-    _display.loop();
+        // Check WiFi, reconnect if needed
+        _wifi.checkAndReconnect();
 
-    delay(10);
+        // Check main Redis client, reconnect if needed
+        if (_wifi.isConnected() && !_redis.isConnected()) {
+            LOG_ERROR("MAIN", "Redis (main) disconnected, reconnecting...");
+            connectRedis();
+        }
+
+        // Check subscribe Redis client, reconnect + re-subscribe if needed
+        if (_wifi.isConnected() && !_redisSub.isConnected()) {
+            LOG_ERROR("MAIN", "Redis (sub) disconnected, reconnecting...");
+            connectRedisSub();
+        }
+
+        // Poll for incoming commands — drain all queued commands back-to-back
+        if (_cmdHandler && _redisSub.isConnected()) {
+            if (_cmdHandler->poll(100)) {
+                while (_cmdHandler->poll(1)) {
+                    _watchdog.feed();
+                }
+            }
+        }
+
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    }
+}
+
+// Display update task — Core 1, priority 3
+// Updates status labels once per second. Short mutex holds only.
+void Station::displayTask() {
+    // Wait 2s for LVGL to fully initialize (pendant2 pattern)
+    vTaskDelay(pdMS_TO_TICKS(2000));
+
+    const TickType_t xFrequency = pdMS_TO_TICKS(1000);  // 1 Hz
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+
+    for (;;) {
+        if (_wifi.isConnected()) {
+            _display.setWifiStatus(true, WiFi.localIP().toString().c_str(), _wifi.rssi());
+        } else {
+            _display.setWifiStatus(false, nullptr, 0);
+        }
+        _display.setRedisStatus(_redis.isConnected(), REDIS_HOST, REDIS_PORT);
+        _display.loop();
+
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    }
 }
 
 // --- Private methods ---

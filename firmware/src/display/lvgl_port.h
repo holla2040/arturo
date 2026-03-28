@@ -23,7 +23,7 @@
 #define LVGL_PORT_TASK_MIN_DELAY_MS (1)
 #define LVGL_PORT_TASK_STACK_SIZE   (6 * 1024)
 #define LVGL_PORT_TASK_PRIORITY     (10)
-#define LVGL_PORT_TASK_CORE         (0)   // Core 0 — Arturo main loop runs on Core 1
+#define LVGL_PORT_TASK_CORE         (1)   // Core 1 — separated from WiFi stack on Core 0
 
 /**
  * LVGL buffer configuration

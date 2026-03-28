@@ -32,10 +32,9 @@
 #define DEVICE_COUNT       1
 static const char* DEVICE_IDS[] = {"PUMP-01"};
 
-// CTI OnBoard serial port pins (UART1 via MAX3232)
-#define CTI_UART_NUM       1
-#define CTI_RX_PIN         17
-#define CTI_TX_PIN         18
+// CTI OnBoard serial port (UART0 via MAX3232, default pins GPIO43 TX / GPIO44 RX)
+// Matches pendant2 Serial0 routing through MAX3232 to pump connector
+#define CTI_UART_NUM       0
 
 // Heartbeat (must be < registry stale threshold of 5s)
 #define HEARTBEAT_INTERVAL_MS  3000

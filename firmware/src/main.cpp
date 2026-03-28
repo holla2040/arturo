@@ -16,6 +16,8 @@
 #include "safety/wifi_reconnect.h"
 #include "safety/power_recovery.h"
 #include "safety/ota_update.h"
+#include "display/display_init.h"
+#include "lvgl.h"
 
 // Globals — two Redis clients: one for subscribe, one for everything else
 arturo::WifiManager wifi;
@@ -25,7 +27,10 @@ arturo::CommandHandler* cmdHandler = nullptr;
 arturo::Watchdog watchdog;
 
 unsigned long lastHeartbeatMs = 0;
+unsigned long lastDisplayUpdateMs = 0;
 int heartbeatCount = 0;
+bool displayReady = false;
+lv_obj_t *statusLabel = nullptr;
 
 // Generate UUID v4 using hardware RNG
 void generateUUID(char* buf, size_t len) {
@@ -154,7 +159,34 @@ void setup() {
     Serial.println("============================");
     Serial.println();
 
-    // 0. Check boot reason for power failure recovery
+    // 0a. Initialize display subsystem (I2C, IO expander, touch, LCD, LVGL)
+    //     Must happen early — IO expander controls USB/CAN mux (IO5=0 for USB-CDC)
+    if (display_init()) {
+        display_lock(-1);
+
+        // Station name centered
+        lv_obj_t *label = lv_label_create(lv_scr_act());
+        lv_label_set_text(label, "Arturo Station " FIRMWARE_VERSION "\nInitializing...");
+        lv_obj_set_style_text_font(label, &lv_font_montserrat_24, 0);
+        lv_obj_center(label);
+
+        // Network status — top right, right-aligned
+        statusLabel = lv_label_create(lv_scr_act());
+        lv_label_set_text(statusLabel, "WiFi: --\nRedis: --");
+        lv_obj_set_style_text_font(statusLabel, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_color(statusLabel, lv_color_hex(0xCCCCCC), 0);
+        lv_obj_set_style_text_align(statusLabel, LV_TEXT_ALIGN_RIGHT, 0);
+        lv_obj_align(statusLabel, LV_ALIGN_TOP_RIGHT, -10, 10);
+
+        display_unlock();
+        display_start();
+        displayReady = true;
+        LOG_INFO("MAIN", "Display initialized — LVGL running");
+    } else {
+        LOG_ERROR("MAIN", "Display init failed — continuing without display");
+    }
+
+    // 0b. Check boot reason for power failure recovery
     arturo::BootReason reason = arturo::detectBootReason();
     LOG_INFO("MAIN", "Boot reason: %s", arturo::bootReasonToString(reason));
     if (arturo::isAbnormalBoot(reason)) {
@@ -196,11 +228,10 @@ void setup() {
     static arturo::OTAUpdateHandler otaHandler;
     handler.setOTAHandler(&otaHandler);
 
-    // 5b. Initialize CTI OnBoard serial port (UART1, 2400 7E1 via MAX3232)
+    // 5b. Initialize CTI OnBoard serial port (UART0, 2400 7E1 via MAX3232)
     static arturo::SerialDevice ctiSerial(CTI_UART_NUM);
-    if (ctiSerial.begin(arturo::SERIAL_CONFIG_CTI, CTI_RX_PIN, CTI_TX_PIN)) {
-        LOG_INFO("MAIN", "CTI serial ready: UART%d, pins RX=%d TX=%d",
-                 CTI_UART_NUM, CTI_RX_PIN, CTI_TX_PIN);
+    if (ctiSerial.begin(arturo::SERIAL_CONFIG_CTI)) {
+        LOG_INFO("MAIN", "CTI serial ready: UART%d (default pins)", CTI_UART_NUM);
 
         static arturo::CtiOnBoardDevice ctiOnBoardDevice;
         if (ctiOnBoardDevice.init(ctiSerial)) {
@@ -269,6 +300,28 @@ void loop() {
             while (cmdHandler->poll(1)) {
                 watchdog.feed();
             }
+        }
+    }
+
+    // Update display status — every 1s
+    if (displayReady && (now - lastDisplayUpdateMs >= 1000)) {
+        lastDisplayUpdateMs = now;
+        if (display_lock(50)) {
+            char buf[128];
+            if (wifi.isConnected()) {
+                snprintf(buf, sizeof(buf),
+                    "WiFi: %s  %ddBm\nRedis: %s:%d  %s",
+                    WiFi.localIP().toString().c_str(),
+                    wifi.rssi(),
+                    REDIS_HOST, REDIS_PORT,
+                    redis.isConnected() ? LV_SYMBOL_OK : LV_SYMBOL_CLOSE);
+            } else {
+                snprintf(buf, sizeof(buf),
+                    "WiFi: disconnected\nRedis: %s:%d  --",
+                    REDIS_HOST, REDIS_PORT);
+            }
+            lv_label_set_text(statusLabel, buf);
+            display_unlock();
         }
     }
 

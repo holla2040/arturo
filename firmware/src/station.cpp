@@ -104,7 +104,7 @@ bool Station::begin() {
     // 10. Create FreeRTOS tasks — all app tasks on Core 1 with LVGL
     //     Core 0: WiFi system tasks only (no application competition for PSRAM DMA)
     //     Core 1: LVGL (priority 10), comm (priority 5), display update (priority 3)
-    xTaskCreatePinnedToCore(commTaskEntry, "tComm", 4096, this, 5, nullptr, 1);
+    xTaskCreatePinnedToCore(commTaskEntry, "tComm", 8192, this, 5, nullptr, 1);
     xTaskCreatePinnedToCore(displayTaskEntry, "tDisplay", 3072, this, 3, nullptr, 1);
 #ifdef ENABLE_SCREENSHOT_SERVER
     xTaskCreatePinnedToCore([](void*) {

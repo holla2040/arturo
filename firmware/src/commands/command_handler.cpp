@@ -141,8 +141,21 @@ void CommandHandler::handleDeviceCommand(const char* messageJson) {
 
     unsigned long startMs = millis();
 
-    // Look up the device in the registry
-    const DeviceInfo* device = getDevice(req.deviceId);
+    // Look up the device in the registry.
+    // If device_id is empty (station-scoped scripts), default to the sole device.
+    const DeviceInfo* device = nullptr;
+    if (req.deviceId == nullptr || req.deviceId[0] == '\0') {
+        int count = 0;
+        const DeviceInfo* all = getDevices(count);
+        if (count == 1) {
+            device = &all[0];
+            req.deviceId = device->deviceId;
+            LOG_INFO("CMD", "Empty device_id, defaulting to %s", req.deviceId);
+        }
+    } else {
+        device = getDevice(req.deviceId);
+    }
+
     bool success = false;
     char responseBuf[256] = {0};
     const char* errorCode = nullptr;
@@ -151,7 +164,7 @@ void CommandHandler::handleDeviceCommand(const char* messageJson) {
     if (device == nullptr) {
         errorCode = "device_not_found";
         errorMessage = "Device not registered on this station";
-        LOG_ERROR("CMD", "Unknown device: %s", req.deviceId);
+        LOG_ERROR("CMD", "Unknown device: %s", req.deviceId ? req.deviceId : "(null)");
     } else if (strcmp(device->protocolType, "cti") == 0) {
         // CTI protocol dispatch
         if (_ctiOnBoardDevice == nullptr) {

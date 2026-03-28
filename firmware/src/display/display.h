@@ -11,7 +11,7 @@ public:
     void loop();
 
     // Push state from Station — Display never reaches outside itself
-    void setWifiStatus(bool connected, const char* ip);
+    void setWifiStatus(bool connected, const char* ip, int rssi);
     void setRedisStatus(bool connected, const char* host, uint16_t port);
 
 private:
@@ -26,6 +26,7 @@ private:
     // Cached state for rendering
     bool _wifiConnected = false;
     char _wifiIp[16] = {};
+    int _wifiRssi = 0;
     bool _redisConnected = false;
     char _redisHost[64] = {};
     uint16_t _redisPort = 0;

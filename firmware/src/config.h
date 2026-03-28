@@ -36,9 +36,8 @@ static const char* DEVICE_IDS[] = {"PUMP-01"};
 // Matches pendant2 Serial0 routing through MAX3232 to pump connector
 #define CTI_UART_NUM       0
 
-// Heartbeat — 10s balances presence freshness vs display DMA contention
-// (WiFi bursts from Redis I/O compete with RGB LCD's continuous PSRAM DMA)
-#define HEARTBEAT_INTERVAL_MS  10000
+// Heartbeat interval
+#define HEARTBEAT_INTERVAL_MS  3000
 #define PRESENCE_TTL_SECONDS   90
 
 // Redis channels (from ARCHITECTURE.md section 2.3)

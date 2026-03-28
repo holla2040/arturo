@@ -3,14 +3,16 @@
 Persistent serial logger for Arturo station debugging.
 
 Connects to /dev/ttyACM0, logs all output to /tmp/arturo-serial.log,
-and prints to stdout simultaneously. Auto-reconnects when the port
-disappears (e.g., during flash) and reappears.
+prints to stdout, and UDP-broadcasts every line on port 8888.
 
 Usage:
     python3 serial_logger.py                    # default /dev/ttyACM0
     python3 serial_logger.py /dev/ttyACM1       # different port
 
 Log file: /tmp/arturo-serial.log (last 5000 lines kept)
+
+Listen to UDP broadcast (survives logger restarts):
+    socat -u UDP4-RECV:8888,broadcast,reuseaddr -
 
 Both the operator terminal and Claude can read the log:
     tail -f /tmp/arturo-serial.log              # live follow
@@ -21,6 +23,7 @@ import sys
 import os
 import time
 import signal
+import socket
 import serial
 from datetime import datetime
 from collections import deque
@@ -30,10 +33,15 @@ BAUD = 115200
 LOG_FILE = "/tmp/arturo-serial.log"
 MAX_LINES = 5000
 RECONNECT_INTERVAL = 1.0  # seconds between reconnect attempts
+UDP_PORT = 8888
 
 # Ring buffer for log rotation
 log_buffer = deque(maxlen=MAX_LINES)
 running = True
+
+# UDP broadcast socket (fire-and-forget, never blocks)
+udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
 
 def signal_handler(sig, frame):
@@ -56,12 +64,21 @@ def flush_log():
     os.replace(tmp, LOG_FILE)
 
 
+def udp_broadcast(entry):
+    """Send a log line as UDP broadcast on port 8888."""
+    try:
+        udp_sock.sendto((entry + "\n").encode("utf-8", errors="replace"), ("<broadcast>", UDP_PORT))
+    except OSError:
+        pass  # network down, interface missing — don't block logging
+
+
 def log_line(text):
-    """Log a line to both stdout and the ring buffer."""
+    """Log a line to stdout, ring buffer, and UDP broadcast."""
     ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
     entry = f"[{ts}] {text}"
     print(entry, flush=True)
     log_buffer.append(entry)
+    udp_broadcast(entry)
 
 
 def marker(msg):
@@ -70,6 +87,7 @@ def marker(msg):
     entry = f"[{ts}] --- {msg} ---"
     print(f"\033[90m{entry}\033[0m", flush=True)  # dim gray on terminal
     log_buffer.append(entry)
+    udp_broadcast(entry)
 
 
 def connect():

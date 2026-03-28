@@ -29,6 +29,11 @@ monitor-bg:
 	@$(LOGGER) > /dev/null 2>&1 &
 	@echo "--- logger running in background, log at $(LOG) ---"
 
+# Listen to UDP broadcast (survives logger restarts)
+mon:
+	@echo "Listening for UDP broadcasts on port 8888..."
+	@socat -u UDP4-RECV:8888,broadcast,reuseaddr -
+
 # Tail the log file
 log:
 	tail -f $(LOG)
@@ -50,4 +55,4 @@ test:
 clean:
 	pio run -e $(ENV) -t clean
 
-.PHONY: bin build flash monitor monitor-bg monitor-stop log log50 test clean
+.PHONY: bin build flash monitor monitor-bg mon monitor-stop log log50 test clean

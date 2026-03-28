@@ -192,7 +192,7 @@ void Station::displayTask() {
     // Wait 2s for LVGL to fully initialize (pendant2 pattern)
     vTaskDelay(pdMS_TO_TICKS(2000));
 
-    const TickType_t xFrequency = pdMS_TO_TICKS(1000);  // 1 Hz
+    const TickType_t xFrequency = pdMS_TO_TICKS(100);  // 10 Hz for clock
     TickType_t xLastWakeTime = xTaskGetTickCount();
 
     for (;;) {

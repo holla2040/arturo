@@ -1,0 +1,225 @@
+another created this markdown of a critical issue we're trying to overcome. Can you do some deep research into this issue and offer solutions?
+
+gemini
+This is a classic "ESP32-S3 bandwidth wall" problem. You’ve correctly identified that at $1024 \times 600$, the RGB LCD is consuming roughly $60\%$ of the theoretical Quad-SPI PSRAM bandwidth just to stay lit, leaving almost no room for the bursty nature of WiFi DMA.Based on your research and the current state of the Arturo project, here is a deep dive into the technical solutions to break through the remaining jitter.1. The "Silver Bullet": Move WiFi Buffers to Internal SRAMThe most effective way to stop the jitter is to ensure WiFi DMA never touches the PSRAM bus. By default, ESP-IDF tries to be helpful by putting large WiFi/LwIP buffers in PSRAM to save internal SRAM. This is exactly what causes the collision.The FixYou must set CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=n.Result: WiFi DMA moves to Internal SRAM ($320\text{ KB}$ bank).Trade-off: You will lose approximately $40\text{--}60\text{ KB}$ of internal heap.Why it works: The ESP32-S3 has separate internal buses. By moving WiFi to SRAM, the PSRAM bus is left exclusively for the LCD DMA and CPU rendering.2. Solving the Build Blockers (The "Hybrid" Path)You encountered linker errors (__wrap_log_printf) and missing certificates because you are trying to mix a custom-compiled ESP-IDF with pre-compiled Arduino libraries. This will almost always fail because the binary blobs in the Arduino core are tied to a specific sdkconfig.The Solution: Switch to framework = espidf, arduinoInstead of using custom_sdkconfig on top of the Arduino framework, use the ESP-IDF + Arduino as a Component method. This compiles everything—including the Arduino core—from source.Fixes Blocker 1 (Certs): Since you're in full control of the ESP-IDF components, you can simply disable ESP_HTTPS_SERVER and ESP_RAINMAKER in menuconfig. This removes the requirement for those .S certificate files.Fixes Blocker 2 (Linker): Because the Arduino core is compiled alongside the IDF with the same flags, the __wrap_log_printf wrapper will be consistent across all objects.3. Boosting Bandwidth: Octal Mode & 120MHzIf you cannot move WiFi to SRAM due to memory constraints, you must enable Octal PSRAM.Mode: Ensure CONFIG_SPIRAM_MODE_OCT=y is set.Speed: Go beyond $80\text{ MHz}$. The ESP32-S3 supports $120\text{ MHz}$ PSRAM (CONFIG_SPIRAM_SPEED_120M).Impact: This moves your usable bandwidth from $\sim 60\text{ MB/s}$ to $\sim 180\text{ MB/s}$ (theoretical). This provides the "headroom" necessary for the LCD DMA to survive a WiFi burst without the bounce buffer running dry.4. Hardware DMA Priority (The "Hidden" Hack)The ESP32-S3 GDMA (General DMA) controller has an internal arbitration priority. By default, the LCD and WiFi often share the same priority level. You can manually elevate the LCD DMA's priority by writing to the GDMA registers directly, bypassing the driver.GDMA Priority RegistersThe LCD peripheral usually uses a specific GDMA channel. You can find this channel at runtime and set its priority to the maximum:Locate the GDMA channel allocated to the RGB panel.Set the GDMA_CHn_PRI (where $n$ is the channel) to 3 (highest).Set other channels (like WiFi) to 0 or 1.[!TIP]This is a "brute force" fix. If the LCD has maximum priority, the WiFi DMA will be the one that stalls, which might cause a slight drop in network throughput but will keep the screen perfectly stable.5. Summary of Recommended sdkconfig ChangesIf you migrate to the Hybrid Framework, apply these specific settings for the Waveshare 7" board:CategoryOptionValuePSRAMCONFIG_SPIRAM_MODE_OCTyPSRAMCONFIG_SPIRAM_SPEED_120MyWiFiCONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIPn (Move to SRAM)LCDCONFIG_LCD_RGB_ISR_IRAM_SAFEyCacheCONFIG_ESP32S3_DATA_CACHE_LINE_64ByOptimizationCONFIG_COMPILER_OPTIMIZATION_PERFyFinal RecommendationYour "Blocker 2" (Linker Error) is the wall you need to climb first. I recommend Solution #2: Migrating to the Hybrid Framework. It is the only reliable way to get CONFIG_SPIRAM_MODE_OCT and CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=n working together.Would you like me to generate a platformio.ini and a basic project structure for the ESP-IDF + 
+
+chatGPT
+I’m checking three things in parallel: what Espressif documents as the intended RGB+PSRAM path, what their own LCD+Wi-Fi boards/examples actually configure, and whether your Arduino build path is blocking the required sdkconfig changes.
+
+The main pattern is holding up so far: Espressif’s own docs describe this as a bandwidth/cache/coexistence problem, not an LVGL scheduling problem, and they explicitly call out turning off Wi-Fi/LWIP PSRAM allocation plus bounce-buffer/XIP tuning as mitigations.
+
+Thought for 6m 32s
+
+I reviewed the markdown and cross-checked it against Espressif’s current RGB LCD docs, FAQ, Kconfig reference, Arduino integration docs, PlatformIO’s ESP-IDF docs, and Waveshare’s notes for this exact board. The core diagnosis in your write-up is sound: this is primarily an external-memory/bus-coexistence problem, not an LVGL scheduling problem. The biggest missing piece is likely not one more task tweak, but getting onto a build path where you can actually use the PSRAM/LCD/Wi-Fi settings Espressif recommends for RGB+Wi-Fi coexistence on ESP32-S3.
+
+The most important finding is that Espressif’s own guidance for RGB “drift” on ESP32-S3 explicitly points at three root causes: PCLK too high for available PSRAM/GDMA bandwidth, flash/PSRAM sharing the same bus, and Wi-Fi/flash activity reducing available bandwidth. Their recommended mitigation for Wi-Fi coexistence is not “tune LVGL harder”; it is XIP on PSRAM + RGB Bounce buffer, plus 64-byte data cache lines in bounce-buffer mode, CONFIG_COMPILER_OPTIMIZATION_PERF, and, if drift still happens with Wi-Fi, turning off CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP.
+
+A second high-confidence finding is that your current Quad-vs-Octal suspicion is very plausible. Waveshare’s own docs for the ESP32-S3-Touch-LCD-7B say Arduino should be configured with “8 MB OPI mode,” and ESP-IDF’s PSRAM guide says Quad and Octal PSRAM are distinct hardware modes that must match the actual hardware. Espressif’s own RGB panel example for ESP32-S3 uses CONFIG_SPIRAM_MODE_OCT=y, CONFIG_SPIRAM_SPEED_80M=y, and CONFIG_SPIRAM_XIP_FROM_PSRAM=y, with a note that these help increase achievable PCLK when the framebuffer is in PSRAM.
+
+That matters because Espressif’s FAQ says, based on their limited testing, the rough upper PCLK ceilings are around 11 MHz for Quad PSRAM at 80 MHz, about 22 MHz for Octal PSRAM at 80 MHz, and about 30 MHz for Octal PSRAM at 120 MHz. Your panel is running at 30 MHz, so if the effective build configuration is really landing in Quad mode, you are far outside the range Espressif describes as workable; even Octal 80 MHz would still make 30 MHz aggressive, while Octal 120 MHz is the configuration they associate with “around 30 MHz,” and they mark that as experimental.
+
+My overall conclusion is this: the likely missing solution is a full-source build configuration that combines Octal PSRAM, XIP-from-PSRAM, bounce buffers, Wi-Fi/LWIP allocations kept out of PSRAM, and the cache/compiler settings Espressif recommends. Your current precompiled Arduino path is probably the real blocker now, because the needed fixes live at sdkconfig/build level, and your uploaded notes show that changing those settings inside the current PlatformIO/Arduino setup runs into rebuild/link incompatibilities.
+
+Here is how I would answer the specific research questions.
+
+1) Is CONFIG_SPIRAM_MODE_OCT the missing piece?
+Very likely one of the biggest pieces, yes. Not by itself, but it is probably foundational. Waveshare says this board should use 8 MB OPI mode, Espressif says the PSRAM mode must match the hardware, and Espressif’s own RGB example for ESP32-S3 uses Octal PSRAM plus XIP-from-PSRAM. If your effective build really uses Quad, I would treat that as a major misconfiguration, not a minor optimization.
+
+2) Does CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=n eliminate Wi-Fi DMA on the PSRAM bus?
+It should materially reduce Wi-Fi/LWIP pressure on PSRAM, because that option is specifically the switch that makes ESP-IDF “try to allocate WiFi and LWIP memories in SPIRAM first,” and Espressif’s LCD FAQ explicitly recommends turning it off if drift still occurs with Wi-Fi. I would not assume it removes every Wi-Fi-related stall, though, because flash and PSRAM still share the MSPI path, and other external-memory placements can still matter. Also watch CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY and your internal-memory reserve, because Espressif exposes both of those in the same PSRAM config area.
+
+3) What do Espressif’s own LCD boards/examples do?
+They do not appear to rely on a magic hidden coexistence switch. The public pattern is: Octal PSRAM, XIP-from-PSRAM, bounce-buffer-capable driver modes, and board support built on top of ESP-IDF/esp-bsp. Espressif’s ESP32-S3 LCD EV Board is an official RGB-capable reference board, and the esp-bsp repository includes its support package. The stock ESP-IDF rgb_panel example for ESP32-S3 enables Octal PSRAM and XIP-from-PSRAM.
+
+4) Is framework = espidf, arduino / hybrid mode viable?
+Conceptually yes, and I would push in that direction. The first-party documented route is “Arduino as an ESP-IDF component,” which Espressif explicitly says gives you the full flexibility of ESP-IDF. They also say Arduino Core 3.3.7 is compatible with ESP-IDF 5.5, and if you need these modified settings repeatedly, they recommend rebuilding the Arduino core with the Static Library Builder. That makes “ESP-IDF project with Arduino component” my recommended path, with “rebuild Arduino core from source” as the next-best path if you must preserve the existing Arduino-centric packaging.
+
+5) Can the bounce-buffer ISR path be made faster?
+Yes. Espressif’s docs and FAQ point in the same direction: use bounce buffers, make the LCD ISR IRAM-safe, enable XIP-from-PSRAM so the external-memory cache stays usable during flash ops, use 64-byte data cache lines in bounce-buffer mode, use performance optimization, and leave enough SRAM for the bounce buffers. The driver also exposes dma_burst_size, and the docs say it should be a power of two.
+
+6) Is there a documented GDMA-priority control for LCD over Wi-Fi?
+In the official RGB LCD and Kconfig docs I checked, the documented knobs are PCLK, bounce buffers, dma_burst_size, refresh_on_demand, no_fb, restart-in-vsync, XIP/cache settings, and ISR IRAM safety. I did not see a documented public API there for setting LCD GDMA priority over Wi-Fi.
+
+7) Did ESP-IDF 5.5+ add any special LCD+Wi-Fi coexistence feature?
+I did not find a single new “coexistence” switch. What I did find is that the current docs lean harder on the modern RGB driver modes and runtime controls: bounce buffer, bounce-buffer-only (no_fb), refresh_on_demand, dynamic esp_lcd_rgb_panel_set_pclk(), XIP-from-PSRAM, and IRAM-safe ISR behavior. That looks like Espressif’s intended toolbox.
+
+My recommended solution stack, in order, is:
+
+1. Change the build strategy before changing more app code.
+Move this project to an ESP-IDF build with Arduino as a component, or rebuild the Arduino core from source with the desired sdkconfig. PlatformIO’s ESP-IDF flow is built around sdkconfig/menuconfig, which is the level where these fixes live. Staying on precompiled Arduino archives while trying to force low-level IDF config changes is the least promising path.
+
+2. Start with a conservative, non-experimental config that matches official examples.
+My first target would be Octal PSRAM at 80 MHz, not 120 MHz yet: CONFIG_SPIRAM_MODE_OCT=y, CONFIG_SPIRAM_SPEED_80M=y, CONFIG_SPIRAM_XIP_FROM_PSRAM=y, CONFIG_LCD_RGB_ISR_IRAM_SAFE=y, CONFIG_COMPILER_OPTIMIZATION_PERF=y, CONFIG_ESP32S3_DATA_CACHE_LINE_64B=y, and preferably the larger cache sizes if SRAM pressure allows. Disable CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP, keep external-memory .bss placement off unless you truly need it, and reserve enough internal memory for DMA/internal-only users. This is the closest match to Espressif’s documented guidance without jumping to experimental 120 MHz PSRAM.
+
+3. Treat 30 MHz PCLK as a validation target, not the initial target.
+Once the build path is fixed, I would test at 20 MHz, 22 MHz, 24 MHz, and only then 30 MHz under sustained Wi-Fi/Redis traffic. Espressif’s own FAQ says Octal 80 MHz is around 22 MHz from their limited testing, and 30 MHz is around where Octal 120 MHz starts to come into play. That makes a stepped sweep much more informative than trying to hold 30 MHz constant while changing many variables.
+
+4. Increase bounce-buffer headroom after the build fix, not before.
+Your current 20-row bounce buffer is reasonable, but Espressif explicitly says to increase the buffer if drift remains, assuming SRAM allows it. For a 1024-wide RGB565 panel, bigger buffers are expensive but straightforward. I would try 30 rows and 40 rows once the memory-placement config is correct.
+
+5. Keep your current task/core hygiene, but stop expecting it to solve the whole problem.
+Espressif does say that assigning RGB init to the same core as LVGL’s lv_timer_handler() can materially raise the practical PCLK ceiling, so your core-affinity work is directionally correct. It is still secondary to memory/bus configuration.
+
+6. Use dynamic PCLK reduction around known trouble windows.
+Espressif explicitly recommends dropping PCLK before short flash-heavy operations such as Wi-Fi connection events, waiting about one frame, and restoring it afterward. That is a good targeted mitigation for reconnect, subscribe, OTA, provisioning, or NVS-heavy sequences even if your steady-state screen becomes stable.
+
+7. Keep 120 MHz PSRAM as a last step.
+ESP-IDF exposes Octal 120 MHz PSRAM only as an experimental feature. It may be what ultimately enables 30 MHz PCLK comfortably on this class of design, but I would only test it after proving the non-experimental Octal 80 MHz + XIP + bounce-buffer + Wi-Fi-in-internal-memory configuration.
+
+What I would stop spending time on:
+
+More mutex/task-priority tuning as a primary fix. Espressif’s docs do not present that as the root solution.
+Relying on CONFIG_LCD_RGB_RESTART_IN_VSYNC as anything more than recovery. Espressif explicitly says it cannot completely avoid the issue.
+Patching precompiled Arduino .a files. It is possible in theory, but it fights the documented toolchain direction instead of using it.
+
+The shortest practical verdict is: the likely fix is not “one magic flag,” but “one coherent stack” — Octal PSRAM that matches the board, XIP-from-PSRAM, bounce-buffer mode, Wi-Fi/LWIP kept out of PSRAM, and a full-source ESP-IDF/Arduino build so those settings actually take effect together. That is the path most consistent with Espressif’s own docs, examples, and board guidance.
+
+If useful, I can turn this into a concrete migration plan with an initial sdkconfig.defaults, platformio.ini, and a minimal RGB/LVGL/Wi-Fi validation matrix.
+
+claude
+Answering the 7 open research questions
+1. Is CONFIG_SPIRAM_MODE_OCT the missing piece?
+Yes, definitively. It's not one piece of the fix — it's the prerequisite for everything else. The Espressif FAQ data makes this concrete: at 30 MHz PCLK, you need Octal PSRAM at 80 MHz minimum to stay near the safe operating envelope, and Octal at 120 MHz to have headroom for WiFi contention. Quad at 80 MHz supports a maximum of ~11 MHz PCLK — below that, the system is technically in bus starvation every single frame.
+The custom_sdkconfig + __wrap_log_printf blocker is real and well-understood: the pre-compiled Arduino WiFi .a blobs were built against a specific ESP-IDF configuration, and any change to PSRAM mode or XIP settings alters the linker-level symbol wrapping, breaking compatibility. There is no clean workaround within the pure Arduino framework path.
+2. Does SPIRAM_TRY_ALLOCATE_WIFI_LWIP=n eliminate WiFi DMA on the PSRAM bus?
+This is your highest-leverage fix that's potentially achievable today without a framework change. If you can set it, WiFi packet buffers move entirely to internal SRAM — no WiFi DMA ever touches the PSRAM bus again. The cost is ~50–100 KB of internal SRAM for WiFi buffers, which the ESP32-S3's 320 KB SRAM can absorb. The critical unknown is whether this particular sdkconfig option triggers the __wrap_log_printf error; unlike PSRAM mode, changing WiFi buffer placement shouldn't alter symbol wrapping. Worth testing in isolation before anything else.
+3. What do commercial products and Espressif's own reference boards do?
+The Espressif ESP-BSP for the ESP32-S3-LCD-EV-Board explicitly identifies bounce buffer mode as the recommended fix specifically for WiFi + LCD coexistence: "Enabling bounce buffer mode can lead to a higher PCLK frequency at the expense of increased CPU consumption. This mode is particularly useful when dealing with screen drift, especially in scenarios involving Wi-Fi usage or writing to Flash memory. This feature should be used in conjunction with ESP32S3_DATA_CACHE_LINE_64B configuration." GitHub
+The coupling of bounce buffer mode with DATA_CACHE_LINE_64B is non-negotiable — Espressif's FAQ states that without 64B cache lines, bounce buffer mode itself "may cause the screen to drift." Your current config has DATA_CACHE_LINE_32B, which means the bounce buffer mode you've already implemented is operating incorrectly per Espressif's own spec. This is a high-value, low-risk fix.
+The ESP32-S3-LCD-EV-Board example notes that "the PSRAM 120M DDR feature is intended to achieve the best performance of RGB LCD." GitHub Espressif's reference product targets 120 MHz PSRAM for LCD applications.
+4. Is framework = espidf, arduino (hybrid mode) a viable path?
+A confirmed working community post for an ESP32-S3-DevKitC-1-N16R8 board shows that with framework = arduino, espidf, setting CONFIG_SPIRAM=y and CONFIG_SPIRAM_MODE_OCT=y successfully activates Octal PSRAM, confirming "Bus Mode: OPI." PlatformIO Community This is the lowest-cost path to OCT mode that preserves Arduino APIs.
+The migration cost is moderate: you keep your Arduino WiFi.h, Serial, etc., but ESP-IDF is compiled from source alongside it, so the linker symbol conflict disappears. The cert file issue (.crt.S files) still applies and needs a pre-build script, but it's a one-time fix, not an ongoing problem. The main risk is that framework = arduino, espidf has a somewhat narrower community than pure Arduino — you're working closer to the metal — but it has been successfully used for exactly this class of problem.
+5. Can the bounce buffer ISR be made faster?
+Yes, through a combination of:
+
+CONFIG_LCD_RGB_ISR_IRAM_SAFE=y — keeps the ISR in IRAM so flash cache misses can't stall it mid-copy. The Espressif FAQ explicitly lists this as a fix for screen drift when flash operations occur. Esptool Documentation
+CONFIG_ESP32S3_DATA_CACHE_LINE_64B=y — larger cache lines mean the CPU can fetch more PSRAM data per cache transaction, reducing the number of round-trips in the bounce buffer copy loop.
+CONFIG_COMPILER_OPTIMIZATION_PERF=y — -O2 instead of -Os generates faster memcpy code. This specifically benefits the inner loop of the bounce buffer ISR.
+XIP from PSRAM — eliminates flash cache misses entirely during ISR execution.
+
+6. Is there an ESP-IDF GDMA priority mechanism for LCD DMA?
+This is a hardware limitation with no clean software workaround: "The only way to solve this would be some sort of hardware priority schemes which allow GDMA to complete its job without being interrupted." No public API exists in ESP-IDF 5.x to elevate LCD GDMA priority over WiFi GDMA. ESP32 Forum HAL-level register writes are theoretically possible but fragile and unsupported. The rx_weight/tx_weight registers exist but aren't exposed. Don't pursue this path.
+7. Does ESP-IDF 5.5+ have new LCD+WiFi coexistence features?
+The most useful runtime API is esp_lcd_rgb_panel_set_pclk(), which dynamically adjusts the pixel clock. Espressif's FAQ explicitly recommends using this to throttle PCLK during WiFi-heavy operations: reduce it to something like 6 MHz before the operation, delay ~20 ms for one frame to complete, then restore PCLK. This causes a brief blank flash but prevents permanent drift. Esptool Documentation You can hook this into FreeRTOS event groups or callbacks around your Redis heartbeat publishes — lower PCLK, publish, restore. The dma_burst_size field in esp_lcd_rgb_panel_config_t replaces the deprecated alignment fields and should be set to 64 for optimal alignment with 64B cache lines.
+
+Prioritized action plan for Arturo
+Here's the specific sequence, ordered so each step builds on the last and is independently testable:
+Phase 1 — Do now (in current Arduino framework, no rebuild)
+These target bandwidth reduction and ISR stability. None should trigger the __wrap_log_printf error.
+First, try CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=n in isolation via custom_sdkconfig. If the build succeeds, this is your biggest single win — WiFi DMA stops touching PSRAM entirely.
+Second, implement the esp_lcd_rgb_panel_set_pclk() hook in your commTask. Before each Redis heartbeat publish, lower PCLK to 8–10 MHz, delay 25 ms, publish, then restore to 30 MHz. This surgically reduces bus pressure during the worst-case WiFi bursts.
+Third, change CONFIG_ESP32S3_DATA_CACHE_LINE_64B=y (and unset 32B). Espressif's documentation states that bounce buffer mode requires this — your current 32B setting is a mismatch with the mode you're already running. This is low risk and may be the single option that doesn't break the pre-compiled wrapper.
+Fourth, add CONFIG_LCD_RGB_ISR_IRAM_SAFE=y. This protects the bounce buffer copy ISR from flash stalls.
+Phase 2 — Hybrid framework migration
+Switch to framework = arduino, espidf in platformio.ini. Add a sdkconfig.defaults file with the full OCT PSRAM configuration:
+iniCONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+# CONFIG_SPIRAM_MODE_QUAD is not set
+CONFIG_IDF_EXPERIMENTAL_FEATURES=y
+CONFIG_SPIRAM_XIP_FROM_PSRAM=y
+CONFIG_SPIRAM_FETCH_INSTRUCTIONS=y
+CONFIG_SPIRAM_RODATA=y
+CONFIG_ESP32S3_DATA_CACHE_LINE_64B=y
+# CONFIG_ESP32S3_DATA_CACHE_LINE_32B is not set
+CONFIG_ESP32S3_DATA_CACHE_64KB=y
+CONFIG_LCD_RGB_ISR_IRAM_SAFE=y
+# CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP is not set
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
+Add a pre-build script to create the dummy .crt.S files before the cmake step runs — this is a known one-time fix:
+python# pre_build.py (add to extra_scripts in platformio.ini)
+import os, pathlib
+
+def create_dummy_certs(source, target, env):
+    build_dir = env.subst("$BUILD_DIR")
+    certs = [
+        "https_server.crt.S",
+        "rmaker_mqtt_server.crt.S",
+        "rmaker_claim_service_server.crt.S",
+        "rmaker_ota_server.crt.S",
+    ]
+    for cert in certs:
+        p = pathlib.Path(build_dir) / cert
+        p.parent.mkdir(parents=True, exist_ok=True)
+        if not p.exists():
+            p.write_text("/* dummy */\n")
+
+env = DefaultEnvironment()
+env.AddPreAction("$BUILD_DIR/src", create_dummy_certs)
+At this point, Octal PSRAM brings your max safe PCLK to ~22 MHz. Since Arturo runs at 30 MHz, you're still slightly over the safe limit for Octal at 80 MHz with WiFi contention. You have two sub-options: reduce PCLK to 22 MHz (acceptable 40 Hz refresh for an industrial HMI) or also enable CONFIG_SPIRAM_SPEED_120M=y (experimental, temperature-sensitive) to push the ceiling to 30 MHz.
+Phase 3 — If jitter persists: reduce PCLK to 22 MHz
+esp_lcd_rgb_panel_set_pclk() can set this at runtime without a rebuild. Lower to 22 MHz and verify stability with WiFi active. Per Espressif's data, Octal PSRAM at 80 MHz supports a max PCLK of ~22 MHz reliably. Esptool Documentation For an industrial automation HMI, 40 Hz refresh is typically imperceptible and a completely reasonable trade for display stability.
+
+The key corrections to your existing knowledge
+Your document correctly identifies the problem but has one important inaccuracy worth flagging: the DATA_CACHE_LINE_64B setting. Your table lists it as "correct value: Enable" for the reason "larger cache lines = efficient PSRAM→SRAM copy." That's right, but more critically — Espressif states that 64B cache lines are required for bounce buffer mode to work correctly at all. Your current 32B setting combined with bounce buffer mode is the Espressif-documented cause of screen drift. This isn't an optimization — it's a correctness requirement.
+Also, your bandwidth calculation appears to use Octal PSRAM figures (~120 MB/s theoretical). The pre-compiled framework puts you in Quad mode at effectively ~60 MB/s usable, which changes the math considerably — display alone at 73 MB/s would be consuming more bandwidth than the bus can actually deliver, explaining why even non-WiFi operation under heavy rendering can show glitches.
+
+perplexity
+Yes — this looks like a real hardware/bandwidth contention problem, not just an LVGL or FreeRTOS tuning issue. The most important findings are that ESP-IDF explicitly says RGB LCD modes that read frame data from PSRAM share bandwidth with the CPU, and that bounce-buffer mode still depends on timely CPU copies from PSRAM into internal SRAM, which can glitch when PSRAM/cache access is congested.
+
+What the evidence points to
+The ESP32-S3 RGB LCD driver has three relevant operating patterns: full frame buffer in PSRAM, double frame buffer in PSRAM, and bounce-buffer mode. In bounce-buffer mode, the LCD DMA reads internal SRAM while the CPU copies from PSRAM into the bounce buffer; Espressif notes this can flicker or fail when PSRAM bandwidth is stressed, especially if CPU and another core are both accessing PSRAM through cache.
+
+That aligns with the issue document’s core hypothesis: WiFi traffic plus LCD refresh are colliding on the same external-memory path, so reducing UI work helps but does not fully solve the problem when WiFi remains active.
+
+Most likely root causes
+PSRAM bandwidth is saturated or near-saturated by the display path alone, leaving too little headroom for WiFi bursts.
+
+WiFi/LwIP buffers may be landing in PSRAM, increasing contention further.
+
+Flash-cache stalls can delay bounce-buffer refill work, making a visually minor delay turn into a missed buffer swap or horizontal shift.
+
+The current build appears to be using settings that do not match the hardware’s OPI PSRAM capability, which can leave performance on the table.
+
+Highest-value fixes
+Fix	Impact	Risk / Cost
+Move WiFi/LwIP buffers out of PSRAM	Reduces direct WiFi DMA/cache contention on external RAM 
+Uses more internal SRAM
+Enable correct OPI PSRAM mode	Roughly the best “free” bandwidth win if the board really has OPI PSRAM 
+Requires a build path that actually honors sdkconfig
+Keep all flash/IO out of critical display periods	Prevents cache-disabled stalls that break bounce-buffer timing 
+Architectural discipline required
+Increase bounce buffer height	Gives ISR more slack before underrun 
+Consumes internal SRAM
+Lower pixel clock during WiFi-heavy periods	Reduces display bandwidth demand proportionally 
+Lower refresh / more latency
+Use modem sleep aggressively	Reduces idle radio activity and DMA pressure between bursts 
+Adds network latency
+What I would prioritize first
+Confirm the PSRAM is really configured as OPI/octal, not quad. The attached document’s “half bandwidth” diagnosis is plausible and is one of the few changes that can materially improve headroom without redesigning the app.
+
+Force WiFi/LwIP allocations to internal RAM where possible, because Espressif documents that external RAM is shared bandwidth and the issue is worsened when multiple consumers hit PSRAM/cache.
+
+Increase bounce buffer size enough to tolerate short bursts, but not so much that it starves the rest of internal memory.
+
+Eliminate any flash-heavy work near render-critical paths, especially anything that can disable cache or induce stalls.
+
+If you need a deterministic fix, migrate to a build where the full ESP-IDF sdkconfig is under your control, because the current Arduino/precompiled path appears to block the exact memory settings you need.
+
+Practical architecture options
+Option A: Stay on Arduino, but rebuild differently
+This is the least code churn, but the attached notes show that customsdkconfig ran into compatibility problems with precompiled Arduino libraries and generated-cert build steps. If you stay in this world, the best path is usually to get to a build configuration that recompiles all relevant components consistently, not partially.
+
+Option B: Hybrid espidf, arduino
+This is likely the strongest “middle path” if you want to keep Arduino-style code while gaining real control over ESP-IDF configs. It should reduce the precompiled-library mismatch problem that is blocking the PSRAM fixes in the current setup.
+
+Option C: Full ESP-IDF migration
+This is the cleanest long-term answer if the product depends on WiFi + RGB LCD working reliably under load. It gives you direct control over PSRAM mode, cache-related settings, LCD ISR placement, WiFi buffer placement, and task topology without fighting precompiled library assumptions.
+
+My read on the “critical fix”
+The attached document’s strongest claim is that disabling WiFi solved the problem completely for the pendant2 project, while Arturo only improved when WiFi traffic was reduced and modem sleep was enabled. That is consistent with Espressif’s own documentation: the display path can be robust, but only if bandwidth, cache stalls, and PSRAM consumers are controlled carefully.
+
+So my ranking is:
+
+Correct PSRAM mode first.
+
+Move WiFi/LwIP off PSRAM as much as possible.
+
+Increase bounce-buffer slack.
+
+Lower display bandwidth if needed.
+
+Switch to a build system that actually lets you enforce the above.
+
+If you want, I can turn this into a concrete action plan for your exact board and build system, including the specific sdkconfig/PlatformIO settings I would try first and the order I’d validate them in.
+

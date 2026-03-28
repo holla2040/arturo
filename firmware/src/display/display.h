@@ -21,6 +21,7 @@ private:
     // LVGL objects
     lv_obj_t* _titleLabel = nullptr;
     lv_obj_t* _statusLabel = nullptr;
+    lv_obj_t* _clockLabel = nullptr;
 
     // Cached state for rendering
     bool _wifiConnected = false;

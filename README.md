@@ -48,6 +48,8 @@ arturo/
 ├── docs/
 │   ├── architecture/
 │   │   └── ARCHITECTURE.md             # Architecture decisions and protocol spec
+│   ├── hardware/
+│   │   └── psram-lcd-jitter/           # WiFi + RGB LCD jitter fix (PSRAM bus contention)
 │   └── reference/                      # Reference material from arturo-go-archive
 ├── schemas/                            # Protocol v1.0.0 message schemas
 │   └── v1.0.0/

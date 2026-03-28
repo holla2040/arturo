@@ -24,6 +24,13 @@ bool Display::begin() {
     lv_obj_set_width(_titleLabel, 500);
     lv_obj_set_pos(_titleLabel, (1024 - 500) / 2, (600 - 60) / 2);
 
+    // Clock — top left, updates every 100ms to verify display refresh
+    _clockLabel = lv_label_create(lv_scr_act());
+    lv_label_set_text(_clockLabel, "00:00:00.0");
+    lv_obj_set_style_text_font(_clockLabel, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_color(_clockLabel, lv_color_make(0x66, 0x66, 0x66), 0);
+    lv_obj_set_pos(_clockLabel, 10, 10);
+
     // Network status — top right, right-aligned
     _statusLabel = lv_label_create(lv_scr_act());
     lv_label_set_text(_statusLabel, "WiFi: --\nRedis: --");
@@ -43,13 +50,26 @@ bool Display::begin() {
 
 void Display::loop() {
     if (!_ready) return;
-
-    unsigned long now = millis();
-    if (now - _lastUpdateMs < 1000) return;
-    _lastUpdateMs = now;
-
     if (!display_lock(100)) return;
-    updateStatusLabel();
+
+    // Clock — update every call (100ms from displayTask)
+    unsigned long ms = millis();
+    unsigned long totalSecs = ms / 1000;
+    int h = (totalSecs / 3600) % 24;
+    int m = (totalSecs / 60) % 60;
+    int s = totalSecs % 60;
+    int tenths = (ms / 100) % 10;
+    char clockBuf[16];
+    snprintf(clockBuf, sizeof(clockBuf), "%02d:%02d:%02d.%d", h, m, s, tenths);
+    lv_label_set_text(_clockLabel, clockBuf);
+
+    // Status — update once per second
+    unsigned long now = millis();
+    if (now - _lastUpdateMs >= 1000) {
+        _lastUpdateMs = now;
+        updateStatusLabel();
+    }
+
     display_unlock();
 }
 

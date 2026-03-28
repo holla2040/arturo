@@ -70,6 +70,7 @@ cd firmware && make monitor                           # serial monitor (foregrou
 - `docs/SCRIPTING_HAL.md` - HAL reference for script authors (abstract command vocabulary per device type)
 - `docs/reference/PROTOCOL_ORIGINAL.md` - Original protocol spec (reference)
 - `docs/reference/SCRIPTING_LANGUAGE_ORIGINAL.md` - Arturo DSL reference
+- `docs/hardware/psram-lcd-jitter/` - PSRAM bus contention fix (WiFi + RGB LCD jitter research, plan, results)
 - `SCRIPTING_DISCUSSION.md` - Scripting design decisions, engine status, and open questions
 - `schemas/` - JSON Schema message contracts
 - `profiles/` - Device YAML profiles (SCPI, Modbus, CTI, etc.)

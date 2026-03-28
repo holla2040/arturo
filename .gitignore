@@ -15,6 +15,12 @@ tools/supervisor/arturo.db
 # PlatformIO
 firmware/.pio/
 firmware/.vscode/
+firmware/.dummy/
+firmware/CMakeLists.txt
+firmware/dependencies.lock
+firmware/managed_components/
+firmware/sdkconfig.defaults
+firmware/sdkconfig.esp32s3
 
 # IDE
 .idea/

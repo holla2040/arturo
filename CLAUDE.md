@@ -44,11 +44,12 @@ cd services && go build -o terminal ./cmd/terminal
 ```
 
 ### Station Firmware (ESP32)
+**Use the firmware Makefile only. Never call `pio` directly.**
 ```bash
-cd firmware && pio run -e esp32s3                    # compile
-cd firmware && pio run -e esp32s3 -t upload           # flash
-cd firmware && pio device monitor --baud 115200       # serial monitor
-cd firmware && pio test -e native                     # run unit tests on host
+cd firmware && make                                   # compile (default target)
+cd firmware && make flash                             # compile + flash + restart logger
+cd firmware && make test                              # run unit tests on host
+cd firmware && make monitor                           # serial monitor (foreground)
 ```
 
 ## Development Guidelines

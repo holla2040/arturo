@@ -12,6 +12,7 @@
 #include "safety/watchdog.h"
 #include "safety/ota_update.h"
 #include "display/display.h"
+#include "screenshot_server.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 

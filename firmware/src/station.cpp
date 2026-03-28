@@ -90,16 +90,29 @@ bool Station::begin() {
 
     // 7. Watchdog initialized in commTask (must subscribe the feeding task, not setup)
 
-    // 8. Log free heap
+    // 8. Screenshot server (debug tool — disable via config.h)
+#ifdef ENABLE_SCREENSHOT_SERVER
+    screenshot_server_init();
+#endif
+
+    // 9. Log free heap
     LOG_INFO("MAIN", "Boot complete. Free heap: %lu bytes", (unsigned long)ESP.getFreeHeap());
 
     _lastHeartbeatMs = millis();
 
-    // 9. Create FreeRTOS tasks — all app tasks on Core 1 with LVGL
-    //    Core 0: WiFi system tasks only (no application competition for PSRAM DMA)
-    //    Core 1: LVGL (priority 10), comm (priority 5), display update (priority 3)
+    // 10. Create FreeRTOS tasks — all app tasks on Core 1 with LVGL
+    //     Core 0: WiFi system tasks only (no application competition for PSRAM DMA)
+    //     Core 1: LVGL (priority 10), comm (priority 5), display update (priority 3)
     xTaskCreatePinnedToCore(commTaskEntry, "tComm", 4096, this, 5, nullptr, 1);
     xTaskCreatePinnedToCore(displayTaskEntry, "tDisplay", 3072, this, 3, nullptr, 1);
+#ifdef ENABLE_SCREENSHOT_SERVER
+    xTaskCreatePinnedToCore([](void*) {
+        for (;;) {
+            screenshot_server_update();
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+    }, "tScreenshot", 8192, nullptr, 2, nullptr, 1);
+#endif
 
     LOG_INFO("MAIN", "FreeRTOS tasks started — loop() idling");
     return true;

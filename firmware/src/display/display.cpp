@@ -18,7 +18,7 @@ bool Display::begin() {
 
     // Station name — fixed position, no layout recalculation on text change
     _titleLabel = lv_label_create(lv_scr_act());
-    lv_label_set_text(_titleLabel, "Arturo Station " FIRMWARE_VERSION "\nInitializing...");
+    lv_label_set_text(_titleLabel, "Arturo Station " FIRMWARE_VERSION);
     lv_obj_set_style_text_font(_titleLabel, &lv_font_montserrat_24, 0);
     lv_obj_set_style_text_align(_titleLabel, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(_titleLabel, 500);

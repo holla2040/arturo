@@ -57,3 +57,8 @@ static const char* DEVICE_IDS[] = {"PUMP-01"};
 #ifndef DEBUG_LEVEL
 #define DEBUG_LEVEL        DEBUG_LEVEL_INFO
 #endif
+
+// Screenshot server — temporary debug feature for UI development
+// Serves JPEG screenshots over HTTP on port 80
+// Comment out to disable (saves ~1.4MB PSRAM peak during capture)
+#define ENABLE_SCREENSHOT_SERVER

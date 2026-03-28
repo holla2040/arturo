@@ -1,6 +1,7 @@
 #include "wifi_manager.h"
 #include "../config.h"
 #include "../debug_log.h"
+#include <esp_wifi.h>
 
 namespace arturo {
 
@@ -79,6 +80,7 @@ bool WifiManager::connect() {
         _backoffMs = BACKOFF_DEFAULT.initialMs;
         _failedAttempts = 0;
         _lastConnectedMs = millis();
+
         LOG_INFO("WIFI", "Connected rssi=%d", WiFi.RSSI());
         return true;
     }

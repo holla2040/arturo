@@ -6,6 +6,7 @@
 #include "messaging/heartbeat.h"
 #include "safety/power_recovery.h"
 #include <WiFi.h>
+#include <esp_wifi.h>
 #include <esp_random.h>
 #include <time.h>
 
@@ -94,7 +95,14 @@ bool Station::begin() {
 
     _lastHeartbeatMs = millis();
 
-    // 9. Create FreeRTOS tasks — pendant2 pattern: all app tasks on Core 1 with LVGL
+    // 9. Enable WiFi modem sleep — radio sleeps between AP beacons (~100ms),
+    //    wakes only for actual data. Eliminates idle WiFi DMA that competes
+    //    with the RGB LCD's continuous PSRAM DMA, reducing display jitter.
+    //    Must be set AFTER all initial connections/subscriptions are established.
+    esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
+    LOG_INFO("MAIN", "WiFi modem sleep enabled");
+
+    // 10. Create FreeRTOS tasks — pendant2 pattern: all app tasks on Core 1 with LVGL
     //    Core 0: WiFi system tasks only (no application competition for PSRAM DMA)
     //    Core 1: LVGL (priority 10), comm (priority 5), display update (priority 3)
     xTaskCreatePinnedToCore(commTaskEntry, "tComm", 4096, this, 5, nullptr, 1);
@@ -189,9 +197,9 @@ void Station::displayTask() {
 
     for (;;) {
         if (_wifi.isConnected()) {
-            _display.setWifiStatus(true, WiFi.localIP().toString().c_str(), _wifi.rssi());
+            _display.setWifiStatus(true, WiFi.localIP().toString().c_str());
         } else {
-            _display.setWifiStatus(false, nullptr, 0);
+            _display.setWifiStatus(false, nullptr);
         }
         _display.setRedisStatus(_redis.isConnected(), REDIS_HOST, REDIS_PORT);
         _display.loop();

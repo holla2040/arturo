@@ -53,7 +53,7 @@ void Display::loop() {
     display_unlock();
 }
 
-void Display::setWifiStatus(bool connected, const char* ip, int rssi) {
+void Display::setWifiStatus(bool connected, const char* ip) {
     _wifiConnected = connected;
     if (ip) {
         strncpy(_wifiIp, ip, sizeof(_wifiIp) - 1);
@@ -61,7 +61,6 @@ void Display::setWifiStatus(bool connected, const char* ip, int rssi) {
     } else {
         _wifiIp[0] = '\0';
     }
-    _wifiRssi = rssi;
 }
 
 void Display::setRedisStatus(bool connected, const char* host, uint16_t port) {
@@ -79,8 +78,8 @@ void Display::updateStatusLabel() {
     char buf[128];
     if (_wifiConnected) {
         snprintf(buf, sizeof(buf),
-            "WiFi: %s  %4ddBm\nRedis: %s:%d  %s",
-            _wifiIp, _wifiRssi,
+            "WiFi: %s\nRedis: %s:%d  %s",
+            _wifiIp,
             _redisHost, _redisPort,
             _redisConnected ? LV_SYMBOL_OK : LV_SYMBOL_CLOSE);
     } else {

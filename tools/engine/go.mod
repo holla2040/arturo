@@ -15,4 +15,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/holla2040/arturo => ../../services
+replace github.com/holla2040/arturo => ../../subsystems

@@ -1,8 +1,8 @@
-# Arturo Services
+# Arturo Subsystems
 
-Go services that run on the controller machine. These are the processes that must be running for the system to operate.
+System subsystems — the processes and firmware that must be running for the system to operate.
 
-## Services
+## Subsystems
 
 | Service | What it does | Runs |
 |---------|-------------|------|
@@ -13,7 +13,7 @@ Go services that run on the controller machine. These are the processes that mus
 ## Build
 
 ```bash
-cd services
+cd subsystems
 go build -o controller ./cmd/controller
 go build -o console ./cmd/console
 go build -o terminal ./cmd/terminal
@@ -45,7 +45,7 @@ The module root is this directory. All import paths use `github.com/holla2040/ar
 ## Source Structure
 
 ```
-services/
+subsystems/
 ├── cmd/
 │   ├── controller/              # Controller entry point
 │   ├── console/                 # Console entry point
@@ -83,6 +83,6 @@ services/
 ## Test
 
 ```bash
-cd services
+cd subsystems
 go test ./...
 ```

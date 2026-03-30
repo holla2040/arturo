@@ -1,26 +1,26 @@
 # Go
-services/console
-services/controller
-services/engine
-services/monitor
-services/terminal
+subsystems/console
+subsystems/controller
+subsystems/engine
+subsystems/monitor
+subsystems/terminal
 tools/engine/engine
 tools/supervisor/supervisor
-services/arturo.db
+subsystems/arturo.db
 tools/supervisor/arturo.db
 *.exe
 *.test
 *.out
 
 # PlatformIO
-firmware/.pio/
-firmware/.vscode/
-firmware/.dummy/
-firmware/CMakeLists.txt
-firmware/dependencies.lock
-firmware/managed_components/
-firmware/sdkconfig.defaults
-firmware/sdkconfig.esp32s3
+subsystems/station/.pio/
+subsystems/station/.vscode/
+subsystems/station/.dummy/
+subsystems/station/CMakeLists.txt
+subsystems/station/dependencies.lock
+subsystems/station/managed_components/
+subsystems/station/sdkconfig.defaults
+subsystems/station/sdkconfig.esp32s3
 
 # IDE
 .idea/

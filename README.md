@@ -60,24 +60,24 @@ arturo/
 │       ├── service-heartbeat/          # Station health report (30s interval)
 │       ├── system-emergency-stop/      # E-stop broadcast
 │       └── system-ota-request/         # OTA firmware update
-├── services/                            # Go services that run on the controller machine
-│   ├── README.md                       # Service architecture and build instructions
+├── subsystems/                         # System subsystems
+│   ├── README.md                       # Subsystem architecture and build instructions
 │   ├── cmd/
 │   │   ├── controller/                 # API, device registry, health, data storage
 │   │   ├── console/                   # Mock stations + web console (development)
 │   │   └── terminal/                  # Operator web UI (reverse proxy to controller)
+│   └── station/                       # Station firmware (ESP32 C++/Arduino)
+│       ├── README.md                   # Station firmware architecture
+│       ├── src/
+│       │   ├── network/                # WiFi, Redis client
+│       │   ├── messaging/              # Protocol v1.0.0 envelope, command handler, heartbeat
+│       │   ├── protocols/              # SCPI, Modbus, CTI, ASCII packetizers
+│       │   ├── devices/                # TCP, serial, relay, modbus device drivers
+│       │   └── safety/                 # Watchdog, E-stop, interlocks
+│       └── test/
 ├── tools/                              # Tools (invoke and exit)
 │   ├── engine/                        # Script parser + executor
 │   └── monitor/                       # Redis traffic monitor (debugging)
-├── firmware/                           # Station firmware (ESP32 Arduino)
-│   ├── README.md                       # Firmware architecture decisions
-│   ├── src/
-│   │   ├── network/                    # WiFi, Redis client
-│   │   ├── messaging/                  # Protocol v1.0.0 envelope, command handler, heartbeat
-│   │   ├── protocols/                  # SCPI, Modbus, CTI, ASCII packetizers
-│   │   ├── devices/                    # TCP, serial, relay, modbus device drivers
-│   │   └── safety/                     # Watchdog, E-stop, interlocks
-│   └── test/
 ├── profiles/                           # Device profile YAMLs
 └── scripts/                           # Test scripts (.art) and shared libraries (.artlib)
 ```
@@ -135,11 +135,41 @@ Controller                      Redis                        Station
   │<── SUBSCRIBE ────────────────-│                             │
 ```
 
-## Getting Started
+## Minimum Development Setup
+
+USB devices: station is always `/dev/ttyACM0`, mock pump is always `/dev/ttyACM1`.
+
+1. **Redis** — must be running on `192.168.0.3:6379`
+
+2. **Station firmware** — ESP32-S3 on `/dev/ttyACM0`
+   ```bash
+   cd subsystems/station && make flash
+   ```
+
+3. **Mock pump** — from `~/pendant2/src/tools/mockpump` on `/dev/ttyACM1`
+   ```bash
+   cd ~/pendant2/src/tools/mockpump && make bin && make serial
+   ```
+   Web console: http://mockpump.local/
+
+4. **Controller** — build and run:
+   ```bash
+   cd subsystems && go build -o controller ./cmd/controller
+   ./controller -redis 192.168.0.3:6379 -listen :8002 -db arturo.db
+   ```
+
+5. **Terminal** (operator UI) — build and run:
+   ```bash
+   cd subsystems && go build -o terminal ./cmd/terminal
+   ./terminal -listen :8000 -controller http://localhost:8002 -dev
+   ```
+   Open http://localhost:8000
+
+## Further Reading
 
 1. Read [schemas/v1.0.0/README.md](schemas/v1.0.0/README.md) — the protocol definitions
-2. Read [services/README.md](services/README.md) — Go services architecture
-3. Read [firmware/README.md](firmware/README.md) — station firmware architecture
+2. Read [subsystems/README.md](subsystems/README.md) — subsystem architecture
+3. Read [subsystems/station/README.md](subsystems/station/README.md) — station firmware architecture
 4. Read [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) — architecture decisions
 
 ## Related

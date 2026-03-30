@@ -4,7 +4,7 @@ test-schemas:          ## Schema & contract tests (no deps)
 	cd tests && python -m pytest schemas/ -v
 
 test-firmware:         ## Firmware unit tests on host (needs PlatformIO)
-	cd firmware && pio test -e native
+	cd subsystems/station && pio test -e native
 
 test-server:           ## Go unit tests
 	@if find server -name '*.go' 2>/dev/null | grep -q .; then \

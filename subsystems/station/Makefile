@@ -2,7 +2,7 @@ PORT     ?= /dev/ttyACM0
 BAUD     ?= 115200
 ENV      ?= esp32s3
 LOG      := /tmp/arturo-serial.log
-LOGGER   := python3 $(CURDIR)/../tools/serial-monitor/serial_logger.py $(PORT)
+LOGGER   := python3 $(CURDIR)/../../tools/serial-monitor/serial_logger.py $(PORT)
 
 # Default: compile only
 bin: build

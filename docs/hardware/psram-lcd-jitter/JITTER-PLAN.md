@@ -94,14 +94,14 @@ the other fixes. No PCLK reduction, no 120 MHz PSRAM, no dynamic throttle.
 
 | File | Action | Status |
 |---|---|---|
-| `firmware/platformio.ini` | Modified (custom_sdkconfig, extra_scripts) | Done |
-| `firmware/src/log_printf_shim.c` | Created (solves `__wrap_log_printf` linker error) | Done |
-| `firmware/create_dummy_certs.py` | Created (solves missing cert `.S` files) | Done |
-| `firmware/src/display/display.h` | Modified (added clock label) | Done |
-| `firmware/src/display/display.cpp` | Modified (100ms clock widget) | Done |
-| `firmware/src/station.cpp` | Modified (displayTask 10 Hz for clock) | Done |
-| `firmware/src/display/rgb_lcd_port.h` | Unchanged (20-row bounce buffer sufficient) | — |
-| `firmware/src/display/rgb_lcd_port.cpp` | Unchanged (30 MHz PCLK retained) | — |
+| `subsystems/station/platformio.ini` | Modified (custom_sdkconfig, extra_scripts) | Done |
+| `subsystems/station/src/log_printf_shim.c` | Created (solves `__wrap_log_printf` linker error) | Done |
+| `subsystems/station/create_dummy_certs.py` | Created (solves missing cert `.S` files) | Done |
+| `subsystems/station/src/display/display.h` | Modified (added clock label) | Done |
+| `subsystems/station/src/display/display.cpp` | Modified (100ms clock widget) | Done |
+| `subsystems/station/src/station.cpp` | Modified (displayTask 10 Hz for clock) | Done |
+| `subsystems/station/src/display/rgb_lcd_port.h` | Unchanged (20-row bounce buffer sufficient) | — |
+| `subsystems/station/src/display/rgb_lcd_port.cpp` | Unchanged (30 MHz PCLK retained) | — |
 
 ---
 
@@ -154,7 +154,7 @@ core's `esp32-hal-uart.c`).
 
 #### The Fix
 
-Created `firmware/src/log_printf_shim.c` — a simple C file that defines
+Created `subsystems/station/src/log_printf_shim.c` — a simple C file that defines
 `__wrap_log_printf` by forwarding to `log_printfv`:
 
 ```c
@@ -198,7 +198,7 @@ assembly files that don't exist:
 
 #### The Fix
 
-Created `firmware/create_dummy_certs.py` — a PlatformIO pre-build script that
+Created `subsystems/station/create_dummy_certs.py` — a PlatformIO pre-build script that
 creates dummy `.S` files before compilation:
 
 ```python
@@ -253,7 +253,7 @@ XIP, 64B cache lines). The default `-Os` optimization is retained.
 
 ### Final Configuration
 
-#### `firmware/platformio.ini` — custom_sdkconfig
+#### `subsystems/station/platformio.ini` — custom_sdkconfig
 
 ```ini
 custom_sdkconfig =
@@ -286,13 +286,13 @@ custom_sdkconfig =
 
 | File | Purpose |
 |---|---|
-| `firmware/src/log_printf_shim.c` | Provides `__wrap_log_printf` symbol for linker compatibility |
-| `firmware/create_dummy_certs.py` | Pre-build script creating dummy TLS cert `.S` files |
+| `subsystems/station/src/log_printf_shim.c` | Provides `__wrap_log_printf` symbol for linker compatibility |
+| `subsystems/station/create_dummy_certs.py` | Pre-build script creating dummy TLS cert `.S` files |
 
 #### Unchanged Files
 
-- `firmware/src/display/rgb_lcd_port.h` — bounce buffer stays at 20 rows (sufficient with Octal PSRAM)
-- `firmware/src/display/rgb_lcd_port.cpp` — PCLK stays at 30 MHz (within Octal PSRAM budget)
+- `subsystems/station/src/display/rgb_lcd_port.h` — bounce buffer stays at 20 rows (sufficient with Octal PSRAM)
+- `subsystems/station/src/display/rgb_lcd_port.cpp` — PCLK stays at 30 MHz (within Octal PSRAM budget)
 - Framework remains `arduino` (no hybrid migration needed)
 
 ---

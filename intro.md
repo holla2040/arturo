@@ -39,24 +39,23 @@ There is no MQTT, no cloud, no middleware. Stations talk directly to Redis.
 
 ```
 arturo/
-├── firmware/               # ESP32 C++ station firmware (Arduino/PlatformIO)
-│   ├── src/
-│   │   ├── main.cpp        # Entry point, FreeRTOS task creation
-│   │   ├── config.h         # WiFi, Redis IP, instance ID, debug level
-│   │   ├── network/         # wifi_manager, redis_client
-│   │   ├── messaging/       # envelope, command_handler, heartbeat
-│   │   ├── protocols/       # scpi, modbus, cti, ascii packetizers
-│   │   ├── devices/         # tcp_device, serial_device, relay_controller, modbus_device, cti_onboard_device
-│   │   └── safety/          # watchdog, estop, interlock, wifi_reconnect, power_recovery, ota_update
-│   └── test/                # 16 Unity test suites (host-native, not on ESP32)
-│
-├── services/                # Go controller processes
+├── subsystems/              # System subsystems
 │   ├── go.mod               # Module: github.com/holla2040/arturo
 │   ├── cmd/
 │   │   ├── controller/      # REST API, WebSocket, device registry, health, SQLite, E-stop
 │   │   ├── console/         # Mock station spawner + web console
 │   │   └── terminal/        # Operator web UI (reverse proxy to controller)
-│   └── internal/            # 16 Go packages (see Services section)
+│   ├── internal/            # 16 Go packages (see Services section)
+│   └── station/             # ESP32 C++ station firmware (Arduino/PlatformIO)
+│       ├── src/
+│       │   ├── main.cpp     # Entry point, FreeRTOS task creation
+│       │   ├── config.h     # WiFi, Redis IP, instance ID, debug level
+│       │   ├── network/     # wifi_manager, redis_client
+│       │   ├── messaging/   # envelope, command_handler, heartbeat
+│       │   ├── protocols/   # scpi, modbus, cti, ascii packetizers
+│       │   ├── devices/     # tcp_device, serial_device, relay_controller, modbus_device, cti_onboard_device
+│       │   └── safety/      # watchdog, estop, interlock, wifi_reconnect, power_recovery, ota_update
+│       └── test/            # 16 Unity test suites (host-native, not on ESP32)
 │
 ├── tools/
 │   ├── engine/              # Script parser + executor CLI
@@ -98,14 +97,14 @@ arturo/
 
 ## The Three Services
 
-All three are Go binaries built from `services/cmd/`.
+All three are Go binaries built from `subsystems/cmd/`.
 
-### Controller (`services/cmd/controller/`)
+### Controller (`subsystems/cmd/controller/`)
 
 The headless backend. Runs always.
 
 ```bash
-cd services && go build -o controller ./cmd/controller
+cd subsystems && go build -o controller ./cmd/controller
 ./controller -redis localhost:6379 -listen :8002 -db arturo.db
 ```
 
@@ -119,22 +118,22 @@ Contains:
 - **Report generator** (`internal/report/`, `internal/artifact/`) — PDF reports, SMB file server integration
 - **Protocol** (`internal/protocol/`) — envelope builder/parser, command handling, JSON schema validation
 
-### Terminal (`services/cmd/terminal/`)
+### Terminal (`subsystems/cmd/terminal/`)
 
 Operator web UI. Runs always. Serves HTML and reverse-proxies to the controller.
 
 ```bash
-cd services && go build -o terminal ./cmd/terminal
+cd subsystems && go build -o terminal ./cmd/terminal
 ./terminal -listen :8000 -controller http://localhost:8002
 ./terminal -listen :8000 -controller http://localhost:8002 -dev  # live reload
 ```
 
-### Console (`services/cmd/console/`)
+### Console (`subsystems/cmd/console/`)
 
 Development tool. Spawns mock stations with simulated pumps. Not for production.
 
 ```bash
-cd services && go build -o console ./cmd/console
+cd subsystems && go build -o console ./cmd/console
 ./console -stations 1,2,3,4                    # mock all four
 ./console -stations 2,3,4                      # mock 2-4, leave 1 for real hardware
 ./console -stations 1 -cooldown-hours 2.0      # faster cooling sim
@@ -189,7 +188,7 @@ The parser is a complete recursive descent parser with 50+ token types and multi
 - `PARALLEL` — parses but executes sequentially
 - `RESERVE` — parses but doesn't enforce
 
-### Engine Internals (12 packages under `services/internal/script/`)
+### Engine Internals (12 packages under `subsystems/internal/script/`)
 
 ```
 script/
@@ -497,21 +496,21 @@ Process manager for the controller and terminal services. Independent Go module.
 
 ### Go Services
 ```bash
-cd services && go build -o controller ./cmd/controller
-cd services && go build -o console ./cmd/console
-cd services && go build -o terminal ./cmd/terminal
+cd subsystems && go build -o controller ./cmd/controller
+cd subsystems && go build -o console ./cmd/console
+cd subsystems && go build -o terminal ./cmd/terminal
 cd tools/engine && go build -o engine
 cd tools/monitor && go build -o monitor
 ```
 
 **Always rebuild after changing Go code.** Go is compiled — edits have no effect until you build.
 
-### ESP32 Firmware
+### Station Firmware (ESP32)
 ```bash
-cd firmware && pio run -e esp32s3                     # compile
-cd firmware && pio run -e esp32s3 -t upload            # flash
-cd firmware && pio device monitor --baud 115200        # serial monitor
-cd firmware && pio test -e native                      # run unit tests
+cd subsystems/station && pio run -e esp32s3                     # compile
+cd subsystems/station && pio run -e esp32s3 -t upload            # flash
+cd subsystems/station && pio device monitor --baud 115200        # serial monitor
+cd subsystems/station && pio test -e native                      # run unit tests
 ```
 
 Before flashing via USB, kill the serial monitor: `pkill -9 -f microcom`
@@ -540,8 +539,8 @@ make test-all                # Everything except hardware
 | `docs/reference/PROTOCOL_ORIGINAL.md` | Original v2 protocol spec (reference, not current) |
 | `docs/reference/CTI_COMMAND_REFERENCE.md` | CTI pump command reference |
 | `docs/reference/CTI_BROOKS_PROTOCOL.md` | CTI Brooks protocol documentation |
-| `services/README.md` | Service architecture, build/run commands, source structure |
-| `firmware/README.md` | Firmware architecture: Arduino, FreeRTOS tasks, OTA, debug levels |
+| `subsystems/README.md` | Subsystem architecture, build/run commands, source structure |
+| `subsystems/station/README.md` | Station firmware architecture: Arduino, FreeRTOS tasks, OTA, debug levels |
 | `profiles/README.md` | Device profile directory layout |
 | `schemas/README.md` | Schema directory layout and versioning |
 | `schemas/v1.0.0/README.md` | Protocol v1.0.0 message type index |

@@ -39,10 +39,10 @@ We use the **Arduino CLI** for building and flashing. No IDE dependency.
 
 ```bash
 # Build
-arduino-cli compile --fqbn esp32:esp32:esp32s3 firmware/
+arduino-cli compile --fqbn esp32:esp32:esp32s3 subsystems/station/
 
 # Flash
-arduino-cli upload --fqbn esp32:esp32:esp32s3 --port /dev/ttyUSB0 firmware/
+arduino-cli upload --fqbn esp32:esp32:esp32s3 --port /dev/ttyUSB0 subsystems/station/
 
 # Serial monitor
 arduino-cli monitor --port /dev/ttyUSB0 --config baudrate=115200
@@ -207,7 +207,7 @@ ESP32-S3 for all variants: dual-core 240MHz, 512KB SRAM, WiFi, plenty of GPIO.
 ## Source Structure
 
 ```
-firmware/
+subsystems/station/
 ├── src/
 │   ├── main.cpp                    # setup() + loop(), task creation
 │   ├── config.h                    # WiFi, Redis IP, instance ID, debug level

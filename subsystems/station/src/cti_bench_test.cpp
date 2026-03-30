@@ -1,5 +1,5 @@
 // Standalone CTI bench test — no WiFi, no Redis, just serial.
-// Flash with: cd firmware && pio run -e cti_test -t upload
+// Flash with: cd subsystems/station && pio run -e cti_test -t upload
 // Monitor with: pio device monitor --baud 115200
 //
 // Sends A? every 3 seconds and prints raw TX/RX bytes.

@@ -6,8 +6,8 @@ Arturo is an industrial test automation system with ESP32 stations and a central
 
 **Terminology:** Stations (ESP32 + instruments), Terminal (operator UI), Controller (Go processes), File server (report storage).
 
-- **Station firmware**: C++ with Arduino in `firmware/`
-- **Services**: Go processes in `services/` — controller, console, terminal
+- **Station firmware**: C++ with Arduino in `subsystems/station/`
+- **Subsystems**: Go processes in `subsystems/` — controller, console, terminal
 - **Tools**: Go tools in `tools/` — engine, monitor
 - **Redis**: Streams for commands/responses, Pub/Sub for heartbeats/E-stop
 - **Profiles**: Device YAML profiles in `profiles/`
@@ -36,20 +36,20 @@ Arturo is an industrial test automation system with ESP32 stations and a central
 
 ### Controller (Go)
 ```bash
-cd services && go build -o controller ./cmd/controller
+cd subsystems && go build -o controller ./cmd/controller
 cd tools/engine && go build -o engine
 cd tools/monitor && go build -o monitor
-cd services && go build -o console ./cmd/console
-cd services && go build -o terminal ./cmd/terminal
+cd subsystems && go build -o console ./cmd/console
+cd subsystems && go build -o terminal ./cmd/terminal
 ```
 
 ### Station Firmware (ESP32)
-**Use the firmware Makefile only. Never call `pio` directly.**
+**Use the station Makefile only. Never call `pio` directly.**
 ```bash
-cd firmware && make                                   # compile (default target)
-cd firmware && make flash                             # compile + flash + restart logger
-cd firmware && make test                              # run unit tests on host
-cd firmware && make monitor                           # serial monitor (foreground)
+cd subsystems/station && make                         # compile (default target)
+cd subsystems/station && make flash                   # compile + flash + restart logger
+cd subsystems/station && make test                    # run unit tests on host
+cd subsystems/station && make monitor                 # serial monitor (foreground)
 ```
 
 ## Development Guidelines

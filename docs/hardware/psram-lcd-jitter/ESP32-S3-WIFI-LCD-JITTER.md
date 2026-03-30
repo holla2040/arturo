@@ -440,17 +440,17 @@ jitter on this hardware.
 
 | File | What |
 |------|------|
-| `firmware/platformio.ini` | Build config, sdkconfig TODO |
-| `firmware/boards/waveshare_esp32s3_touch_lcd_7b.json` | Board def (`qio_opi`) |
-| `firmware/src/display/lvgl_port.h` | LVGL task params, avoid-tear mode |
-| `firmware/src/display/lvgl_port.cpp` | Flush callback, vsync, mutex |
-| `firmware/src/display/rgb_lcd_port.h` | LCD timing, bounce buffer size |
-| `firmware/src/display/rgb_lcd_port.cpp` | RGB panel init, vsync callbacks |
-| `firmware/src/display/display.cpp` | Display class, label management |
-| `firmware/src/lv_conf.h` | LVGL config (refresh rate, perf monitor) |
-| `firmware/src/station.cpp` | FreeRTOS tasks, modem sleep, watchdog |
-| `firmware/src/config.h` | Heartbeat interval |
-| `firmware/src/network/wifi_manager.cpp` | WiFi connect, modem sleep |
+| `subsystems/station/platformio.ini` | Build config, sdkconfig TODO |
+| `subsystems/station/boards/waveshare_esp32s3_touch_lcd_7b.json` | Board def (`qio_opi`) |
+| `subsystems/station/src/display/lvgl_port.h` | LVGL task params, avoid-tear mode |
+| `subsystems/station/src/display/lvgl_port.cpp` | Flush callback, vsync, mutex |
+| `subsystems/station/src/display/rgb_lcd_port.h` | LCD timing, bounce buffer size |
+| `subsystems/station/src/display/rgb_lcd_port.cpp` | RGB panel init, vsync callbacks |
+| `subsystems/station/src/display/display.cpp` | Display class, label management |
+| `subsystems/station/src/lv_conf.h` | LVGL config (refresh rate, perf monitor) |
+| `subsystems/station/src/station.cpp` | FreeRTOS tasks, modem sleep, watchdog |
+| `subsystems/station/src/config.h` | Heartbeat interval |
+| `subsystems/station/src/network/wifi_manager.cpp` | WiFi connect, modem sleep |
 
 ### pendant2 (Reference)
 

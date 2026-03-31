@@ -227,9 +227,9 @@ void Display::initBanner(lv_obj_t* scr) {
     lv_obj_set_style_bg_opa(_bannerCommDot, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(_bannerCommDot, 0, 0);
 
-    // Title
+    // Title — left side: "Arturo Station - station-01"
     _bannerTitle = lv_label_create(banner);
-    lv_label_set_text(_bannerTitle, "Arturo Station");
+    lv_label_set_text(_bannerTitle, "Arturo Station - " STATION_INSTANCE);
     lv_obj_set_style_text_font(_bannerTitle, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(_bannerTitle, lv_color_hex(0xCCCCCC), 0);
     lv_obj_set_pos(_bannerTitle, 28, 5);
@@ -245,12 +245,12 @@ void Display::initBanner(lv_obj_t* scr) {
 
     // Clock — right side
     _bannerClock = lv_label_create(banner);
-    lv_label_set_text(_bannerClock, STATION_INSTANCE "  00:00:00");
+    lv_label_set_text(_bannerClock, "00:00:00");
     lv_obj_set_style_text_font(_bannerClock, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(_bannerClock, lv_color_hex(0x999999), 0);
     lv_obj_set_style_text_align(_bannerClock, LV_TEXT_ALIGN_RIGHT, 0);
-    lv_obj_set_width(_bannerClock, 300);
-    lv_obj_set_pos(_bannerClock, SCREEN_W - 310, 5);
+    lv_obj_set_width(_bannerClock, 200);
+    lv_obj_set_pos(_bannerClock, SCREEN_W - 210, 5);
 }
 
 void Display::updateBanner() {
@@ -261,7 +261,7 @@ void Display::updateBanner() {
     int m = (totalSecs / 60) % 60;
     int s = totalSecs % 60;
     char clockBuf[48];
-    snprintf(clockBuf, sizeof(clockBuf), STATION_INSTANCE "  %02d:%02d:%02d", h, m, s);
+    snprintf(clockBuf, sizeof(clockBuf), "%02d:%02d:%02d", h, m, s);
     lv_label_set_text(_bannerClock, clockBuf);
 
     // IP address
@@ -467,20 +467,90 @@ void Display::updateStatusTab() {
     }
 }
 
-// --- Chart Tab (placeholder — full implementation in Phase 2) ---
+// --- Chart Tab ---
 
 void Display::initChartTab(lv_obj_t* parent) {
-    lv_obj_t* lbl = lv_label_create(parent);
-    lv_label_set_text(lbl, "Temperature History\n(coming soon)");
-    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_24, 0);
-    lv_obj_set_style_text_color(lbl, COL_GRAY, 0);
-    lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(lbl, CONTENT_W);
-    lv_obj_set_pos(lbl, 0, CONTENT_H / 2 - 30);
+    // Chart positioned with left margin for manual Y-axis labels
+    static const int CHART_LEFT = 50;
+    static const int CHART_TOP = 40;
+    static const int CHART_W = CONTENT_W - CHART_LEFT - 15;
+    static const int CHART_H = CONTENT_H - CHART_TOP - 10;
+
+    _chart = lv_chart_create(parent);
+    lv_obj_set_size(_chart, CHART_W, CHART_H);
+    lv_obj_set_pos(_chart, CHART_LEFT, CHART_TOP);
+    lv_chart_set_type(_chart, LV_CHART_TYPE_LINE);
+    lv_chart_set_point_count(_chart, CHART_POINTS);
+    lv_chart_set_range(_chart, LV_CHART_AXIS_PRIMARY_Y, 0, 320);
+    lv_chart_set_update_mode(_chart, LV_CHART_UPDATE_MODE_SHIFT);
+
+    // Grid lines — 8 divisions = 40K increments (0, 40, 80, ... 320)
+    lv_chart_set_div_line_count(_chart, 8, 0);
+    lv_obj_set_style_line_color(_chart, lv_color_hex(0xD0D0D0), LV_PART_MAIN);
+    lv_obj_set_style_line_width(_chart, 1, LV_PART_MAIN);
+
+    // Style
+    lv_obj_set_style_bg_color(_chart, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_style_bg_opa(_chart, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(_chart, 1, 0);
+    lv_obj_set_style_border_color(_chart, lv_color_hex(0xBBBBBB), 0);
+    lv_obj_set_style_size(_chart, 0, LV_PART_INDICATOR);
+    lv_obj_set_style_pad_all(_chart, 5, 0);
+
+    // Series — bright red and blue, 2px line width
+    _chartSeries1 = lv_chart_add_series(_chart, lv_color_hex(0xFF0000), LV_CHART_AXIS_PRIMARY_Y);
+    _chartSeries2 = lv_chart_add_series(_chart, lv_color_hex(0x0000FF), LV_CHART_AXIS_PRIMARY_Y);
+    lv_obj_set_style_line_width(_chart, 2, LV_PART_ITEMS);
+
+    // Manual Y-axis labels (pendant2 pattern — LVGL 8.4 tick labels unreliable)
+    // Plot area height = CHART_H - 10 (pad top + pad bottom)
+    int plotH = CHART_H - 10;
+    const int yAxisValues[] = {0, 40, 80, 120, 160, 200, 240, 280, 320};
+    for (int i = 0; i < 9; i++) {
+        int v = yAxisValues[i];
+        // Y position: top of chart + pad + (320-v)/320 * plotH
+        int yPos = CHART_TOP + 5 + (320 - v) * plotH / 320 - 7;  // -7 to center text on line
+
+        lv_obj_t* lbl = lv_label_create(parent);
+        lv_label_set_text_fmt(lbl, "%d", v);
+        lv_obj_set_style_text_font(lbl, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_color(lbl, lv_color_hex(0x666666), 0);
+        lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_RIGHT, 0);
+        lv_obj_set_width(lbl, 42);
+        lv_obj_set_pos(lbl, 2, yPos);
+    }
+
+    // Legend with live values — above chart
+    _chartLegend1 = lv_label_create(parent);
+    lv_label_set_text(_chartLegend1, "#FF6060 1st: ---#");
+    lv_obj_set_style_text_font(_chartLegend1, &lv_font_montserrat_24, 0);
+    lv_obj_set_pos(_chartLegend1, CHART_LEFT + 10, 5);
+    lv_label_set_recolor(_chartLegend1, true);
+
+    _chartLegend2 = lv_label_create(parent);
+    lv_label_set_text(_chartLegend2, "#6060FF 2nd: ---#");
+    lv_obj_set_style_text_font(_chartLegend2, &lv_font_montserrat_24, 0);
+    lv_obj_set_pos(_chartLegend2, CHART_LEFT + 250, 5);
+    lv_label_set_recolor(_chartLegend2, true);
 }
 
 void Display::updateChartTab() {
-    // TODO: update chart data
+    unsigned long now = millis();
+
+    // Sample every 30 seconds if pump data is fresh
+    if (now - _lastChartSampleMs >= CHART_SAMPLE_INTERVAL_MS && _pump.staleCount <= 2) {
+        _lastChartSampleMs = now;
+        lv_chart_set_next_value(_chart, _chartSeries1, (lv_coord_t)(_pump.stage1TempK + 0.5f));
+        lv_chart_set_next_value(_chart, _chartSeries2, (lv_coord_t)(_pump.stage2TempK + 0.5f));
+        _chartSampleCount++;
+        lv_chart_refresh(_chart);
+    }
+
+    // Update legend with current values
+    if (_pump.staleCount <= 2) {
+        lv_label_set_text_fmt(_chartLegend1, "#FF6060 1st: %d#", (int)(_pump.stage1TempK + 0.5f));
+        lv_label_set_text_fmt(_chartLegend2, "#6060FF 2nd: %d#", (int)(_pump.stage2TempK + 0.5f));
+    }
 }
 
 // --- System Tab ---

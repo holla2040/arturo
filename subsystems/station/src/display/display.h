@@ -93,6 +93,17 @@ private:
     // Cached pump telemetry
     PumpTelemetry _pump;
 
+    // Chart tab
+    static const int CHART_POINTS = 200;
+    static const int CHART_SAMPLE_INTERVAL_MS = 30000;  // 30s
+    lv_obj_t* _chart = nullptr;
+    lv_chart_series_t* _chartSeries1 = nullptr;
+    lv_chart_series_t* _chartSeries2 = nullptr;
+    lv_obj_t* _chartLegend1 = nullptr;
+    lv_obj_t* _chartLegend2 = nullptr;
+    unsigned long _lastChartSampleMs = 0;
+    int _chartSampleCount = 0;
+
     // Last rendered text — skip redraw when unchanged
     char _lastTemp1Buf[16] = {};
     char _lastTemp2Buf[16] = {};

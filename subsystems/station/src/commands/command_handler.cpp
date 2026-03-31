@@ -1,5 +1,6 @@
 #include "command_handler.h"
 #include "../config.h"
+#include "../time_utils.h"
 #include "device_registry.h"
 #include <cstring>
 
@@ -269,7 +270,7 @@ void CommandHandler::handleDeviceCommand(const char* messageJson) {
     char respId[48];
     snprintf(respId, sizeof(respId), "resp-%s-%d", _instance, _processed);
 
-    int64_t timestamp = (int64_t)(millis() / 1000);
+    int64_t timestamp = arturo::getTimestamp();
 
     if (!buildCommandResponse(respDoc, src, respId, timestamp,
                               req.correlationId, req.deviceId, req.commandName,
@@ -365,7 +366,7 @@ void CommandHandler::sendOTAResponse(const char* correlationId, const char* repl
 
     char respId[48];
     snprintf(respId, sizeof(respId), "resp-%s-%d", _instance, _processed);
-    int64_t timestamp = (int64_t)(millis() / 1000);
+    int64_t timestamp = arturo::getTimestamp();
 
     if (!buildCommandResponse(respDoc, src, respId, timestamp,
                               correlationId, STATION_INSTANCE, "ota_update",

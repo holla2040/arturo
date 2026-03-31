@@ -76,6 +76,7 @@ type HeartbeatPayload struct {
 	LastError         *string  `json:"last_error"`
 	WatchdogResets    *int     `json:"watchdog_resets,omitempty"`
 	FirmwareVersion   string   `json:"firmware_version"`
+	TimeSynced        *bool    `json:"time_synced,omitempty"`
 }
 
 // CommandRequestPayload contains fields from the device.command.request payload.

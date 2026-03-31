@@ -12,6 +12,18 @@ import (
 	"github.com/holla2040/arturo/internal/store"
 )
 
+// denverTZ is used for operator-facing timestamps in PDFs and reports.
+// All stored data remains UTC; this is display-only.
+var denverTZ *time.Location
+
+func init() {
+	var err error
+	denverTZ, err = time.LoadLocation("America/Denver")
+	if err != nil {
+		denverTZ = time.UTC
+	}
+}
+
 // MeasurementJSON is the JSON representation of a measurement for export.
 type MeasurementJSON struct {
 	DeviceID    string `json:"device_id"`
@@ -134,7 +146,7 @@ func pdfHeader(pdf *fpdf.Fpdf, run *store.TestRun) {
 
 	pdf.SetFont("Helvetica", "", 10)
 	pdf.CellFormat(30, 6, "Generated:", "", 0, "L", false, 0, "")
-	pdf.CellFormat(0, 6, time.Now().UTC().Format("2006-01-02 15:04:05 UTC"), "", 1, "L", false, 0, "")
+	pdf.CellFormat(0, 6, time.Now().In(denverTZ).Format("2006-01-02 15:04:05 MST"), "", 1, "L", false, 0, "")
 
 	pdf.Ln(4)
 }
@@ -179,12 +191,12 @@ func pdfSummary(pdf *fpdf.Fpdf, run *store.TestRun) {
 
 	// Start time
 	pdf.CellFormat(30, 6, "Started:", "", 0, "L", false, 0, "")
-	pdf.CellFormat(0, 6, run.StartedAt.Format("2006-01-02 15:04:05 UTC"), "", 1, "L", false, 0, "")
+	pdf.CellFormat(0, 6, run.StartedAt.In(denverTZ).Format("2006-01-02 15:04:05 MST"), "", 1, "L", false, 0, "")
 
 	// End time
 	pdf.CellFormat(30, 6, "Finished:", "", 0, "L", false, 0, "")
 	if run.FinishedAt != nil {
-		pdf.CellFormat(0, 6, run.FinishedAt.Format("2006-01-02 15:04:05 UTC"), "", 1, "L", false, 0, "")
+		pdf.CellFormat(0, 6, run.FinishedAt.In(denverTZ).Format("2006-01-02 15:04:05 MST"), "", 1, "L", false, 0, "")
 	} else {
 		pdf.SetFont("Helvetica", "I", 10)
 		pdf.CellFormat(0, 6, "In progress", "", 1, "L", false, 0, "")
@@ -247,7 +259,7 @@ func pdfMeasurements(pdf *fpdf.Fpdf, measurements []store.Measurement) {
 		pdf.CellFormat(colW[3], 6, passText, "1", 0, "C", fill, 0, "")
 		pdf.CellFormat(colW[4], 6, truncate(m.Response, 20), "1", 0, "L", fill, 0, "")
 		pdf.CellFormat(colW[5], 6, fmt.Sprintf("%dms", m.DurationMs), "1", 0, "R", fill, 0, "")
-		pdf.CellFormat(colW[6], 6, m.Timestamp.Format("15:04:05"), "1", 0, "C", fill, 0, "")
+		pdf.CellFormat(colW[6], 6, m.Timestamp.In(denverTZ).Format("15:04:05"), "1", 0, "C", fill, 0, "")
 		pdf.Ln(-1)
 	}
 }

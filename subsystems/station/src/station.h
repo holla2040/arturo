@@ -58,6 +58,7 @@ private:
     // Timing
     unsigned long _lastHeartbeatMs = 0;
     int _heartbeatCount = 0;
+    bool _ntpSynced = false;
     char _bootReasonStr[16] = {};
 
     // FreeRTOS tasks
@@ -76,7 +77,6 @@ private:
 
     // Utility
     static void generateUUID(char* buf, size_t len);
-    static int64_t getTimestamp();
     void buildPresenceKey(char* buf, size_t len);
 };
 

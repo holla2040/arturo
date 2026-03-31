@@ -44,6 +44,7 @@ bool buildHeartbeat(JsonDocument& doc, const Source& source,
 
     payload["watchdog_resets"] = data.watchdogResets;
     payload["firmware_version"] = data.firmwareVersion;
+    payload["time_synced"] = data.timeSynced;
 
     return true;
 }
@@ -94,6 +95,7 @@ bool parseHeartbeatPayload(JsonObjectConst payload, HeartbeatData& data) {
 
     data.watchdogResets = payload["watchdog_resets"] | 0;
     data.firmwareVersion = payload["firmware_version"].as<const char*>();
+    data.timeSynced = payload["time_synced"] | false;
 
     return true;
 }

@@ -2,6 +2,7 @@
 
 #include "station.h"
 #include "debug_log.h"
+#include "time_utils.h"
 #include "messaging/envelope.h"
 #include "messaging/heartbeat.h"
 #include "safety/power_recovery.h"
@@ -48,8 +49,12 @@ bool Station::begin() {
     }
 
     // Start NTP sync (non-blocking, runs in background)
-    configTime(0, 0, "pool.ntp.org");
-    LOG_INFO("MAIN", "NTP sync started");
+    // Controller LAN IP first (always reachable), pool.ntp.org as internet fallback
+    configTime(0, 0, NTP_SERVER, "pool.ntp.org");
+    // US/Denver timezone for localtime() on station display
+    setenv("TZ", "MST7MDT,M3.2.0,M11.1.0", 1);
+    tzset();
+    LOG_INFO("MAIN", "NTP sync started (server: %s)", NTP_SERVER);
 
     // 3. Redis connect — both clients
     while (!connectRedis()) {
@@ -169,6 +174,12 @@ void Station::commTask() {
                       watchdogElapsed(_watchdog.lastFeedMs(), now));
         }
         _watchdog.feed();
+
+        // Log once when NTP sync completes
+        if (!_ntpSynced && arturo::hasValidTime()) {
+            _ntpSynced = true;
+            LOG_INFO("NTP", "Time synced: %lld", (long long)arturo::getTimestamp());
+        }
 
         // Heartbeat every HEARTBEAT_INTERVAL_MS
         if (now - _lastHeartbeatMs >= HEARTBEAT_INTERVAL_MS) {
@@ -436,8 +447,9 @@ bool Station::publishHeartbeat(const char* status) {
     data.lastError = nullptr;
     data.watchdogResets = _watchdog.resetCount();
     data.firmwareVersion = FIRMWARE_VERSION;
+    data.timeSynced = arturo::hasValidTime();
 
-    bool ok = buildHeartbeat(doc, src, uuid, getTimestamp(), data);
+    bool ok = buildHeartbeat(doc, src, uuid, arturo::getTimestamp(), data);
     if (!ok) {
         LOG_ERROR("HEARTBEAT", "Failed to build heartbeat JSON");
         return false;
@@ -470,14 +482,6 @@ void Station::generateUUID(char* buf, size_t len) {
              (unsigned long)(((r3 >> 16) & 0x3FFF) | 0x8000),
              (unsigned long)(r3 & 0xFFFF),
              (unsigned long)r4);
-}
-
-int64_t Station::getTimestamp() {
-    time_t now = time(nullptr);
-    if (now > 1700000000) {
-        return (int64_t)now;
-    }
-    return (int64_t)(millis() / 1000);
 }
 
 void Station::buildPresenceKey(char* buf, size_t len) {

@@ -9,6 +9,17 @@ import (
 	"github.com/holla2040/arturo/internal/store"
 )
 
+// denverTZ is used for operator-facing timestamps in customer PDFs.
+var denverTZ *time.Location
+
+func init() {
+	var err error
+	denverTZ, err = time.LoadLocation("America/Denver")
+	if err != nil {
+		denverTZ = time.UTC
+	}
+}
+
 // GeneratePDF creates a customer-facing PDF report for the given RMA.
 func GeneratePDF(w io.Writer, st *store.Store, rmaID string) error {
 	artifact, err := Generate(st, rmaID)
@@ -39,10 +50,10 @@ func GeneratePDF(w io.Writer, st *store.Store, rmaID string) error {
 		{"Pump Model", artifact.PumpModel},
 		{"Employee", fmt.Sprintf("%s (%s)", artifact.Employee.Name, artifact.Employee.ID)},
 		{"Status", artifact.Status},
-		{"Created", artifact.CreatedAt.Format(time.RFC3339)},
+		{"Created", artifact.CreatedAt.In(denverTZ).Format("2006-01-02 15:04:05 MST")},
 	}
 	if artifact.ClosedAt != nil {
-		info = append(info, struct{ label, value string }{"Closed", artifact.ClosedAt.Format(time.RFC3339)})
+		info = append(info, struct{ label, value string }{"Closed", artifact.ClosedAt.In(denverTZ).Format("2006-01-02 15:04:05 MST")})
 	}
 
 	for _, item := range info {
@@ -83,7 +94,7 @@ func GeneratePDF(w io.Writer, st *store.Store, rmaID string) error {
 		pdf.SetFont("Arial", "", 9)
 		for _, run := range artifact.Runs {
 			pdf.CellFormat(35, 7, truncate(run.ScriptName, 20), "1", 0, "L", false, 0, "")
-			pdf.CellFormat(35, 7, run.StartedAt.Format("2006-01-02 15:04"), "1", 0, "L", false, 0, "")
+			pdf.CellFormat(35, 7, run.StartedAt.In(denverTZ).Format("2006-01-02 15:04"), "1", 0, "L", false, 0, "")
 			pdf.CellFormat(25, 7, run.Status, "1", 0, "C", false, 0, "")
 			pdf.CellFormat(0, 7, truncate(run.Summary, 40), "1", 1, "L", false, 0, "")
 		}
@@ -96,9 +107,9 @@ func GeneratePDF(w io.Writer, st *store.Store, rmaID string) error {
 		pdf.CellFormat(0, 10, fmt.Sprintf("Run %d: %s", i+1, run.ScriptName), "", 1, "L", false, 0, "")
 
 		pdf.SetFont("Arial", "", 10)
-		pdf.CellFormat(0, 7, fmt.Sprintf("Status: %s    Started: %s", run.Status, run.StartedAt.Format(time.RFC3339)), "", 1, "L", false, 0, "")
+		pdf.CellFormat(0, 7, fmt.Sprintf("Status: %s    Started: %s", run.Status, run.StartedAt.In(denverTZ).Format("2006-01-02 15:04:05 MST")), "", 1, "L", false, 0, "")
 		if run.FinishedAt != nil {
-			pdf.CellFormat(0, 7, fmt.Sprintf("Finished: %s", run.FinishedAt.Format(time.RFC3339)), "", 1, "L", false, 0, "")
+			pdf.CellFormat(0, 7, fmt.Sprintf("Finished: %s", run.FinishedAt.In(denverTZ).Format("2006-01-02 15:04:05 MST")), "", 1, "L", false, 0, "")
 		}
 		if run.Summary != "" {
 			pdf.CellFormat(0, 7, fmt.Sprintf("Summary: %s", run.Summary), "", 1, "L", false, 0, "")
@@ -130,7 +141,7 @@ func GeneratePDF(w io.Writer, st *store.Store, rmaID string) error {
 				pdf.CellFormat(15, 6, ok, "1", 0, "C", false, 0, "")
 				pdf.CellFormat(50, 6, truncate(m.Response, 30), "1", 0, "L", false, 0, "")
 				pdf.CellFormat(20, 6, fmt.Sprintf("%dms", m.DurationMs), "1", 0, "R", false, 0, "")
-				pdf.CellFormat(0, 6, m.Timestamp.Format("15:04:05"), "1", 1, "L", false, 0, "")
+				pdf.CellFormat(0, 6, m.Timestamp.In(denverTZ).Format("15:04:05"), "1", 1, "L", false, 0, "")
 			}
 			pdf.Ln(4)
 		}
@@ -152,7 +163,7 @@ func GeneratePDF(w io.Writer, st *store.Store, rmaID string) error {
 				pdf.CellFormat(30, 6, e.Type, "1", 0, "L", false, 0, "")
 				pdf.CellFormat(30, 6, truncate(e.EmployeeID, 15), "1", 0, "L", false, 0, "")
 				pdf.CellFormat(60, 6, truncate(e.Reason, 35), "1", 0, "L", false, 0, "")
-				pdf.CellFormat(0, 6, e.Timestamp.Format("15:04:05"), "1", 1, "L", false, 0, "")
+				pdf.CellFormat(0, 6, e.Timestamp.In(denverTZ).Format("15:04:05"), "1", 1, "L", false, 0, "")
 			}
 		}
 	}

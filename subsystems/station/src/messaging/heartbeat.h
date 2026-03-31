@@ -20,6 +20,7 @@ struct HeartbeatData {
     const char* lastError;    // null if no error
     int watchdogResets;
     const char* firmwareVersion;
+    bool timeSynced;          // true if NTP has provided valid wall-clock time
 };
 
 // Build a complete heartbeat message (envelope + payload)

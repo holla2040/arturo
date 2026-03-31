@@ -4,6 +4,7 @@
 #include "display_init.h"
 #include "../config.h"
 #include "../debug_log.h"
+#include "../time_utils.h"
 #include <Arduino.h>
 
 // Custom 160pt numeric font (digits, -, ., space)
@@ -275,14 +276,20 @@ void Display::initBanner(lv_obj_t* scr) {
 }
 
 void Display::updateBanner() {
-    // Clock — updates every loop call (100ms)
-    unsigned long ms = millis();
-    unsigned long totalSecs = ms / 1000;
-    int h = (totalSecs / 3600) % 24;
-    int m = (totalSecs / 60) % 60;
-    int s = totalSecs % 60;
+    // Clock — local time if NTP synced, uptime fallback otherwise
     char clockBuf[48];
-    snprintf(clockBuf, sizeof(clockBuf), "%02d:%02d:%02d", h, m, s);
+    if (arturo::hasValidTime()) {
+        time_t now = time(nullptr);
+        struct tm ti;
+        localtime_r(&now, &ti);
+        strftime(clockBuf, sizeof(clockBuf), "%H:%M:%S", &ti);
+    } else {
+        unsigned long totalSecs = millis() / 1000;
+        int h = (totalSecs / 3600) % 24;
+        int m = (totalSecs / 60) % 60;
+        int s = totalSecs % 60;
+        snprintf(clockBuf, sizeof(clockBuf), "%02d:%02d:%02d", h, m, s);
+    }
     lv_label_set_text(_bannerClock, clockBuf);
 
     // IP address
@@ -293,6 +300,7 @@ void Display::updateBanner() {
     }
 
     // Communication indicator — green if pump is fresh, red if stale
+    unsigned long ms = millis();
     if (_pump.staleCount <= 2) {
         // Blink green: alternate every 500ms
         bool on = ((ms / 500) % 2) == 0;

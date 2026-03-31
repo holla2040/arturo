@@ -123,7 +123,10 @@ var App = (function() {
         try {
             var d = new Date(iso);
             if (isNaN(d.getTime())) return '--';
-            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            return d.toLocaleTimeString('en-US', {
+                timeZone: 'America/Denver',
+                hour: '2-digit', minute: '2-digit', second: '2-digit'
+            });
         } catch(e) { return '--'; }
     }
 
@@ -132,7 +135,10 @@ var App = (function() {
         try {
             var d = new Date(iso);
             if (isNaN(d.getTime())) return '--';
-            return d.toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+            return d.toLocaleString('en-US', {
+                timeZone: 'America/Denver',
+                month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'
+            });
         } catch(e) { return '--'; }
     }
 

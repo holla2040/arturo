@@ -9,6 +9,8 @@
 
 // Custom 160pt numeric font (digits, -, ., space)
 extern const lv_font_t font_numeric_160;
+// Montserrat 16px with fixed-width digits for clock display
+extern const lv_font_t font_mono_clock_16;
 
 namespace arturo {
 
@@ -309,7 +311,7 @@ void Display::initBanner(lv_obj_t* scr) {
     // Clock — right side
     _bannerClock = lv_label_create(banner);
     lv_label_set_text(_bannerClock, "00:00:00");
-    lv_obj_set_style_text_font(_bannerClock, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_font(_bannerClock, &font_mono_clock_16, 0);
     lv_obj_set_style_text_color(_bannerClock, lv_color_hex(0x999999), 0);
     lv_obj_set_style_text_align(_bannerClock, LV_TEXT_ALIGN_RIGHT, 0);
     lv_obj_set_width(_bannerClock, 200);

@@ -9,8 +9,9 @@
 
 // Custom 160pt numeric font (digits, -, ., space)
 extern const lv_font_t font_numeric_160;
-// Montserrat 16px with fixed-width digits for clock display
+// Montserrat with fixed-width digits for clock and chart displays
 extern const lv_font_t font_mono_clock_16;
+extern const lv_font_t font_mono_chart_24;
 
 namespace arturo {
 
@@ -609,22 +610,22 @@ void Display::initChartTab(lv_obj_t* parent) {
 
     // Temp labels — mono font, colored to match chart series
     _chartTemp1 = lv_label_create(parent);
-    lv_label_set_text(_chartTemp1, "1: ---");
-    lv_obj_set_style_text_font(_chartTemp1, &font_mono_clock_16, 0);
+    lv_label_set_text(_chartTemp1, "---");
+    lv_obj_set_style_text_font(_chartTemp1, &lv_font_montserrat_24, 0);
     lv_obj_set_style_text_color(_chartTemp1, lv_color_hex(0xFF0000), 0);
-    lv_obj_set_pos(_chartTemp1, CHART_LEFT + 5, 12);
+    lv_obj_set_pos(_chartTemp1, 22, 5);
 
     _chartTemp2 = lv_label_create(parent);
-    lv_label_set_text(_chartTemp2, "2: ---");
-    lv_obj_set_style_text_font(_chartTemp2, &font_mono_clock_16, 0);
+    lv_label_set_text(_chartTemp2, "---");
+    lv_obj_set_style_text_font(_chartTemp2, &lv_font_montserrat_24, 0);
     lv_obj_set_style_text_color(_chartTemp2, lv_color_hex(0x0000FF), 0);
-    lv_obj_set_pos(_chartTemp2, CHART_LEFT + 120, 12);
+    lv_obj_set_pos(_chartTemp2, 80, 5);
 
     // Status label — Montserrat, fixed X position
     _chartStatus = lv_label_create(parent);
     lv_label_set_text(_chartStatus, "");
-    lv_obj_set_style_text_font(_chartStatus, &lv_font_montserrat_16, 0);
-    lv_obj_set_pos(_chartStatus, CHART_LEFT + 280, 12);
+    lv_obj_set_style_text_font(_chartStatus, &lv_font_montserrat_24, 0);
+    lv_obj_set_pos(_chartStatus, CHART_LEFT + 125, 5);
     lv_label_set_recolor(_chartStatus, true);
 
     // Populate chart from persisted data
@@ -671,8 +672,8 @@ void Display::sampleChartData() {
 void Display::updateChartTab() {
     if (_pump.staleCount <= 2) {
         // Temps — mono font, stable width
-        lv_label_set_text_fmt(_chartTemp1, "1: %3d", (int)(_pump.stage1TempK + 0.5f));
-        lv_label_set_text_fmt(_chartTemp2, "2: %3d", (int)(_pump.stage2TempK + 0.5f));
+        lv_label_set_text_fmt(_chartTemp1, "1:%d", (int)(_pump.stage1TempK + 0.5f));
+        lv_label_set_text_fmt(_chartTemp2, "2:%d", (int)(_pump.stage2TempK + 0.5f));
 
         // Status — fixed X position
         const char* regenLbl = regenCharToLabel(_pump.regenChar);

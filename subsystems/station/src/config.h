@@ -47,6 +47,9 @@ static const char* DEVICE_IDS[] = {"PUMP-01"};
 #define PRESENCE_KEY_PREFIX      "device:"
 #define PRESENCE_KEY_SUFFIX      ":alive"
 
+// Pump polling interval (ms between CTI commands in pumpPollTask)
+#define PUMP_POLL_INTERVAL_MS  200
+
 // Debug levels (compile-time, from ARCHITECTURE.md section 6.2)
 #define DEBUG_LEVEL_NONE   0
 #define DEBUG_LEVEL_ERROR  1

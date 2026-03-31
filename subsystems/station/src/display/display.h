@@ -2,8 +2,17 @@
 
 #ifdef ARDUINO
 #include "lvgl.h"
+#include "../pump_telemetry.h"
 
 namespace arturo {
+
+// Tab indices
+enum TabIndex {
+    TAB_STATUS = 0,
+    TAB_CHART  = 1,
+    TAB_SYSTEM = 2,
+    TAB_COUNT  = 3
+};
 
 class Display {
 public:
@@ -21,17 +30,39 @@ public:
                      int heartbeats,
                      int wifiReconnects, unsigned long wifiDownMs,
                      int redisReconnects);
+    void setPumpTelemetry(const PumpTelemetry& telemetry);
 
 private:
     bool _ready = false;
     unsigned long _lastUpdateMs = 0;
 
-    // LVGL objects
-    lv_obj_t* _titleLabel = nullptr;
-    lv_obj_t* _statusLabel = nullptr;
-    lv_obj_t* _clockLabel = nullptr;
-    lv_obj_t* _systemStatsLabel = nullptr;
-    lv_obj_t* _opsStatsLabel = nullptr;
+    // Tabview
+    lv_obj_t* _tabview = nullptr;
+    lv_obj_t* _tabs[TAB_COUNT] = {};
+
+    // Banner
+    lv_obj_t* _bannerCommDot = nullptr;
+    lv_obj_t* _bannerTitle = nullptr;
+    lv_obj_t* _bannerIp = nullptr;
+    lv_obj_t* _bannerClock = nullptr;
+
+    // Status tab widgets
+    lv_obj_t* _temp1Label = nullptr;
+    lv_obj_t* _temp2Label = nullptr;
+    lv_obj_t* _pressureLabel = nullptr;
+    lv_obj_t* _pumpStatusLabel = nullptr;
+    lv_obj_t* _roughLabel = nullptr;
+    lv_obj_t* _purgeLabel = nullptr;
+    lv_obj_t* _regenLabel = nullptr;
+    lv_obj_t* _hoursLabel = nullptr;
+    lv_obj_t* _testStatusBar = nullptr;
+    lv_obj_t* _testStateLabel = nullptr;
+    lv_obj_t* _testInfoLabel = nullptr;
+
+    // System tab widgets
+    lv_obj_t* _sysConnLabel = nullptr;
+    lv_obj_t* _sysHealthLabel = nullptr;
+    lv_obj_t* _sysOpsLabel = nullptr;
 
     // Cached state for rendering
     bool _wifiConnected = false;
@@ -59,14 +90,30 @@ private:
     unsigned long _wifiDownMs = 0;
     int _redisReconnects = 0;
 
-    // Last rendered text — skip redraw when unchanged
-    char _lastStatusBuf[128] = {};
-    char _lastSystemStatsBuf[192] = {};
-    char _lastOpsStatsBuf[192] = {};
+    // Cached pump telemetry
+    PumpTelemetry _pump;
 
-    void updateStatusLabel();
-    void updateSystemStatsLabel();
-    void updateOpsStatsLabel();
+    // Last rendered text — skip redraw when unchanged
+    char _lastTemp1Buf[16] = {};
+    char _lastTemp2Buf[16] = {};
+    char _lastSysConnBuf[256] = {};
+    char _lastSysHealthBuf[256] = {};
+    char _lastSysOpsBuf[256] = {};
+
+    // Tab setup helpers
+    void initBanner(lv_obj_t* scr);
+    void initStatusTab(lv_obj_t* parent);
+    void initChartTab(lv_obj_t* parent);
+    void initSystemTab(lv_obj_t* parent);
+
+    // Tab update helpers (only called for active tab)
+    void updateBanner();
+    void updateStatusTab();
+    void updateChartTab();
+    void updateSystemTab();
+
+    // Active tab tracking
+    int activeTab() const;
 };
 
 } // namespace arturo

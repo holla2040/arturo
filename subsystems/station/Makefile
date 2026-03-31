@@ -1,4 +1,4 @@
-PORT     ?= /dev/ttyACM0
+PORT     ?= /dev/ttyACM1
 BAUD     ?= 115200
 ENV      ?= esp32s3
 LOG      := /tmp/arturo-serial.log

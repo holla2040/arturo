@@ -86,6 +86,10 @@ bool Station::begin() {
         LOG_ERROR("MAIN", "CTI serial init failed on UART%d", CTI_UART_NUM);
     }
 
+    // 5c. Create mutexes for shared CTI device and pump telemetry
+    _ctiMutex = xSemaphoreCreateMutex();
+    _pumpTelemetryMutex = xSemaphoreCreateMutex();
+
     // 6. First heartbeat (status="starting")
     publishHeartbeat("starting");
 
@@ -105,6 +109,7 @@ bool Station::begin() {
     //     Core 0: WiFi system tasks only (no application competition for PSRAM DMA)
     //     Core 1: LVGL (priority 10), comm (priority 5), display update (priority 3)
     xTaskCreatePinnedToCore(commTaskEntry, "tComm", 8192, this, 5, nullptr, 1);
+    xTaskCreatePinnedToCore(pumpPollTaskEntry, "tPumpPoll", 4096, this, 4, nullptr, 1);
     xTaskCreatePinnedToCore(displayTaskEntry, "tDisplay", 3072, this, 3, nullptr, 1);
 #ifdef ENABLE_SCREENSHOT_SERVER
     xTaskCreatePinnedToCore([](void*) {
@@ -133,6 +138,10 @@ void Station::commTaskEntry(void* param) {
 
 void Station::displayTaskEntry(void* param) {
     static_cast<Station*>(param)->displayTask();
+}
+
+void Station::pumpPollTaskEntry(void* param) {
+    static_cast<Station*>(param)->pumpPollTask();
 }
 
 // Communication task — Core 1, priority 5
@@ -181,11 +190,15 @@ void Station::commTask() {
         }
 
         // Poll for incoming commands — drain all queued commands back-to-back
+        // Hold CTI mutex during command execution to prevent collision with pumpPollTask
         if (_cmdHandler && _redisSub.isConnected()) {
-            if (_cmdHandler->poll(100)) {
-                while (_cmdHandler->poll(1)) {
-                    _watchdog.feed();
+            if (xSemaphoreTake(_ctiMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                if (_cmdHandler->poll(100)) {
+                    while (_cmdHandler->poll(1)) {
+                        _watchdog.feed();
+                    }
                 }
+                xSemaphoreGive(_ctiMutex);
             }
         }
 
@@ -230,9 +243,101 @@ void Station::displayTask() {
             _redis.reconnectCount()
         );
 
+        // Push pump telemetry snapshot to display
+        if (xSemaphoreTake(_pumpTelemetryMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+            _display.setPumpTelemetry(_pumpTelemetry);
+            xSemaphoreGive(_pumpTelemetryMutex);
+        }
+
         _display.loop();
 
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    }
+}
+
+// Pump polling task — Core 1, priority 4
+// Cycles through critical CTI queries to populate PumpTelemetry for the display.
+// Each CTI command takes ~600ms, so a full cycle is ~4-5 seconds.
+void Station::pumpPollTask() {
+    // Wait for CTI device to be ready
+    vTaskDelay(pdMS_TO_TICKS(3000));
+
+    if (!_ctiDevice.isInitialized()) {
+        LOG_ERROR("PUMP_POLL", "CTI device not initialized — task exiting");
+        vTaskDelete(nullptr);
+        return;
+    }
+
+    // Commands to cycle through
+    struct PollCmd {
+        const char* ctiCmd;
+        enum { TEMP1, TEMP2, PRESSURE, STATUS1, ROUGH, PURGE, REGEN } field;
+    };
+
+    static const PollCmd cmds[] = {
+        {"J",  PollCmd::TEMP1},
+        {"K",  PollCmd::TEMP2},
+        {"L",  PollCmd::PRESSURE},
+        {"S1", PollCmd::STATUS1},
+        {"D?", PollCmd::ROUGH},
+        {"E?", PollCmd::PURGE},
+        {"O",  PollCmd::REGEN},
+    };
+    static const int cmdCount = sizeof(cmds) / sizeof(cmds[0]);
+
+    char responseBuf[64];
+    int cmdIndex = 0;
+
+    for (;;) {
+        // Try to acquire CTI mutex — yield if commTask is busy
+        if (xSemaphoreTake(_ctiMutex, pdMS_TO_TICKS(200)) != pdTRUE) {
+            vTaskDelay(pdMS_TO_TICKS(100));
+            continue;
+        }
+
+        bool ok = _ctiDevice.executeCommand(cmds[cmdIndex].ctiCmd, responseBuf, sizeof(responseBuf));
+        xSemaphoreGive(_ctiMutex);
+
+        if (ok && xSemaphoreTake(_pumpTelemetryMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+            switch (cmds[cmdIndex].field) {
+                case PollCmd::TEMP1:
+                    _pumpTelemetry.stage1TempK = atof(responseBuf);
+                    break;
+                case PollCmd::TEMP2:
+                    _pumpTelemetry.stage2TempK = atof(responseBuf);
+                    break;
+                case PollCmd::PRESSURE:
+                    _pumpTelemetry.pressureTorr = atof(responseBuf);
+                    break;
+                case PollCmd::STATUS1:
+                    _pumpTelemetry.status1 = (uint8_t)strtoul(responseBuf, nullptr, 16);
+                    _pumpTelemetry.pumpOn = (_pumpTelemetry.status1 & 0x01) != 0;
+                    break;
+                case PollCmd::ROUGH:
+                    _pumpTelemetry.roughValveOpen = (responseBuf[0] == '1');
+                    break;
+                case PollCmd::PURGE:
+                    _pumpTelemetry.purgeValveOpen = (responseBuf[0] == '1');
+                    break;
+                case PollCmd::REGEN:
+                    _pumpTelemetry.regenStep = (uint8_t)atoi(responseBuf);
+                    break;
+            }
+            _pumpTelemetry.staleCount = 0;
+            _pumpTelemetry.lastUpdateMs = millis();
+            xSemaphoreGive(_pumpTelemetryMutex);
+        } else if (!ok) {
+            // Increment stale count on failure
+            if (xSemaphoreTake(_pumpTelemetryMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                if (_pumpTelemetry.staleCount < 255) _pumpTelemetry.staleCount++;
+                xSemaphoreGive(_pumpTelemetryMutex);
+            }
+        }
+
+        cmdIndex = (cmdIndex + 1) % cmdCount;
+
+        // Brief pause between commands — CTI protocol needs ~150ms minimum between frames
+        vTaskDelay(pdMS_TO_TICKS(200));
     }
 }
 

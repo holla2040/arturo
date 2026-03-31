@@ -12,9 +12,11 @@
 #include "safety/watchdog.h"
 #include "safety/ota_update.h"
 #include "display/display.h"
+#include "pump_telemetry.h"
 #include "screenshot_server.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <freertos/semphr.h>
 
 namespace arturo {
 
@@ -37,6 +39,13 @@ private:
     CtiOnBoardDevice _ctiDevice;
     OTAUpdateHandler _otaHandler;
 
+    // Pump telemetry (read by displayTask, written by pumpPollTask)
+    PumpTelemetry _pumpTelemetry;
+    SemaphoreHandle_t _pumpTelemetryMutex = nullptr;
+
+    // CTI device mutex — guards _ctiDevice access between commTask and pumpPollTask
+    SemaphoreHandle_t _ctiMutex = nullptr;
+
     // Timing
     unsigned long _lastHeartbeatMs = 0;
     int _heartbeatCount = 0;
@@ -45,8 +54,10 @@ private:
     // FreeRTOS tasks
     static void commTaskEntry(void* param);
     static void displayTaskEntry(void* param);
+    static void pumpPollTaskEntry(void* param);
     void commTask();
     void displayTask();
+    void pumpPollTask();
 
     // Methods extracted from main.cpp
     bool connectRedis();

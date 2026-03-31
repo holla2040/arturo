@@ -137,7 +137,7 @@ Controller                      Redis                        Station
 
 ## Minimum Development Setup
 
-USB devices: station is always `/dev/ttyACM0`, mock pump is always `/dev/ttyACM1`.
+USB devices: mock pump is always `/dev/ttyACM0`, station is always `/dev/ttyACM1`.
 
 1. **Redis** — must be running on `192.168.0.3:6379`
 

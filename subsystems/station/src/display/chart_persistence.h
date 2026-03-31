@@ -5,7 +5,7 @@
 namespace arturo {
 
 struct ChartDataPoint {
-    uint32_t timestamp;     // millis() when sampled
+    uint32_t timestamp;     // UTC epoch seconds when sampled
     float stage1TempK;
     float stage2TempK;
 };

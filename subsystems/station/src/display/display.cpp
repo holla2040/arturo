@@ -573,7 +573,7 @@ void Display::initChartTab(lv_obj_t* parent) {
     lv_chart_set_update_mode(_chart, LV_CHART_UPDATE_MODE_SHIFT);
 
     // Grid lines — 8 divisions = 40K increments (0, 40, 80, ... 320)
-    lv_chart_set_div_line_count(_chart, 8, 0);
+    lv_chart_set_div_line_count(_chart, 8, CHART_X_TICKS - 2);
     lv_obj_set_style_line_color(_chart, lv_color_hex(0xD0D0D0), LV_PART_MAIN);
     lv_obj_set_style_line_width(_chart, 1, LV_PART_MAIN);
 
@@ -629,18 +629,21 @@ void Display::initChartTab(lv_obj_t* parent) {
     lv_obj_set_pos(_chartStatus, CHART_LEFT + 110, 5);
     lv_label_set_recolor(_chartStatus, true);
 
-    // Time span label — centered below chart
-    _chartTimeLabel = lv_label_create(parent);
-    lv_label_set_text(_chartTimeLabel, "");
-    lv_obj_set_style_text_font(_chartTimeLabel, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(_chartTimeLabel, lv_color_hex(0x666666), 0);
-    lv_obj_set_style_text_align(_chartTimeLabel, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(_chartTimeLabel, CHART_W);
-    lv_obj_set_pos(_chartTimeLabel, CHART_LEFT, CHART_TOP + CHART_H + 10);
+    // X-axis time tick labels below chart
+    for (int i = 0; i < CHART_X_TICKS; i++) {
+        _chartXLabels[i] = lv_label_create(parent);
+        lv_label_set_text(_chartXLabels[i], "");
+        lv_obj_set_style_text_font(_chartXLabels[i], &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_color(_chartXLabels[i], lv_color_hex(0x666666), 0);
+        lv_obj_set_style_text_align(_chartXLabels[i], LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_width(_chartXLabels[i], 60);
+        // Evenly spaced across chart width
+        int xPos = CHART_LEFT + i * CHART_W / (CHART_X_TICKS - 1) - 30;
+        lv_obj_set_pos(_chartXLabels[i], xPos, CHART_TOP + CHART_H + 2);
+    }
 
     // Populate chart from persisted data
     if (_chartHistoryCount > 0) {
-        // Points are stored in circular buffer order starting at _chartWriteIndex
         for (int i = 0; i < _chartHistoryCount; i++) {
             int idx = (_chartWriteIndex + i) % _chartHistoryCount;
             lv_chart_set_next_value(_chart, _chartSeries1, (lv_coord_t)(_chartHistory[idx].stage1TempK + 0.5f));
@@ -648,7 +651,7 @@ void Display::initChartTab(lv_obj_t* parent) {
         }
         lv_chart_refresh(_chart);
         _chartSampleCount = _chartHistoryCount;
-        LOG_INFO("DISPLAY", "Chart populated with %d persisted points", _chartHistoryCount);
+        LOG_INFO("DISPLAY", "Chart populated with %d points", _chartHistoryCount);
     }
 }
 
@@ -663,8 +666,8 @@ void Display::sampleChartData() {
         _chartSampleCount++;
         lv_chart_refresh(_chart);
 
-        // Store point in persistence buffer
-        _chartHistory[_chartWriteIndex].timestamp = now;
+        // Store point in persistence buffer (epoch seconds, not millis)
+        _chartHistory[_chartWriteIndex].timestamp = (uint32_t)time(nullptr);
         _chartHistory[_chartWriteIndex].stage1TempK = _pump.stage1TempK;
         _chartHistory[_chartWriteIndex].stage2TempK = _pump.stage2TempK;
         _chartWriteIndex = (_chartWriteIndex + 1) % CHART_POINTS;
@@ -705,36 +708,33 @@ void Display::updateChartTab() {
 
 void Display::updateChartTimeLabel() {
     if (_chartHistoryCount < 2) {
-        lv_label_set_text(_chartTimeLabel, "");
+        for (int i = 0; i < CHART_X_TICKS; i++)
+            lv_label_set_text(_chartXLabels[i], "");
         return;
     }
 
-    // Find oldest and newest visible points
     int newestIdx = (_chartWriteIndex - 1 + CHART_POINTS) % CHART_POINTS;
     int visibleCount = _chartHistoryCount < CHART_POINTS ? _chartHistoryCount : CHART_POINTS;
     int oldestIdx = (_chartWriteIndex - visibleCount + CHART_POINTS) % CHART_POINTS;
 
-    uint32_t newestTs = _chartHistory[newestIdx].timestamp;
-    uint32_t oldestTs = _chartHistory[oldestIdx].timestamp;
-    uint32_t spanMs = newestTs - oldestTs;  // unsigned handles millis() wrap
+    uint32_t oldestEpoch = _chartHistory[oldestIdx].timestamp;
+    uint32_t newestEpoch = _chartHistory[newestIdx].timestamp;
 
-    // Sanity check — if span is unreasonably large (>24h), likely a reboot boundary
-    if (spanMs > 86400000UL) {
-        lv_label_set_text(_chartTimeLabel, "");
+    // Skip if timestamps are pre-epoch (old millis-based persisted data)
+    if (oldestEpoch < 1700000000UL || newestEpoch < 1700000000UL) {
+        for (int i = 0; i < CHART_X_TICKS; i++)
+            lv_label_set_text(_chartXLabels[i], "");
         return;
     }
 
-    uint32_t spanSec = spanMs / 1000;
-    uint32_t hours = spanSec / 3600;
-    uint32_t mins = (spanSec % 3600) / 60;
-
-    char buf[48];
-    if (hours > 0) {
-        snprintf(buf, sizeof(buf), "Last %luh %lum", (unsigned long)hours, (unsigned long)mins);
-    } else {
-        snprintf(buf, sizeof(buf), "Last %lum", (unsigned long)mins);
+    for (int i = 0; i < CHART_X_TICKS; i++) {
+        time_t tickEpoch = oldestEpoch + (newestEpoch - oldestEpoch) * i / (CHART_X_TICKS - 1);
+        struct tm ti;
+        localtime_r(&tickEpoch, &ti);
+        char buf[16];
+        strftime(buf, sizeof(buf), "%H:%M", &ti);
+        lv_label_set_text(_chartXLabels[i], buf);
     }
-    lv_label_set_text(_chartTimeLabel, buf);
 }
 
 // --- Controls Tab ---

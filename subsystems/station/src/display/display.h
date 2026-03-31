@@ -139,6 +139,7 @@ private:
     lv_obj_t* _chartTemp1 = nullptr;    // mono font — 1st stage
     lv_obj_t* _chartTemp2 = nullptr;    // mono font — 2nd stage
     lv_obj_t* _chartStatus = nullptr;   // fixed X — pump/valve/regen
+    lv_obj_t* _chartTimeLabel = nullptr; // time span below chart
     unsigned long _lastChartSampleMs = 0;
     int _chartSampleCount = 0;
 
@@ -168,6 +169,7 @@ private:
     void updateStatusTab();
     void sampleChartData();
     void updateChartTab();
+    void updateChartTimeLabel();
     void updateControlsTab();
     void updateSystemTab();
 

@@ -35,8 +35,8 @@ static const lv_color_t COL_DARK   = lv_color_hex(0x1A1A1A);
 static const char* TAB_ICONS[] = {
     LV_SYMBOL_HOME,     // Status
     LV_SYMBOL_IMAGE,    // Chart
-    LV_SYMBOL_EDIT,     // Controls
-    LV_SYMBOL_SETTINGS, // System
+    LV_SYMBOL_SETTINGS, // Controls
+    LV_SYMBOL_LIST,     // System
 };
 static const char* TAB_NAMES[] = {"Status", "Chart", "Controls", "System"};
 
@@ -117,7 +117,7 @@ bool Display::begin() {
     // Style tab buttons
     lv_obj_t* tabBtns = lv_tabview_get_tab_btns(_tabview);
     lv_obj_set_style_anim_time(tabBtns, 0, 0);
-    lv_obj_set_style_text_font(tabBtns, &lv_font_montserrat_32, 0);
+    lv_obj_set_style_text_font(tabBtns, &lv_font_montserrat_48, 0);
 
     // Inactive tab buttons
     lv_obj_set_style_bg_color(tabBtns, lv_color_hex(0x000000), 0);
@@ -560,8 +560,9 @@ void Display::initChartTab(lv_obj_t* parent) {
     // Chart positioned with left margin for manual Y-axis labels
     static const int CHART_LEFT = 50;
     static const int CHART_TOP = 40;
+    static const int CHART_BOTTOM_PANEL = 40;  // space for time label (and later scroll buttons)
     static const int CHART_W = CONTENT_W - CHART_LEFT - 15;
-    static const int CHART_H = CONTENT_H - CHART_TOP - 10;
+    static const int CHART_H = CONTENT_H - CHART_TOP - CHART_BOTTOM_PANEL;
 
     _chart = lv_chart_create(parent);
     lv_obj_set_size(_chart, CHART_W, CHART_H);
@@ -628,6 +629,15 @@ void Display::initChartTab(lv_obj_t* parent) {
     lv_obj_set_pos(_chartStatus, CHART_LEFT + 110, 5);
     lv_label_set_recolor(_chartStatus, true);
 
+    // Time span label — centered below chart
+    _chartTimeLabel = lv_label_create(parent);
+    lv_label_set_text(_chartTimeLabel, "");
+    lv_obj_set_style_text_font(_chartTimeLabel, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(_chartTimeLabel, lv_color_hex(0x666666), 0);
+    lv_obj_set_style_text_align(_chartTimeLabel, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(_chartTimeLabel, CHART_W);
+    lv_obj_set_pos(_chartTimeLabel, CHART_LEFT, CHART_TOP + CHART_H + 10);
+
     // Populate chart from persisted data
     if (_chartHistoryCount > 0) {
         // Points are stored in circular buffer order starting at _chartWriteIndex
@@ -689,6 +699,42 @@ void Display::updateChartTab() {
             regenActive ? "#" : "");
         lv_label_set_text(_chartStatus, statusBuf);
     }
+
+    updateChartTimeLabel();
+}
+
+void Display::updateChartTimeLabel() {
+    if (_chartHistoryCount < 2) {
+        lv_label_set_text(_chartTimeLabel, "");
+        return;
+    }
+
+    // Find oldest and newest visible points
+    int newestIdx = (_chartWriteIndex - 1 + CHART_POINTS) % CHART_POINTS;
+    int visibleCount = _chartHistoryCount < CHART_POINTS ? _chartHistoryCount : CHART_POINTS;
+    int oldestIdx = (_chartWriteIndex - visibleCount + CHART_POINTS) % CHART_POINTS;
+
+    uint32_t newestTs = _chartHistory[newestIdx].timestamp;
+    uint32_t oldestTs = _chartHistory[oldestIdx].timestamp;
+    uint32_t spanMs = newestTs - oldestTs;  // unsigned handles millis() wrap
+
+    // Sanity check — if span is unreasonably large (>24h), likely a reboot boundary
+    if (spanMs > 86400000UL) {
+        lv_label_set_text(_chartTimeLabel, "");
+        return;
+    }
+
+    uint32_t spanSec = spanMs / 1000;
+    uint32_t hours = spanSec / 3600;
+    uint32_t mins = (spanSec % 3600) / 60;
+
+    char buf[48];
+    if (hours > 0) {
+        snprintf(buf, sizeof(buf), "Last %luh %lum", (unsigned long)hours, (unsigned long)mins);
+    } else {
+        snprintf(buf, sizeof(buf), "Last %lum", (unsigned long)mins);
+    }
+    lv_label_set_text(_chartTimeLabel, buf);
 }
 
 // --- Controls Tab ---

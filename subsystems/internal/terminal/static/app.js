@@ -434,9 +434,10 @@ var App = (function() {
                 state.stationStates[instance] = data;
                 renderStationDetail(instance);
 
-                // Load test events if there's an active test
-                if (data.test_run_id) {
-                    loadTestEvents(data.test_run_id);
+                // Load test events from active or most recent test
+                var eventRunId = data.test_run_id || data.last_test_run_id;
+                if (eventRunId) {
+                    loadTestEvents(eventRunId);
                 }
             } else {
                 renderStationDetail(instance);
@@ -1253,12 +1254,12 @@ var App = (function() {
     }
 
     function handleStationState(payload) {
-        if (!payload || !payload.instance) return;
-        state.stationStates[payload.instance] = payload;
+        if (!payload || !payload.station_instance) return;
+        state.stationStates[payload.station_instance] = payload;
 
         if (state.currentView === 'stations') renderStationGrid();
-        if (state.currentView === 'station-detail' && state.detailStation === payload.instance) {
-            renderStationDetail(payload.instance);
+        if (state.currentView === 'station-detail' && state.detailStation === payload.station_instance) {
+            renderStationDetail(payload.station_instance);
         }
     }
 
@@ -1311,10 +1312,26 @@ var App = (function() {
 
     function handleTestEvent(payload) {
         if (!payload) return;
-        // Refresh station detail if viewing
-        if (state.currentView === 'station-detail' && payload.test_run_id) {
-            loadTestEvents(payload.test_run_id);
-        }
+        if (state.currentView !== 'station-detail') return;
+        if (payload.station_instance !== state.detailStation) return;
+
+        var tbody = document.getElementById('detail-events-tbody');
+        if (!tbody) return;
+
+        // Clear "No events" placeholder if present
+        var empty = tbody.querySelector('.empty-state');
+        if (empty) tbody.innerHTML = '';
+
+        var tr = document.createElement('tr');
+        tr.innerHTML = '<td class="timestamp">' + formatDateTime(payload.timestamp) + '</td>' +
+            '<td class="mono event-' + escapeHtml(payload.event_type) + '">' + escapeHtml(payload.event_type) + '</td>' +
+            '<td>' + escapeHtml(payload.employee_id || '--') + '</td>' +
+            '<td>' + escapeHtml(payload.reason || payload.summary || '--') + '</td>';
+        tbody.appendChild(tr);
+
+        // Auto-scroll to bottom
+        var scrollable = tbody.closest('.panel-body');
+        if (scrollable) scrollable.scrollTop = scrollable.scrollHeight;
     }
 
     function renderEstop() {

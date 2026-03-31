@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -104,7 +105,7 @@ func NewSession(ctx context.Context, params StartSessionParams) (*TestSession, e
 	}
 
 	// Record started event
-	params.Store.RecordTestEvent(params.TestRunID, "started", params.EmployeeID, "")
+	params.Store.RecordTestEvent(params.TestRunID, "started", params.EmployeeID, filepath.Base(params.ScriptPath))
 
 	// Create pausable router wrapping the raw router
 	pausable := NewPausableRouter(params.RawRouter)
@@ -156,6 +157,28 @@ func NewSession(ctx context.Context, params StartSessionParams) (*TestSession, e
 	return session, nil
 }
 
+// sessionEventEmitter bridges executor events to the store and WebSocket hub.
+type sessionEventEmitter struct {
+	testRunID       string
+	stationInstance string
+	store           *store.Store
+	hub             Broadcaster
+}
+
+func (se *sessionEventEmitter) EmitEvent(eventType, detail string) {
+	se.store.RecordTestEvent(se.testRunID, eventType, "", detail)
+
+	if se.hub != nil {
+		se.hub.BroadcastEvent("test_event", map[string]interface{}{
+			"test_run_id":      se.testRunID,
+			"event_type":       eventType,
+			"station_instance": se.stationInstance,
+			"reason":           detail,
+			"timestamp":        time.Now().UTC().Format(time.RFC3339Nano),
+		})
+	}
+}
+
 // runExecutor creates and runs an executor with the given script source.
 func (s *TestSession) runExecutor(ctx context.Context, scriptSource string) {
 	defer close(s.doneCh)
@@ -164,9 +187,17 @@ func (s *TestSession) runExecutor(ctx context.Context, scriptSource string) {
 	tokens, _ := lexer.New(scriptSource).Tokenize()
 	program, _ := parser.New(tokens).Parse()
 
+	emitter := &sessionEventEmitter{
+		testRunID:       s.testRunID,
+		stationInstance: s.stationInstance,
+		store:           s.store,
+		hub:             s.hub,
+	}
+
 	exec := executor.New(ctx,
 		executor.WithRouter(s.pausableRouter),
 		executor.WithCollector(s.collector),
+		executor.WithEmitter(emitter),
 	)
 
 	execErr := exec.Execute(program)

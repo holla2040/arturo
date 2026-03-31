@@ -231,6 +231,8 @@ body {
    ===================================================================== */
 .view { display: none; }
 .view.active { display: flex; flex-direction: column; height: calc(100vh - 3.5rem); overflow: hidden; }
+.view#view-station-detail.active { overflow: hidden; }
+.view#view-station-detail .main { overflow: hidden; }
 .main {
     width: 100%;
     padding: 5px;
@@ -808,9 +810,23 @@ button.pid-regen:hover { background: rgba(255,255,255,0.06); }
 .detail-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto auto;
     gap: 20px;
 }
 .detail-grid .span-full { grid-column: 1 / -1; }
+.detail-events-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    margin-top: 20px;
+}
+.detail-events-panel .panel-body.scrollable {
+    flex: 1;
+    max-height: none;
+    overflow-y: auto;
+}
 
 /* Temperature chart */
 .chart-container {
@@ -989,6 +1005,13 @@ button.pid-regen:hover { background: rgba(255,255,255,0.06); }
 .data-table .mono { font-family: var(--font-mono); font-size: 0.8rem; }
 .data-table .success { color: var(--success-green); }
 .data-table .fail { color: var(--fail-red); }
+.event-pass { color: var(--status-online); }
+.event-fail { color: var(--status-offline); }
+.event-skip { color: var(--status-paused); }
+.event-send, .event-query { color: var(--status-testing); }
+.event-assert { color: var(--text-secondary); }
+.event-log { color: var(--text-muted); }
+.event-test_start { color: var(--accent-blue); }
 
 /* =====================================================================
    Test Run Items

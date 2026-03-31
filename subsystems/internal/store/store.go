@@ -338,6 +338,49 @@ func (s *Store) GetTestRun(id string) (*TestRun, error) {
 	return &r, nil
 }
 
+func (s *Store) LatestTestRunForStation(stationInstance string) (*TestRun, error) {
+	var r TestRun
+	var startedAt string
+	var finishedAt, rmaID, si, scriptSHA256, scriptContent sql.NullString
+	err := s.db.QueryRow(
+		`SELECT id, script_name, started_at, finished_at, status, summary,
+		        rma_id, station_instance, script_sha256, script_content
+		 FROM test_runs WHERE station_instance = ? ORDER BY started_at DESC LIMIT 1`,
+		stationInstance,
+	).Scan(&r.ID, &r.ScriptName, &startedAt, &finishedAt, &r.Status, &r.Summary,
+		&rmaID, &si, &scriptSHA256, &scriptContent)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	r.StartedAt, err = time.Parse(time.RFC3339Nano, startedAt)
+	if err != nil {
+		return nil, err
+	}
+	if finishedAt.Valid {
+		t, err := time.Parse(time.RFC3339Nano, finishedAt.String)
+		if err != nil {
+			return nil, err
+		}
+		r.FinishedAt = &t
+	}
+	if rmaID.Valid {
+		r.RMAID = &rmaID.String
+	}
+	if si.Valid {
+		r.StationInstance = &si.String
+	}
+	if scriptSHA256.Valid {
+		r.ScriptSHA256 = &scriptSHA256.String
+	}
+	if scriptContent.Valid {
+		r.ScriptContent = &scriptContent.String
+	}
+	return &r, nil
+}
+
 func (s *Store) QueryTestRuns() ([]TestRun, error) {
 	rows, err := s.db.Query(`SELECT id, script_name, started_at, finished_at, status, summary,
 	                                rma_id, station_instance, script_sha256, script_content

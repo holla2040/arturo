@@ -655,6 +655,10 @@ func (h *Handler) getStationState(w http.ResponseWriter, r *http.Request) {
 	if h.TestMgr != nil {
 		if session := h.TestMgr.GetSession(stationID); session != nil {
 			result["session"] = session
+			result["test_run_id"] = session.TestRunID
+			result["script_name"] = session.ScriptPath
+			result["rma_id"] = session.RMAID
+			result["started_at"] = session.StartedAt
 		}
 	}
 
@@ -662,6 +666,13 @@ func (h *Handler) getStationState(w http.ResponseWriter, r *http.Request) {
 	if ss, err := h.Store.GetStationState(stationID); err == nil && ss != nil {
 		if state == "idle" {
 			result["state"] = ss.State
+		}
+	}
+
+	// If no active test, include the most recent test run for this station
+	if result["test_run_id"] == nil {
+		if latest, err := h.Store.LatestTestRunForStation(stationID); err == nil && latest != nil {
+			result["last_test_run_id"] = latest.ID
 		}
 	}
 

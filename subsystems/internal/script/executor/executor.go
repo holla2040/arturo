@@ -67,6 +67,11 @@ type ResultCollector interface {
 	ClearCurrentSuite()
 }
 
+// EventEmitter emits test execution events for real-time monitoring.
+type EventEmitter interface {
+	EmitEvent(eventType, detail string)
+}
+
 // ---------------------------------------------------------------------------
 // Options
 // ---------------------------------------------------------------------------
@@ -89,6 +94,11 @@ func WithLogger(w io.Writer) Option {
 	return func(e *Executor) { e.logger = w }
 }
 
+// WithEmitter sets the EventEmitter for real-time event broadcasting.
+func WithEmitter(em EventEmitter) Option {
+	return func(e *Executor) { e.emitter = em }
+}
+
 // ---------------------------------------------------------------------------
 // Executor
 // ---------------------------------------------------------------------------
@@ -99,6 +109,7 @@ type Executor struct {
 	env          *variable.Environment
 	router       DeviceRouter
 	collector    ResultCollector
+	emitter      EventEmitter
 	logger       io.Writer
 	functions    map[string]*ast.FunctionDef
 	currentTest  string
@@ -117,6 +128,12 @@ func New(ctx context.Context, opts ...Option) *Executor {
 		opt(e)
 	}
 	return e
+}
+
+func (e *Executor) emit(eventType, detail string) {
+	if e.emitter != nil {
+		e.emitter.EmitEvent(eventType, detail)
+	}
 }
 
 // Env returns the executor's variable environment (useful for testing).
@@ -557,6 +574,7 @@ func (e *Executor) execSendStmt(s *ast.SendStmt) error {
 	if e.collector != nil && e.currentTest != "" {
 		e.collector.RecordCommand(e.currentTest, "", cmdStr, result.Success, result.Response, result.DurationMs)
 	}
+	e.emit("send", cmdStr)
 
 	return nil
 }
@@ -594,6 +612,7 @@ func (e *Executor) execQueryStmt(s *ast.QueryStmt) error {
 	if e.collector != nil && e.currentTest != "" {
 		e.collector.RecordCommand(e.currentTest, "", cmdStr, result.Success, result.Response, result.DurationMs)
 	}
+	e.emit("query", cmdStr+" -> "+result.Response)
 
 	return e.env.Set(s.ResultVar, result.Response)
 }
@@ -729,6 +748,7 @@ func (e *Executor) execTestDef(s *ast.TestDef) error {
 	if e.collector != nil {
 		e.collector.RecordTestStart(name)
 	}
+	e.emit("test_start", name)
 
 	testErr := e.execBlock(s.Body)
 
@@ -834,6 +854,7 @@ func (e *Executor) execPassStmt(s *ast.PassStmt) error {
 		e.collector.RecordTestPass(e.currentTest, msg)
 		e.testFinished = true
 	}
+	e.emit("pass", e.currentTest+": "+msg)
 	return ErrTestTerminated
 }
 
@@ -847,6 +868,7 @@ func (e *Executor) execFailStmt(s *ast.FailStmt) error {
 		e.collector.RecordTestFail(e.currentTest, msg)
 		e.testFinished = true
 	}
+	e.emit("fail", e.currentTest+": "+msg)
 	return ErrTestTerminated
 }
 
@@ -860,6 +882,7 @@ func (e *Executor) execSkipStmt(s *ast.SkipStmt) error {
 		e.collector.RecordTestSkip(e.currentTest, msg)
 		e.testFinished = true
 	}
+	e.emit("skip", e.currentTest+": "+msg)
 	return ErrTestTerminated
 }
 
@@ -882,6 +905,11 @@ func (e *Executor) execAssertStmt(s *ast.AssertStmt) error {
 	if e.collector != nil && e.currentTest != "" {
 		e.collector.RecordAssertion(e.currentTest, passed, msg)
 	}
+	if passed {
+		e.emit("assert", "passed: "+msg)
+	} else {
+		e.emit("assert", "failed: "+msg)
+	}
 
 	if !passed {
 		if e.collector != nil && e.currentTest != "" {
@@ -899,7 +927,9 @@ func (e *Executor) execLogStmt(s *ast.LogStmt) error {
 	if err != nil {
 		return fmt.Errorf("LOG: %w", err)
 	}
-	fmt.Fprintf(e.logger, "[%s] %s\n", s.Level, variable.ToString(msgVal))
+	logMsg := variable.ToString(msgVal)
+	fmt.Fprintf(e.logger, "[%s] %s\n", s.Level, logMsg)
+	e.emit("log", "["+string(s.Level)+"] "+logMsg)
 	return nil
 }
 

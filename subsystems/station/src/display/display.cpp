@@ -37,6 +37,33 @@ static const char* TAB_ICONS[] = {
 };
 static const char* TAB_NAMES[] = {"Status", "Chart", "Controls", "System"};
 
+// Map CTI regen status character to display label (from pendant2 firmware)
+static const char* regenCharToLabel(char c) {
+    switch (c) {
+        case 'A': case '\\': return "OFF";
+        case 'P': return "READY";
+        case 'B': case 'C': case 'E': case '^': case ']': return "WARMUP";
+        case 'H': return "PURGE";
+        case 'S': return "REPURGE";
+        case 'I': case 'J': case 'K': case 'T': return "ROUGHING";
+        case 'L': return "ROR TEST";
+        case 'M': case 'N': return "COOLING";
+        case 'U': return "FAST START";
+        case 'V': return "ABORTED";
+        case 'W': return "DELAY";
+        case 'X': case 'Y': return "PWR FAIL";
+        case 'Z': return "WAIT";
+        case 'O': case '[': return "ZEROING";
+        case 'D': case 'F': case 'G': case 'Q': case 'R': return "GAS FAIL";
+        default: return "---";
+    }
+}
+
+// Is the regen character an active (non-idle) state?
+static bool regenCharIsActive(char c) {
+    return c != 'A' && c != '\\' && c != 'P' && c != ' ' && c != '\0';
+}
+
 // Helper: set label text only if changed
 static void setLabelIfChanged(lv_obj_t* label, const char* newText, char* cacheBuf, size_t cacheLen) {
     if (strcmp(newText, cacheBuf) != 0) {
@@ -195,7 +222,21 @@ void Display::setRedisStatus(bool connected, const char* host, uint16_t port) {
 }
 
 void Display::setPumpTelemetry(const PumpTelemetry& telemetry) {
-    _pump = telemetry;
+    // During optimistic grace period, preserve user-initiated state changes
+    // so they aren't overwritten by stale telemetry
+    if (millis() - _lastOptimisticMs <= 2000) {
+        bool savedPumpOn = _pump.pumpOn;
+        bool savedRough = _pump.roughValveOpen;
+        bool savedPurge = _pump.purgeValveOpen;
+        char savedRegen = _pump.regenChar;
+        _pump = telemetry;
+        _pump.pumpOn = savedPumpOn;
+        _pump.roughValveOpen = savedRough;
+        _pump.purgeValveOpen = savedPurge;
+        _pump.regenChar = savedRegen;
+    } else {
+        _pump = telemetry;
+    }
 }
 
 void Display::setSystemStats(uint32_t freeHeapKB, uint32_t minFreeHeapKB,
@@ -439,7 +480,7 @@ static void updateTestStatusBar(lv_obj_t* bar, lv_obj_t* label, const TestState&
 
 void Display::updateStatusTab() {
     unsigned long now = millis();
-    if (now - _lastUpdateMs < 500) return;  // 2 Hz for status tab
+    if (now - _lastUpdateMs < 200) return;  // 5 Hz for status tab
     _lastUpdateMs = now;
 
     // Temperatures
@@ -479,12 +520,10 @@ void Display::updateStatusTab() {
         lv_label_set_text(_purgeLabel, _pump.purgeValveOpen ? "OPEN" : "CLOSED");
         lv_obj_set_style_text_color(_purgeLabel, _pump.purgeValveOpen ? COL_GREEN : COL_GRAY, 0);
 
-        const char* regenStates[] = {"OFF", "WARMUP", "PURGE", "ROUGH", "ROR", "COOL"};
-        int step = _pump.regenStep;
-        if (step >= 0 && step <= 5) {
-            lv_label_set_text(_regenLabel, regenStates[step]);
-            lv_obj_set_style_text_color(_regenLabel, step > 0 ? COL_ORANGE : COL_GRAY, 0);
-        }
+        const char* regenLabel = regenCharToLabel(_pump.regenChar);
+        lv_label_set_text(_regenLabel, regenLabel);
+        lv_obj_set_style_text_color(_regenLabel,
+            regenCharIsActive(_pump.regenChar) ? COL_ORANGE : COL_GRAY, 0);
 
         snprintf(buf, sizeof(buf), "%u", _pump.operatingHours);
         lv_label_set_text(_hoursLabel, buf);
@@ -674,7 +713,18 @@ void Display::onRegenButton(lv_event_t* e) {
     if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
     Display* self = static_cast<Display*>(lv_event_get_user_data(e));
     const char* cmd = static_cast<const char*>(lv_obj_get_user_data(lv_event_get_target(e)));
-    if (cmd) self->enqueueCommand(cmd);
+    if (!cmd) return;
+
+    // Optimistic update — show regen state change immediately
+    if (strcmp(cmd, "start_regen") == 0) {
+        self->_pump.regenChar = 'B';  // WARMUP
+    } else if (strcmp(cmd, "start_fast_regen") == 0) {
+        self->_pump.regenChar = 'U';  // FAST START
+    } else if (strcmp(cmd, "abort_regen") == 0) {
+        self->_pump.regenChar = 'A';  // OFF
+    }
+
+    self->enqueueCommand(cmd);
 }
 
 void Display::onTestActionButton(lv_event_t* e) {
@@ -939,14 +989,12 @@ void Display::updateControlsTab() {
         lv_label_set_text(_lblPurgeMeaning, _pump.purgeValveOpen ? "OPEN" : "CLOSED");
 
         // Regen status
-        const char* regenStates[] = {"OFF", "WARMUP", "PURGE", "ROUGH", "ROR", "COOL"};
-        int step = _pump.regenStep;
-        if (step >= 0 && step <= 5) {
-            char regenBuf[32];
-            snprintf(regenBuf, sizeof(regenBuf), "STATUS: %s", regenStates[step]);
-            lv_label_set_text(_lblRegenStatus, regenBuf);
-            lv_obj_set_style_text_color(_lblRegenStatus, step > 0 ? COL_ORANGE : COL_GRAY, 0);
-        }
+        const char* regenLabel = regenCharToLabel(_pump.regenChar);
+        char regenBuf[32];
+        snprintf(regenBuf, sizeof(regenBuf), "STATUS: %s", regenLabel);
+        lv_label_set_text(_lblRegenStatus, regenBuf);
+        lv_obj_set_style_text_color(_lblRegenStatus,
+            regenCharIsActive(_pump.regenChar) ? COL_ORANGE : COL_GRAY, 0);
     }
 }
 

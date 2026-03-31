@@ -55,6 +55,9 @@ private:
     TestState _testState;
     SemaphoreHandle_t _testStateMutex = nullptr;
 
+    // Priority poll — set by commTask after local command, read by pumpPollTask
+    volatile bool _pollNow = false;
+
     // Timing
     unsigned long _lastHeartbeatMs = 0;
     int _heartbeatCount = 0;

@@ -205,9 +205,9 @@ void Station::commTask() {
             connectRedisSub();
         }
 
-        // Poll for incoming commands — drain all queued commands back-to-back
-        // Hold CTI mutex during command execution to prevent collision with pumpPollTask
-        if (_cmdHandler && _redisSub.isConnected()) {
+        // Poll for incoming commands — only take mutex when data is waiting
+        // Non-blocking socket check prevents starving pumpPollTask
+        if (_cmdHandler && _redisSub.available()) {
             if (xSemaphoreTake(_ctiMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
                 if (_cmdHandler->poll(100)) {
                     while (_cmdHandler->poll(1)) {
@@ -229,14 +229,17 @@ void Station::commTask() {
         // Drain local command queue (from Display UI controls)
         if (_cmdHandler && _localCmdQueue) {
             LocalCommand cmd;
+            bool executed = false;
             while (xQueueReceive(_localCmdQueue, &cmd, 0) == pdTRUE) {
                 if (xSemaphoreTake(_ctiMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
                     char resp[256];
                     _cmdHandler->executeLocal(cmd.commandName, resp, sizeof(resp));
                     xSemaphoreGive(_ctiMutex);
+                    executed = true;
                 }
                 _watchdog.feed();
             }
+            if (executed) _pollNow = true;  // Trigger immediate poll cycle
         }
 
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
@@ -363,7 +366,7 @@ void Station::pumpPollTask() {
                     _pumpTelemetry.purgeValveOpen = (responseBuf[0] == '1');
                     break;
                 case PollCmd::REGEN:
-                    _pumpTelemetry.regenStep = (uint8_t)atoi(responseBuf);
+                    _pumpTelemetry.regenChar = responseBuf[0];
                     break;
             }
             _pumpTelemetry.staleCount = 0;
@@ -379,8 +382,15 @@ void Station::pumpPollTask() {
 
         cmdIndex = (cmdIndex + 1) % cmdCount;
 
-        // Brief pause between commands — CTI protocol needs ~150ms minimum between frames
-        vTaskDelay(pdMS_TO_TICKS(200));
+        // If a local command just executed, restart cycle immediately for fresh data
+        if (_pollNow) {
+            _pollNow = false;
+            cmdIndex = 0;
+        }
+
+        // Yield between commands — executeCommand already blocks for full serial
+        // round-trip, so bus is idle when we get here. Just yield for task scheduling.
+        vTaskDelay(pdMS_TO_TICKS(20));
     }
 }
 

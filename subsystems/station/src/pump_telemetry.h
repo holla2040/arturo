@@ -16,7 +16,7 @@ struct PumpTelemetry {
     bool pumpOn = false;
     bool roughValveOpen = false;
     bool purgeValveOpen = false;
-    uint8_t regenStep = 0;       // 0=off, 1-5=phase
+    char regenChar = 'A';        // CTI 'O' response: A=off, B=warmup, H=purge, etc.
     uint16_t operatingHours = 0;
     uint8_t status1 = 0;         // S1 bitmask
     uint8_t status2 = 0;         // S2 bitmask

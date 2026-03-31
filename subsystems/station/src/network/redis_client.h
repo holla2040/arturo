@@ -20,6 +20,9 @@ public:
     // Read next Pub/Sub message. Returns payload length, 0 on timeout, -1 on error.
     int readMessage(char* buf, size_t bufLen, unsigned long timeoutMs);
 
+    // Non-blocking check: true if data is waiting on the socket.
+    bool available();
+
     int reconnectCount();
 
 private:

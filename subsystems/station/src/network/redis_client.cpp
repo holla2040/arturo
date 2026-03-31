@@ -162,6 +162,10 @@ int RedisClient::readMessage(char* buf, size_t bufLen, unsigned long timeoutMs) 
     return payloadLen;
 }
 
+bool RedisClient::available() {
+    return _socket.connected() && _socket.available();
+}
+
 int RedisClient::reconnectCount() {
     return _reconnects;
 }

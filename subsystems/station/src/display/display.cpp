@@ -248,9 +248,9 @@ void Display::initBanner(lv_obj_t* scr) {
     lv_obj_set_style_bg_opa(_bannerCommDot, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(_bannerCommDot, 0, 0);
 
-    // Title — left side: "Arturo Station - station-01"
+    // Title — left side: "Arturo - station-01"
     _bannerTitle = lv_label_create(banner);
-    lv_label_set_text(_bannerTitle, "Arturo Station - " STATION_INSTANCE);
+    lv_label_set_text(_bannerTitle, "Arturo - " STATION_INSTANCE);
     lv_obj_set_style_text_font(_bannerTitle, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(_bannerTitle, lv_color_hex(0xCCCCCC), 0);
     lv_obj_set_pos(_bannerTitle, 28, 5);

@@ -131,8 +131,9 @@ private:
     uint32_t _lastOptimisticMs = 0;
 
     // Chart tab
-    static const int CHART_POINTS = 200;
+    static const int CHART_VISIBLE_POINTS = 200;
     static const int CHART_SAMPLE_INTERVAL_MS = 30000;  // 30s
+    static const int CHART_SCROLL_STEP = 20;
     lv_obj_t* _chart = nullptr;
     lv_chart_series_t* _chartSeries1 = nullptr;
     lv_chart_series_t* _chartSeries2 = nullptr;
@@ -142,11 +143,16 @@ private:
     static const int CHART_X_TICKS = 5;
     lv_obj_t* _chartXLabels[CHART_X_TICKS] = {}; // X-axis time tick labels
     unsigned long _lastChartSampleMs = 0;
-    int _chartSampleCount = 0;
+
+    // Chart scroll
+    int _chartScrollOffset = 0;          // 0 = live, >0 = scrolled back
+    lv_obj_t* _chartBtnLeft = nullptr;
+    lv_obj_t* _chartBtnRight = nullptr;
+    bool _chartNeedsRedraw = false;
 
     // Chart persistence
     ChartPersistence _chartPersist;
-    ChartDataPoint _chartHistory[CHART_POINTS] = {};
+    ChartDataPoint _chartHistory[CHART_MAX_POINTS] = {};
     int _chartWriteIndex = 0;
     int _chartHistoryCount = 0;
     int _chartSavePending = 0;
@@ -171,8 +177,13 @@ private:
     void sampleChartData();
     void updateChartTab();
     void updateChartTimeLabel();
+    void redrawChartFromBuffer();
     void updateControlsTab();
     void updateSystemTab();
+
+    // Chart scroll callbacks
+    static void onChartScrollLeft(lv_event_t* e);
+    static void onChartScrollRight(lv_event_t* e);
 
     // Controls tab helpers
     void enqueueCommand(const char* commandName);

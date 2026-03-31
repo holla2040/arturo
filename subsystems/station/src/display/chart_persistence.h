@@ -11,7 +11,7 @@ struct ChartDataPoint {
 };
 
 static const uint32_t CHART_FILE_MAGIC = 0x43485254;  // "CHRT"
-static const int CHART_MAX_POINTS = 200;
+static const int CHART_MAX_POINTS = 600;
 
 struct ChartFileHeader {
     uint32_t magic;

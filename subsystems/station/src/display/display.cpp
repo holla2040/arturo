@@ -550,7 +550,7 @@ void Display::initChartTab(lv_obj_t* parent) {
     // Initialize chart persistence and restore data from flash
     if (_chartPersist.init()) {
         int count = 0, writeIdx = 0;
-        if (_chartPersist.load(_chartHistory, CHART_POINTS, count, writeIdx)) {
+        if (_chartPersist.load(_chartHistory, CHART_MAX_POINTS, count, writeIdx)) {
             _chartHistoryCount = count;
             _chartWriteIndex = writeIdx;
             LOG_INFO("DISPLAY", "Restored %d chart points from flash", count);
@@ -568,7 +568,7 @@ void Display::initChartTab(lv_obj_t* parent) {
     lv_obj_set_size(_chart, CHART_W, CHART_H);
     lv_obj_set_pos(_chart, CHART_LEFT, CHART_TOP);
     lv_chart_set_type(_chart, LV_CHART_TYPE_LINE);
-    lv_chart_set_point_count(_chart, CHART_POINTS);
+    lv_chart_set_point_count(_chart, CHART_VISIBLE_POINTS);
     lv_chart_set_range(_chart, LV_CHART_AXIS_PRIMARY_Y, 0, 320);
     lv_chart_set_update_mode(_chart, LV_CHART_UPDATE_MODE_SHIFT);
 
@@ -642,17 +642,35 @@ void Display::initChartTab(lv_obj_t* parent) {
         lv_obj_set_pos(_chartXLabels[i], xPos, CHART_TOP + CHART_H + 2);
     }
 
+    // Scroll arrow buttons — tiny arrows, 50x50 touch area, bottom corners
+    _chartBtnLeft = lv_btn_create(parent);
+    lv_obj_set_size(_chartBtnLeft, 50, 50);
+    lv_obj_set_pos(_chartBtnLeft, 0, CONTENT_H - 43);
+    lv_obj_set_style_bg_opa(_chartBtnLeft, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_shadow_width(_chartBtnLeft, 0, 0);
+    lv_obj_set_style_border_width(_chartBtnLeft, 0, 0);
+    lv_obj_t* lblLeft = lv_label_create(_chartBtnLeft);
+    lv_label_set_text(lblLeft, LV_SYMBOL_LEFT);
+    lv_obj_set_style_text_font(lblLeft, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(lblLeft, lv_color_hex(0x888888), 0);
+    lv_obj_center(lblLeft);
+    lv_obj_add_event_cb(_chartBtnLeft, onChartScrollLeft, LV_EVENT_CLICKED, this);
+
+    _chartBtnRight = lv_btn_create(parent);
+    lv_obj_set_size(_chartBtnRight, 50, 50);
+    lv_obj_set_pos(_chartBtnRight, CONTENT_W - 50, CONTENT_H - 43);
+    lv_obj_set_style_bg_opa(_chartBtnRight, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_shadow_width(_chartBtnRight, 0, 0);
+    lv_obj_set_style_border_width(_chartBtnRight, 0, 0);
+    lv_obj_t* lblRight = lv_label_create(_chartBtnRight);
+    lv_label_set_text(lblRight, LV_SYMBOL_RIGHT);
+    lv_obj_set_style_text_font(lblRight, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(lblRight, lv_color_hex(0x888888), 0);
+    lv_obj_center(lblRight);
+    lv_obj_add_event_cb(_chartBtnRight, onChartScrollRight, LV_EVENT_CLICKED, this);
+
     // Populate chart from persisted data
-    if (_chartHistoryCount > 0) {
-        for (int i = 0; i < _chartHistoryCount; i++) {
-            int idx = (_chartWriteIndex + i) % _chartHistoryCount;
-            lv_chart_set_next_value(_chart, _chartSeries1, (lv_coord_t)(_chartHistory[idx].stage1TempK + 0.5f));
-            lv_chart_set_next_value(_chart, _chartSeries2, (lv_coord_t)(_chartHistory[idx].stage2TempK + 0.5f));
-        }
-        lv_chart_refresh(_chart);
-        _chartSampleCount = _chartHistoryCount;
-        LOG_INFO("DISPLAY", "Chart populated with %d points", _chartHistoryCount);
-    }
+    _chartNeedsRedraw = true;
 }
 
 void Display::sampleChartData() {
@@ -661,17 +679,16 @@ void Display::sampleChartData() {
     // Sample every 30 seconds if pump data is fresh
     if (now - _lastChartSampleMs >= CHART_SAMPLE_INTERVAL_MS && _pump.staleCount <= 2) {
         _lastChartSampleMs = now;
-        lv_chart_set_next_value(_chart, _chartSeries1, (lv_coord_t)(_pump.stage1TempK + 0.5f));
-        lv_chart_set_next_value(_chart, _chartSeries2, (lv_coord_t)(_pump.stage2TempK + 0.5f));
-        _chartSampleCount++;
-        lv_chart_refresh(_chart);
 
-        // Store point in persistence buffer (epoch seconds, not millis)
+        // Store point in buffer (epoch seconds)
         _chartHistory[_chartWriteIndex].timestamp = (uint32_t)time(nullptr);
         _chartHistory[_chartWriteIndex].stage1TempK = _pump.stage1TempK;
         _chartHistory[_chartWriteIndex].stage2TempK = _pump.stage2TempK;
-        _chartWriteIndex = (_chartWriteIndex + 1) % CHART_POINTS;
-        if (_chartHistoryCount < CHART_POINTS) _chartHistoryCount++;
+        _chartWriteIndex = (_chartWriteIndex + 1) % CHART_MAX_POINTS;
+        if (_chartHistoryCount < CHART_MAX_POINTS) _chartHistoryCount++;
+
+        // Redraw chart if at live view
+        if (_chartScrollOffset == 0) _chartNeedsRedraw = true;
 
         // Save to flash every 10 samples (~5 minutes)
         _chartSavePending++;
@@ -680,6 +697,50 @@ void Display::sampleChartData() {
             _chartSavePending = 0;
         }
     }
+}
+
+void Display::redrawChartFromBuffer() {
+    _chartNeedsRedraw = false;
+
+    int pointsToShow = _chartHistoryCount < CHART_VISIBLE_POINTS
+                       ? _chartHistoryCount : CHART_VISIBLE_POINTS;
+    if (pointsToShow == 0) return;
+
+    // Newest point in buffer
+    int newestBuf = (_chartWriteIndex - 1 + CHART_MAX_POINTS) % CHART_MAX_POINTS;
+    // Newest visible point (offset back from newest)
+    int newestVis = (newestBuf - _chartScrollOffset + CHART_MAX_POINTS) % CHART_MAX_POINTS;
+
+    // Fill LVGL chart — index 0 = oldest visible, index N-1 = newest visible
+    for (int i = 0; i < CHART_VISIBLE_POINTS; i++) {
+        if (i < pointsToShow) {
+            int bufIdx = (newestVis - pointsToShow + 1 + i + CHART_MAX_POINTS) % CHART_MAX_POINTS;
+            lv_chart_set_value_by_id(_chart, _chartSeries1, i,
+                (lv_coord_t)(_chartHistory[bufIdx].stage1TempK + 0.5f));
+            lv_chart_set_value_by_id(_chart, _chartSeries2, i,
+                (lv_coord_t)(_chartHistory[bufIdx].stage2TempK + 0.5f));
+        } else {
+            lv_chart_set_value_by_id(_chart, _chartSeries1, i, LV_CHART_POINT_NONE);
+            lv_chart_set_value_by_id(_chart, _chartSeries2, i, LV_CHART_POINT_NONE);
+        }
+    }
+    lv_chart_refresh(_chart);
+}
+
+void Display::onChartScrollLeft(lv_event_t* e) {
+    Display* self = static_cast<Display*>(lv_event_get_user_data(e));
+    int maxOffset = self->_chartHistoryCount > CHART_VISIBLE_POINTS
+                    ? self->_chartHistoryCount - CHART_VISIBLE_POINTS : 0;
+    self->_chartScrollOffset += CHART_SCROLL_STEP;
+    if (self->_chartScrollOffset > maxOffset) self->_chartScrollOffset = maxOffset;
+    self->_chartNeedsRedraw = true;
+}
+
+void Display::onChartScrollRight(lv_event_t* e) {
+    Display* self = static_cast<Display*>(lv_event_get_user_data(e));
+    self->_chartScrollOffset -= CHART_SCROLL_STEP;
+    if (self->_chartScrollOffset < 0) self->_chartScrollOffset = 0;
+    self->_chartNeedsRedraw = true;
 }
 
 void Display::updateChartTab() {
@@ -703,29 +764,38 @@ void Display::updateChartTab() {
         lv_label_set_text(_chartStatus, statusBuf);
     }
 
+    if (_chartNeedsRedraw) redrawChartFromBuffer();
     updateChartTimeLabel();
+
+    // Disable scroll buttons at edges
+    int maxOffset = _chartHistoryCount > CHART_VISIBLE_POINTS
+                    ? _chartHistoryCount - CHART_VISIBLE_POINTS : 0;
+    if (_chartScrollOffset >= maxOffset)
+        lv_obj_add_state(_chartBtnLeft, LV_STATE_DISABLED);
+    else
+        lv_obj_clear_state(_chartBtnLeft, LV_STATE_DISABLED);
+
+    if (_chartScrollOffset <= 0)
+        lv_obj_add_state(_chartBtnRight, LV_STATE_DISABLED);
+    else
+        lv_obj_clear_state(_chartBtnRight, LV_STATE_DISABLED);
 }
 
 void Display::updateChartTimeLabel() {
-    if (_chartHistoryCount < 2) {
+    int pointsToShow = _chartHistoryCount < CHART_VISIBLE_POINTS
+                       ? _chartHistoryCount : CHART_VISIBLE_POINTS;
+    if (pointsToShow < 2) {
         for (int i = 0; i < CHART_X_TICKS; i++)
             lv_label_set_text(_chartXLabels[i], "");
         return;
     }
 
-    int newestIdx = (_chartWriteIndex - 1 + CHART_POINTS) % CHART_POINTS;
-    int visibleCount = _chartHistoryCount < CHART_POINTS ? _chartHistoryCount : CHART_POINTS;
-    int oldestIdx = (_chartWriteIndex - visibleCount + CHART_POINTS) % CHART_POINTS;
+    int newestBuf = (_chartWriteIndex - 1 + CHART_MAX_POINTS) % CHART_MAX_POINTS;
+    int newestVis = (newestBuf - _chartScrollOffset + CHART_MAX_POINTS) % CHART_MAX_POINTS;
+    int oldestVis = (newestVis - pointsToShow + 1 + CHART_MAX_POINTS) % CHART_MAX_POINTS;
 
-    uint32_t oldestEpoch = _chartHistory[oldestIdx].timestamp;
-    uint32_t newestEpoch = _chartHistory[newestIdx].timestamp;
-
-    // Skip if timestamps are pre-epoch (old millis-based persisted data)
-    if (oldestEpoch < 1700000000UL || newestEpoch < 1700000000UL) {
-        for (int i = 0; i < CHART_X_TICKS; i++)
-            lv_label_set_text(_chartXLabels[i], "");
-        return;
-    }
+    uint32_t oldestEpoch = _chartHistory[oldestVis].timestamp;
+    uint32_t newestEpoch = _chartHistory[newestVis].timestamp;
 
     for (int i = 0; i < CHART_X_TICKS; i++) {
         time_t tickEpoch = oldestEpoch + (newestEpoch - oldestEpoch) * i / (CHART_X_TICKS - 1);

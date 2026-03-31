@@ -95,7 +95,7 @@ bool CtiOnBoardDevice::executeCommand(const char* ctiCmd, char* responseBuf, siz
     }
     _serial->flush();
 
-    LOG_INFO("CTI", "TX: %s (%d bytes)", ctiCmd, frameLen);
+    LOG_DEBUG("CTI", "TX: %s (%d bytes)", ctiCmd, frameLen);
 
     // Receive response line (terminated by \r)
     char rxBuf[128];
@@ -145,7 +145,7 @@ bool CtiOnBoardDevice::executeCommand(const char* ctiCmd, char* responseBuf, siz
     memcpy(responseBuf, _lastResp.data, copyLen);
     responseBuf[copyLen] = '\0';
 
-    LOG_INFO("CTI", "OK: %s -> '%s'", ctiCmd, responseBuf);
+    LOG_DEBUG("CTI", "OK: %s -> '%s'", ctiCmd, responseBuf);
     return true;
 }
 #endif

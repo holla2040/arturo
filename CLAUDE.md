@@ -63,6 +63,7 @@ cd subsystems/station && make monitor                 # serial monitor (foregrou
 - Scripts go in `scripts/` (.art files) with shared libraries in `scripts/lib/` (.artlib files).
 - Script engine interfaces (validation, error reporting, device introspection) must be LLM-usable — structured JSON, no implicit context.
 - Reference material from the original project is in `docs/reference/` and the [arturo-go-archive](https://github.com/holla2040/arturo-go-archive) repo.
+- **pendant2** (`~/pendant2`) is a predecessor/reference project. Check there for design precedents when implementing station display features.
 
 ## Key Files
 

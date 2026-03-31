@@ -613,7 +613,7 @@ void Display::initChartTab(lv_obj_t* parent) {
     lv_label_set_text(_chartTemp1, "---");
     lv_obj_set_style_text_font(_chartTemp1, &lv_font_montserrat_24, 0);
     lv_obj_set_style_text_color(_chartTemp1, lv_color_hex(0xFF0000), 0);
-    lv_obj_set_pos(_chartTemp1, 22, 5);
+    lv_obj_set_pos(_chartTemp1, 17, 5);
 
     _chartTemp2 = lv_label_create(parent);
     lv_label_set_text(_chartTemp2, "---");
@@ -625,7 +625,7 @@ void Display::initChartTab(lv_obj_t* parent) {
     _chartStatus = lv_label_create(parent);
     lv_label_set_text(_chartStatus, "");
     lv_obj_set_style_text_font(_chartStatus, &lv_font_montserrat_24, 0);
-    lv_obj_set_pos(_chartStatus, CHART_LEFT + 125, 5);
+    lv_obj_set_pos(_chartStatus, CHART_LEFT + 110, 5);
     lv_label_set_recolor(_chartStatus, true);
 
     // Populate chart from persisted data

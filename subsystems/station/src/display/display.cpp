@@ -607,18 +607,25 @@ void Display::initChartTab(lv_obj_t* parent) {
         lv_obj_set_pos(lbl, 2, yPos);
     }
 
-    // Legend with live values — above chart
-    _chartLegend1 = lv_label_create(parent);
-    lv_label_set_text(_chartLegend1, "#FF6060 1st: ---#");
-    lv_obj_set_style_text_font(_chartLegend1, &lv_font_montserrat_24, 0);
-    lv_obj_set_pos(_chartLegend1, CHART_LEFT + 10, 5);
-    lv_label_set_recolor(_chartLegend1, true);
+    // Temp labels — mono font, colored to match chart series
+    _chartTemp1 = lv_label_create(parent);
+    lv_label_set_text(_chartTemp1, "1: ---");
+    lv_obj_set_style_text_font(_chartTemp1, &font_mono_clock_16, 0);
+    lv_obj_set_style_text_color(_chartTemp1, lv_color_hex(0xFF0000), 0);
+    lv_obj_set_pos(_chartTemp1, CHART_LEFT + 5, 12);
 
-    _chartLegend2 = lv_label_create(parent);
-    lv_label_set_text(_chartLegend2, "#6060FF 2nd: ---#");
-    lv_obj_set_style_text_font(_chartLegend2, &lv_font_montserrat_24, 0);
-    lv_obj_set_pos(_chartLegend2, CHART_LEFT + 250, 5);
-    lv_label_set_recolor(_chartLegend2, true);
+    _chartTemp2 = lv_label_create(parent);
+    lv_label_set_text(_chartTemp2, "2: ---");
+    lv_obj_set_style_text_font(_chartTemp2, &font_mono_clock_16, 0);
+    lv_obj_set_style_text_color(_chartTemp2, lv_color_hex(0x0000FF), 0);
+    lv_obj_set_pos(_chartTemp2, CHART_LEFT + 120, 12);
+
+    // Status label — Montserrat, fixed X position
+    _chartStatus = lv_label_create(parent);
+    lv_label_set_text(_chartStatus, "");
+    lv_obj_set_style_text_font(_chartStatus, &lv_font_montserrat_16, 0);
+    lv_obj_set_pos(_chartStatus, CHART_LEFT + 280, 12);
+    lv_label_set_recolor(_chartStatus, true);
 
     // Populate chart from persisted data
     if (_chartHistoryCount > 0) {
@@ -662,10 +669,24 @@ void Display::sampleChartData() {
 }
 
 void Display::updateChartTab() {
-    // Update legend with current values
     if (_pump.staleCount <= 2) {
-        lv_label_set_text_fmt(_chartLegend1, "#FF6060 1st: %d#", (int)(_pump.stage1TempK + 0.5f));
-        lv_label_set_text_fmt(_chartLegend2, "#6060FF 2nd: %d#", (int)(_pump.stage2TempK + 0.5f));
+        // Temps — mono font, stable width
+        lv_label_set_text_fmt(_chartTemp1, "1: %3d", (int)(_pump.stage1TempK + 0.5f));
+        lv_label_set_text_fmt(_chartTemp2, "2: %3d", (int)(_pump.stage2TempK + 0.5f));
+
+        // Status — fixed X position
+        const char* regenLbl = regenCharToLabel(_pump.regenChar);
+        bool regenActive = regenCharIsActive(_pump.regenChar);
+        char statusBuf[128];
+        snprintf(statusBuf, sizeof(statusBuf),
+            "Motor: %s  Rough: %s  Purge: %s  Regen: %s%s%s",
+            _pump.pumpOn ? "#22c55e ON#" : "#ef4444 OFF#",
+            _pump.roughValveOpen ? "#ef4444 OPEN#" : "#22c55e CLOSED#",
+            _pump.purgeValveOpen ? "#ef4444 OPEN#" : "#22c55e CLOSED#",
+            regenActive ? "#FF9800 " : "",
+            regenLbl,
+            regenActive ? "#" : "");
+        lv_label_set_text(_chartStatus, statusBuf);
     }
 }
 

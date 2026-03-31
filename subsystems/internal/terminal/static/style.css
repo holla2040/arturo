@@ -678,10 +678,10 @@ button.pid-valve:hover { background: rgba(255,255,255,0.06); }
     border-bottom: 1.5rem solid transparent;
     border-right: 1.8rem solid var(--text-muted);
 }
-.pid-valve.open .pid-valve-tri-l { border-left-color: var(--status-online); }
-.pid-valve.open .pid-valve-tri-r { border-right-color: var(--status-online); }
-.pid-valve.closed .pid-valve-tri-l { border-left-color: var(--status-offline); opacity: 0.6; }
-.pid-valve.closed .pid-valve-tri-r { border-right-color: var(--status-offline); opacity: 0.6; }
+.pid-valve.open .pid-valve-tri-l { border-left-color: var(--status-offline); }
+.pid-valve.open .pid-valve-tri-r { border-right-color: var(--status-offline); }
+.pid-valve.closed .pid-valve-tri-l { border-left-color: var(--status-online); }
+.pid-valve.closed .pid-valve-tri-r { border-right-color: var(--status-online); }
 .pid-valve-label {
     font-size: 3.3rem;
     font-weight: 600;

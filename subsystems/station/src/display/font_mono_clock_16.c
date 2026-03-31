@@ -131,7 +131,7 @@ static const lv_font_fmt_txt_glyph_dsc_t glyph_dsc[] = {
     {.bitmap_index = 0, .adv_w = 0, .box_w = 0, .box_h = 0, .ofs_x = 0, .ofs_y = 0} /* id = 0 reserved */,
     {.bitmap_index = 0, .adv_w = 69, .box_w = 0, .box_h = 0, .ofs_x = 0, .ofs_y = 0},  /* space */
     {.bitmap_index = 0, .adv_w = 171, .box_w = 10, .box_h = 12, .ofs_x = 0, .ofs_y = 0},  /* 0 */
-    {.bitmap_index = 60, .adv_w = 171, .box_w = 5, .box_h = 12, .ofs_x = 2, .ofs_y = 0},  /* 1 — centered */
+    {.bitmap_index = 60, .adv_w = 171, .box_w = 5, .box_h = 12, .ofs_x = 2, .ofs_y = 0},  /* 1 */
     {.bitmap_index = 90, .adv_w = 171, .box_w = 9, .box_h = 12, .ofs_x = 1, .ofs_y = 0},  /* 2 */
     {.bitmap_index = 144, .adv_w = 171, .box_w = 9, .box_h = 12, .ofs_x = 1, .ofs_y = 0},  /* 3 */
     {.bitmap_index = 198, .adv_w = 171, .box_w = 11, .box_h = 12, .ofs_x = 0, .ofs_y = 0},  /* 4 */

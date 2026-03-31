@@ -136,8 +136,9 @@ private:
     lv_obj_t* _chart = nullptr;
     lv_chart_series_t* _chartSeries1 = nullptr;
     lv_chart_series_t* _chartSeries2 = nullptr;
-    lv_obj_t* _chartLegend1 = nullptr;
-    lv_obj_t* _chartLegend2 = nullptr;
+    lv_obj_t* _chartTemp1 = nullptr;    // mono font — 1st stage
+    lv_obj_t* _chartTemp2 = nullptr;    // mono font — 2nd stage
+    lv_obj_t* _chartStatus = nullptr;   // fixed X — pump/valve/regen
     unsigned long _lastChartSampleMs = 0;
     int _chartSampleCount = 0;
 

@@ -171,6 +171,7 @@ USB devices: mock pump is always `/dev/ttyACM0`, station is always `/dev/ttyACM1
 2. Read [subsystems/README.md](subsystems/README.md) — subsystem architecture
 3. Read [subsystems/station/README.md](subsystems/station/README.md) — station firmware architecture
 4. Read [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) — architecture decisions
+5. Read [docs/CONTROLLER_SETUP.md](docs/CONTROLLER_SETUP.md) — checklist for setting up the dedicated controller machine
 
 ## Related
 

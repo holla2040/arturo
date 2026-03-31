@@ -31,9 +31,10 @@ static const lv_color_t COL_DARK   = lv_color_hex(0x1A1A1A);
 static const char* TAB_ICONS[] = {
     LV_SYMBOL_HOME,     // Status
     LV_SYMBOL_IMAGE,    // Chart
+    LV_SYMBOL_EDIT,     // Controls
     LV_SYMBOL_SETTINGS, // System
 };
-static const char* TAB_NAMES[] = {"Status", "Chart", "System"};
+static const char* TAB_NAMES[] = {"Status", "Chart", "Controls", "System"};
 
 // Helper: set label text only if changed
 static void setLabelIfChanged(lv_obj_t* label, const char* newText, char* cacheBuf, size_t cacheLen) {
@@ -116,6 +117,7 @@ bool Display::begin() {
     initBanner(scr);
     initStatusTab(_tabs[TAB_STATUS]);
     initChartTab(_tabs[TAB_CHART]);
+    initControlsTab(_tabs[TAB_CONTROLS]);
     initSystemTab(_tabs[TAB_SYSTEM]);
 
     lv_tabview_set_act(_tabview, TAB_STATUS, LV_ANIM_OFF);
@@ -134,10 +136,14 @@ void Display::loop() {
 
     updateBanner();
 
+    // Sample chart data regardless of active tab (avoid gaps in history)
+    sampleChartData();
+
     // Only update the active tab (critical performance optimization)
     int tab = activeTab();
     if (tab == TAB_STATUS) updateStatusTab();
     else if (tab == TAB_CHART) updateChartTab();
+    else if (tab == TAB_CONTROLS) updateControlsTab();
     else if (tab == TAB_SYSTEM) updateSystemTab();
 
     display_unlock();
@@ -146,6 +152,21 @@ void Display::loop() {
 int Display::activeTab() const {
     if (!_tabview) return 0;
     return lv_tabview_get_tab_act(_tabview);
+}
+
+void Display::setActiveTab(int tab) {
+    if (!_tabview || tab < 0 || tab >= TAB_COUNT) return;
+    if (!display_lock(100)) return;
+    lv_tabview_set_act(_tabview, tab, LV_ANIM_OFF);
+    display_unlock();
+}
+
+int Display::getActiveTab() {
+    if (!_tabview) return 0;
+    if (!display_lock(100)) return 0;
+    int tab = lv_tabview_get_tab_act(_tabview);
+    display_unlock();
+    return tab;
 }
 
 // --- Setters (called from displayTask, no mutex needed — same thread) ---
@@ -405,6 +426,9 @@ void Display::initStatusTab(lv_obj_t* parent) {
     lv_obj_set_pos(_testStateLabel, 10, 14);
 }
 
+// Forward declaration
+static void updateTestStatusBar(lv_obj_t* bar, lv_obj_t* label, const TestState& state);
+
 void Display::updateStatusTab() {
     unsigned long now = millis();
     if (now - _lastUpdateMs < 500) return;  // 2 Hz for status tab
@@ -465,11 +489,24 @@ void Display::updateStatusTab() {
         lv_label_set_text(_regenLabel, "--");
         lv_label_set_text(_hoursLabel, "--");
     }
+
+    // Update test status bar
+    updateTestStatusBar(_testStatusBar, _testStateLabel, _testState);
 }
 
 // --- Chart Tab ---
 
 void Display::initChartTab(lv_obj_t* parent) {
+    // Initialize chart persistence and restore data from flash
+    if (_chartPersist.init()) {
+        int count = 0, writeIdx = 0;
+        if (_chartPersist.load(_chartHistory, CHART_POINTS, count, writeIdx)) {
+            _chartHistoryCount = count;
+            _chartWriteIndex = writeIdx;
+            LOG_INFO("DISPLAY", "Restored %d chart points from flash", count);
+        }
+    }
+
     // Chart positioned with left margin for manual Y-axis labels
     static const int CHART_LEFT = 50;
     static const int CHART_TOP = 40;
@@ -489,13 +526,14 @@ void Display::initChartTab(lv_obj_t* parent) {
     lv_obj_set_style_line_color(_chart, lv_color_hex(0xD0D0D0), LV_PART_MAIN);
     lv_obj_set_style_line_width(_chart, 1, LV_PART_MAIN);
 
-    // Style
+    // Style — sharp 90-degree corners, no rounding
     lv_obj_set_style_bg_color(_chart, lv_color_hex(0xFFFFFF), 0);
     lv_obj_set_style_bg_opa(_chart, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(_chart, 1, 0);
     lv_obj_set_style_border_color(_chart, lv_color_hex(0xBBBBBB), 0);
+    lv_obj_set_style_radius(_chart, 0, 0);
     lv_obj_set_style_size(_chart, 0, LV_PART_INDICATOR);
-    lv_obj_set_style_pad_all(_chart, 5, 0);
+    lv_obj_set_style_pad_all(_chart, 0, 0);
 
     // Series — bright red and blue, 2px line width
     _chartSeries1 = lv_chart_add_series(_chart, lv_color_hex(0xFF0000), LV_CHART_AXIS_PRIMARY_Y);
@@ -503,13 +541,13 @@ void Display::initChartTab(lv_obj_t* parent) {
     lv_obj_set_style_line_width(_chart, 2, LV_PART_ITEMS);
 
     // Manual Y-axis labels (pendant2 pattern — LVGL 8.4 tick labels unreliable)
-    // Plot area height = CHART_H - 10 (pad top + pad bottom)
-    int plotH = CHART_H - 10;
+    // Plot area height = CHART_H (no padding)
+    int plotH = CHART_H;
     const int yAxisValues[] = {0, 40, 80, 120, 160, 200, 240, 280, 320};
     for (int i = 0; i < 9; i++) {
         int v = yAxisValues[i];
-        // Y position: top of chart + pad + (320-v)/320 * plotH
-        int yPos = CHART_TOP + 5 + (320 - v) * plotH / 320 - 7;  // -7 to center text on line
+        // Y position: top of chart + (320-v)/320 * plotH
+        int yPos = CHART_TOP + (320 - v) * plotH / 320 - 7;  // -7 to center text on line
 
         lv_obj_t* lbl = lv_label_create(parent);
         lv_label_set_text_fmt(lbl, "%d", v);
@@ -532,9 +570,22 @@ void Display::initChartTab(lv_obj_t* parent) {
     lv_obj_set_style_text_font(_chartLegend2, &lv_font_montserrat_24, 0);
     lv_obj_set_pos(_chartLegend2, CHART_LEFT + 250, 5);
     lv_label_set_recolor(_chartLegend2, true);
+
+    // Populate chart from persisted data
+    if (_chartHistoryCount > 0) {
+        // Points are stored in circular buffer order starting at _chartWriteIndex
+        for (int i = 0; i < _chartHistoryCount; i++) {
+            int idx = (_chartWriteIndex + i) % _chartHistoryCount;
+            lv_chart_set_next_value(_chart, _chartSeries1, (lv_coord_t)(_chartHistory[idx].stage1TempK + 0.5f));
+            lv_chart_set_next_value(_chart, _chartSeries2, (lv_coord_t)(_chartHistory[idx].stage2TempK + 0.5f));
+        }
+        lv_chart_refresh(_chart);
+        _chartSampleCount = _chartHistoryCount;
+        LOG_INFO("DISPLAY", "Chart populated with %d persisted points", _chartHistoryCount);
+    }
 }
 
-void Display::updateChartTab() {
+void Display::sampleChartData() {
     unsigned long now = millis();
 
     // Sample every 30 seconds if pump data is fresh
@@ -544,12 +595,382 @@ void Display::updateChartTab() {
         lv_chart_set_next_value(_chart, _chartSeries2, (lv_coord_t)(_pump.stage2TempK + 0.5f));
         _chartSampleCount++;
         lv_chart_refresh(_chart);
-    }
 
+        // Store point in persistence buffer
+        _chartHistory[_chartWriteIndex].timestamp = now;
+        _chartHistory[_chartWriteIndex].stage1TempK = _pump.stage1TempK;
+        _chartHistory[_chartWriteIndex].stage2TempK = _pump.stage2TempK;
+        _chartWriteIndex = (_chartWriteIndex + 1) % CHART_POINTS;
+        if (_chartHistoryCount < CHART_POINTS) _chartHistoryCount++;
+
+        // Save to flash every 10 samples (~5 minutes)
+        _chartSavePending++;
+        if (_chartSavePending >= 10) {
+            _chartPersist.save(_chartHistory, _chartHistoryCount, _chartWriteIndex);
+            _chartSavePending = 0;
+        }
+    }
+}
+
+void Display::updateChartTab() {
     // Update legend with current values
     if (_pump.staleCount <= 2) {
         lv_label_set_text_fmt(_chartLegend1, "#FF6060 1st: %d#", (int)(_pump.stage1TempK + 0.5f));
         lv_label_set_text_fmt(_chartLegend2, "#6060FF 2nd: %d#", (int)(_pump.stage2TempK + 0.5f));
+    }
+}
+
+// --- Controls Tab ---
+
+void Display::enqueueCommand(const char* commandName) {
+    if (!_localCmdQueue) return;
+    LocalCommand cmd = {};
+    strncpy(cmd.commandName, commandName, sizeof(cmd.commandName) - 1);
+    // deviceId left empty — defaults to sole device
+    xQueueSend(_localCmdQueue, &cmd, pdMS_TO_TICKS(10));
+    _lastOptimisticMs = millis();
+}
+
+void Display::onPumpSwitch(lv_event_t* e) {
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) return;
+    Display* self = static_cast<Display*>(lv_event_get_user_data(e));
+    lv_obj_t* sw = lv_event_get_target(e);
+    bool is_on = lv_obj_has_state(sw, LV_STATE_CHECKED);
+
+    // Optimistic update
+    self->_pump.pumpOn = is_on;
+    self->enqueueCommand(is_on ? "pump_on" : "pump_off");
+}
+
+void Display::onRoughSwitch(lv_event_t* e) {
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) return;
+    Display* self = static_cast<Display*>(lv_event_get_user_data(e));
+    lv_obj_t* sw = lv_event_get_target(e);
+    bool is_on = lv_obj_has_state(sw, LV_STATE_CHECKED);
+
+    self->_pump.roughValveOpen = is_on;
+    self->enqueueCommand(is_on ? "open_rough_valve" : "close_rough_valve");
+}
+
+void Display::onPurgeSwitch(lv_event_t* e) {
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) return;
+    Display* self = static_cast<Display*>(lv_event_get_user_data(e));
+    lv_obj_t* sw = lv_event_get_target(e);
+    bool is_on = lv_obj_has_state(sw, LV_STATE_CHECKED);
+
+    self->_pump.purgeValveOpen = is_on;
+    self->enqueueCommand(is_on ? "open_purge_valve" : "close_purge_valve");
+}
+
+void Display::onRegenButton(lv_event_t* e) {
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+    Display* self = static_cast<Display*>(lv_event_get_user_data(e));
+    const char* cmd = static_cast<const char*>(lv_obj_get_user_data(lv_event_get_target(e)));
+    if (cmd) self->enqueueCommand(cmd);
+}
+
+void Display::onTestActionButton(lv_event_t* e) {
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+    Display* self = static_cast<Display*>(lv_event_get_user_data(e));
+    const char* cmd = static_cast<const char*>(lv_obj_get_user_data(lv_event_get_target(e)));
+    if (cmd) self->enqueueCommand(cmd);
+}
+
+// Helper: create a control switch with labels
+static lv_obj_t* createControlSwitch(lv_obj_t* parent, int x, int y,
+                                      lv_color_t onColor, const char* funcLabel,
+                                      lv_obj_t** meaningLabel,
+                                      const char* defaultMeaning,
+                                      lv_event_cb_t cb, void* userData) {
+    lv_obj_t* sw = lv_switch_create(parent);
+    lv_obj_set_size(sw, 80, 40);
+    lv_obj_set_pos(sw, x, y);
+    lv_obj_add_event_cb(sw, cb, LV_EVENT_VALUE_CHANGED, userData);
+    lv_obj_set_style_bg_color(sw, onColor, LV_PART_INDICATOR | LV_STATE_CHECKED);
+    lv_obj_set_style_anim_time(sw, 0, LV_PART_MAIN);
+
+    // Meaning label above switch
+    *meaningLabel = lv_label_create(parent);
+    lv_label_set_text(*meaningLabel, defaultMeaning);
+    lv_obj_set_width(*meaningLabel, 150);
+    lv_obj_set_style_text_font(*meaningLabel, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_align(*meaningLabel, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_pad_all(*meaningLabel, 0, 0);
+    lv_obj_align_to(*meaningLabel, sw, LV_ALIGN_OUT_TOP_MID, 0, -2);
+
+    // Function label below switch
+    lv_obj_t* lbl = lv_label_create(parent);
+    lv_label_set_text(lbl, funcLabel);
+    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_pad_all(lbl, 0, 0);
+    lv_obj_align_to(lbl, sw, LV_ALIGN_OUT_BOTTOM_MID, 0, 5);
+
+    return sw;
+}
+
+// Helper: create a regen button
+static lv_obj_t* createRegenButton(lv_obj_t* parent, int x, int y,
+                                    lv_color_t bgColor, const char* label,
+                                    const char* cmdName,
+                                    lv_event_cb_t cb, void* userData) {
+    lv_obj_t* btn = lv_btn_create(parent);
+    lv_obj_set_size(btn, 150, 60);
+    lv_obj_set_pos(btn, x, y);
+    lv_obj_set_style_bg_color(btn, bgColor, 0);
+    lv_obj_set_user_data(btn, (void*)cmdName);
+    lv_obj_add_event_cb(btn, cb, LV_EVENT_CLICKED, userData);
+
+    lv_obj_t* lbl = lv_label_create(btn);
+    lv_label_set_text(lbl, label);
+    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_24, 0);
+    lv_obj_center(lbl);
+
+    return btn;
+}
+
+// Helper: create a test action button
+static lv_obj_t* createTestActionButton(lv_obj_t* parent, int x, int y,
+                                         lv_color_t bgColor, const char* label,
+                                         const char* cmdName,
+                                         lv_event_cb_t cb, void* userData) {
+    lv_obj_t* btn = lv_btn_create(parent);
+    lv_obj_set_size(btn, 200, 80);
+    lv_obj_set_pos(btn, x, y);
+    lv_obj_set_style_bg_color(btn, bgColor, 0);
+    lv_obj_set_user_data(btn, (void*)cmdName);
+    lv_obj_add_event_cb(btn, cb, LV_EVENT_CLICKED, userData);
+
+    lv_obj_t* lbl = lv_label_create(btn);
+    lv_label_set_text(lbl, label);
+    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_32, 0);
+    lv_obj_center(lbl);
+
+    return btn;
+}
+
+void Display::initControlsTab(lv_obj_t* parent) {
+    // === IDLE MODE PANEL (visible when not testing) ===
+    _idleModePanel = lv_obj_create(parent);
+    lv_obj_set_size(_idleModePanel, CONTENT_W, CONTENT_H);
+    lv_obj_set_pos(_idleModePanel, 0, 0);
+    lv_obj_set_style_bg_opa(_idleModePanel, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(_idleModePanel, 0, 0);
+    lv_obj_set_style_pad_all(_idleModePanel, 0, 0);
+    lv_obj_clear_flag(_idleModePanel, LV_OBJ_FLAG_SCROLLABLE);
+
+    // Mode indicator bar
+    lv_obj_t* modeBar = lv_obj_create(_idleModePanel);
+    lv_obj_set_size(modeBar, CONTENT_W - 20, 40);
+    lv_obj_set_pos(modeBar, 5, 5);
+    lv_obj_set_style_bg_color(modeBar, lv_color_hex(0x006600), 0);
+    lv_obj_set_style_bg_opa(modeBar, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(modeBar, 8, 0);
+    lv_obj_set_style_border_width(modeBar, 0, 0);
+    lv_obj_clear_flag(modeBar, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t* modeLbl = lv_label_create(modeBar);
+    lv_label_set_text(modeLbl, "MANUAL CONTROL");
+    lv_obj_set_style_text_font(modeLbl, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_color(modeLbl, lv_color_white(), 0);
+    lv_obj_center(modeLbl);
+
+    // Control switches — 3 switches equally spaced across width
+    // Content width = 924, 3 segments = 308px each, switch at center of each
+    int switchY = 120;  // vertical center for switches
+    int seg = (CONTENT_W - 20) / 3;  // ~301px per segment
+
+    _swPump = createControlSwitch(_idleModePanel, 5 + seg * 0 + seg / 2 - 40, switchY,
+                                   lv_color_hex(0x00AA00), "PUMP\nPOWER", &_lblPumpMeaning,
+                                   "OFF", onPumpSwitch, this);
+
+    _swRough = createControlSwitch(_idleModePanel, 5 + seg * 1 + seg / 2 - 40, switchY,
+                                    lv_color_hex(0x0066AA), "ROUGH\nVALVE", &_lblRoughMeaning,
+                                    "CLOSED", onRoughSwitch, this);
+
+    _swPurge = createControlSwitch(_idleModePanel, 5 + seg * 2 + seg / 2 - 40, switchY,
+                                    lv_color_hex(0x0066AA), "PURGE\nVALVE", &_lblPurgeMeaning,
+                                    "CLOSED", onPurgeSwitch, this);
+
+    // Regen section — label + 3 buttons
+    lv_obj_t* regenLbl = lv_label_create(_idleModePanel);
+    lv_label_set_text(regenLbl, "REGENERATION");
+    lv_obj_set_style_text_font(regenLbl, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_color(regenLbl, lv_color_black(), 0);
+    lv_obj_set_pos(regenLbl, 20, 290);
+
+    createRegenButton(_idleModePanel, 20, 330,
+                       lv_color_hex(0x00AA00), "FULL", "start_regen",
+                       onRegenButton, this);
+    createRegenButton(_idleModePanel, 185, 330,
+                       lv_color_hex(0x0066AA), "FAST", "start_fast_regen",
+                       onRegenButton, this);
+    createRegenButton(_idleModePanel, 350, 330,
+                       lv_color_hex(0xCC0000), "CANCEL", "abort_regen",
+                       onRegenButton, this);
+
+    // Regen status label
+    _lblRegenStatus = lv_label_create(_idleModePanel);
+    lv_label_set_text(_lblRegenStatus, "STATUS: OFF");
+    lv_obj_set_style_text_font(_lblRegenStatus, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_color(_lblRegenStatus, COL_GRAY, 0);
+    lv_obj_set_pos(_lblRegenStatus, 550, 350);
+
+    // === TEST MODE PANEL (visible when test in progress) ===
+    _testModePanel = lv_obj_create(parent);
+    lv_obj_set_size(_testModePanel, CONTENT_W, CONTENT_H);
+    lv_obj_set_pos(_testModePanel, 0, 0);
+    lv_obj_set_style_bg_opa(_testModePanel, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(_testModePanel, 0, 0);
+    lv_obj_set_style_pad_all(_testModePanel, 0, 0);
+    lv_obj_clear_flag(_testModePanel, LV_OBJ_FLAG_SCROLLABLE);
+
+    // Alert banner
+    lv_obj_t* alertBar = lv_obj_create(_testModePanel);
+    lv_obj_set_size(alertBar, CONTENT_W - 20, 60);
+    lv_obj_set_pos(alertBar, 5, 5);
+    lv_obj_set_style_bg_color(alertBar, lv_color_hex(0xFF9800), 0);
+    lv_obj_set_style_bg_opa(alertBar, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(alertBar, 8, 0);
+    lv_obj_set_style_border_width(alertBar, 0, 0);
+    lv_obj_clear_flag(alertBar, LV_OBJ_FLAG_SCROLLABLE);
+
+    _lblTestName = lv_label_create(alertBar);
+    lv_label_set_text(_lblTestName, "TEST IN PROGRESS");
+    lv_obj_set_style_text_font(_lblTestName, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_color(_lblTestName, lv_color_white(), 0);
+    lv_obj_center(_lblTestName);
+
+    // Elapsed time display
+    _lblTestElapsed = lv_label_create(_testModePanel);
+    lv_label_set_text(_lblTestElapsed, "Elapsed: 0:00:00");
+    lv_obj_set_style_text_font(_lblTestElapsed, &lv_font_montserrat_32, 0);
+    lv_obj_set_style_text_color(_lblTestElapsed, lv_color_black(), 0);
+    lv_obj_set_style_text_align(_lblTestElapsed, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(_lblTestElapsed, CONTENT_W);
+    lv_obj_set_pos(_lblTestElapsed, 0, 140);
+
+    // Test action buttons — centered row
+    int btnY = 300;
+    int btnSpacing = 230;
+    int btnStartX = (CONTENT_W - 3 * 200 - 2 * 30) / 2;  // center 3 buttons with 30px gaps
+
+    createTestActionButton(_testModePanel, btnStartX, btnY,
+                            lv_color_hex(0xCC0000), "ABORT", "test_abort",
+                            onTestActionButton, this);
+    createTestActionButton(_testModePanel, btnStartX + btnSpacing, btnY,
+                            lv_color_hex(0xCC9900), "PAUSE", "test_pause",
+                            onTestActionButton, this);
+    createTestActionButton(_testModePanel, btnStartX + btnSpacing * 2, btnY,
+                            lv_color_hex(0x00AA00), "CONTINUE", "test_continue",
+                            onTestActionButton, this);
+
+    // Start in idle mode — hide test panel
+    lv_obj_add_flag(_testModePanel, LV_OBJ_FLAG_HIDDEN);
+}
+
+void Display::updateControlsTab() {
+    // Toggle panel visibility based on mode
+    if (_testState.mode == OperationalMode::TESTING) {
+        if (!lv_obj_has_flag(_testModePanel, LV_OBJ_FLAG_HIDDEN)) {
+            // Already visible — update content
+        } else {
+            lv_obj_clear_flag(_testModePanel, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(_idleModePanel, LV_OBJ_FLAG_HIDDEN);
+        }
+
+        // Update test info
+        if (_testState.testName[0] != '\0') {
+            char buf[96];
+            snprintf(buf, sizeof(buf), "TEST IN PROGRESS: %s", _testState.testName);
+            lv_label_set_text(_lblTestName, buf);
+        }
+
+        uint32_t s = _testState.elapsedSecs;
+        int h = s / 3600;
+        int m = (s % 3600) / 60;
+        int sec = s % 60;
+        char timeBuf[32];
+        snprintf(timeBuf, sizeof(timeBuf), "Elapsed: %d:%02d:%02d", h, m, sec);
+        lv_label_set_text(_lblTestElapsed, timeBuf);
+    } else {
+        if (!lv_obj_has_flag(_idleModePanel, LV_OBJ_FLAG_HIDDEN)) {
+            // Already visible
+        } else {
+            lv_obj_clear_flag(_idleModePanel, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(_testModePanel, LV_OBJ_FLAG_HIDDEN);
+        }
+
+        // Sync switch states from telemetry (skip if optimistic update is recent)
+        if (millis() - _lastOptimisticMs > 2000) {
+            // Pump switch
+            bool swPumpOn = lv_obj_has_state(_swPump, LV_STATE_CHECKED);
+            if (_pump.pumpOn != swPumpOn) {
+                if (_pump.pumpOn) lv_obj_add_state(_swPump, LV_STATE_CHECKED);
+                else lv_obj_clear_state(_swPump, LV_STATE_CHECKED);
+            }
+
+            // Rough valve switch
+            bool swRoughOn = lv_obj_has_state(_swRough, LV_STATE_CHECKED);
+            if (_pump.roughValveOpen != swRoughOn) {
+                if (_pump.roughValveOpen) lv_obj_add_state(_swRough, LV_STATE_CHECKED);
+                else lv_obj_clear_state(_swRough, LV_STATE_CHECKED);
+            }
+
+            // Purge valve switch
+            bool swPurgeOn = lv_obj_has_state(_swPurge, LV_STATE_CHECKED);
+            if (_pump.purgeValveOpen != swPurgeOn) {
+                if (_pump.purgeValveOpen) lv_obj_add_state(_swPurge, LV_STATE_CHECKED);
+                else lv_obj_clear_state(_swPurge, LV_STATE_CHECKED);
+            }
+        }
+
+        // Update meaning labels
+        lv_label_set_text(_lblPumpMeaning, _pump.pumpOn ? "ON" : "OFF");
+        lv_label_set_text(_lblRoughMeaning, _pump.roughValveOpen ? "OPEN" : "CLOSED");
+        lv_label_set_text(_lblPurgeMeaning, _pump.purgeValveOpen ? "OPEN" : "CLOSED");
+
+        // Regen status
+        const char* regenStates[] = {"OFF", "WARMUP", "PURGE", "ROUGH", "ROR", "COOL"};
+        int step = _pump.regenStep;
+        if (step >= 0 && step <= 5) {
+            char regenBuf[32];
+            snprintf(regenBuf, sizeof(regenBuf), "STATUS: %s", regenStates[step]);
+            lv_label_set_text(_lblRegenStatus, regenBuf);
+            lv_obj_set_style_text_color(_lblRegenStatus, step > 0 ? COL_ORANGE : COL_GRAY, 0);
+        }
+    }
+}
+
+// --- Test status bar update on Status Tab ---
+
+// Update the test status bar appearance on the Status tab based on test state.
+// Called from updateStatusTab() — reflects test mode even on the telemetry view.
+static void updateTestStatusBar(lv_obj_t* bar, lv_obj_t* label,
+                                 const TestState& state) {
+    if (state.mode == OperationalMode::TESTING) {
+        if (state.paused) {
+            lv_obj_set_style_bg_color(bar, lv_color_hex(0xFFEB3B), 0);  // Yellow
+            char buf[96];
+            snprintf(buf, sizeof(buf), "PAUSED: %s", state.testName);
+            lv_label_set_text(label, buf);
+            lv_obj_set_style_text_color(label, lv_color_black(), 0);
+        } else {
+            lv_obj_set_style_bg_color(bar, lv_color_hex(0xFF9800), 0);  // Amber
+            uint32_t s = state.elapsedSecs;
+            char buf[96];
+            snprintf(buf, sizeof(buf), "TEST: %s | %lu:%02lu:%02lu",
+                     state.testName,
+                     (unsigned long)(s / 3600),
+                     (unsigned long)((s % 3600) / 60),
+                     (unsigned long)(s % 60));
+            lv_label_set_text(label, buf);
+            lv_obj_set_style_text_color(label, lv_color_white(), 0);
+        }
+    } else {
+        lv_obj_set_style_bg_color(bar, lv_color_hex(0xE8E8E8), 0);  // Gray
+        lv_label_set_text(label, "No active test");
+        lv_obj_set_style_text_color(label, COL_GRAY, 0);
     }
 }
 

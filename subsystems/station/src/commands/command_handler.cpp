@@ -118,12 +118,124 @@ void CommandHandler::handleMessage(const char* messageJson) {
 
     if (strcmp(type, "device.command.request") == 0) {
         handleDeviceCommand(messageJson);
+    } else if (strcmp(type, "test.state.update") == 0) {
+        handleTestStateUpdate(doc);
     } else if (strcmp(type, "system.ota.request") == 0) {
         handleOTARequest(doc);
     } else {
         LOG_ERROR("CMD", "Unknown message type: %s", type);
         _failed++;
     }
+}
+
+bool CommandHandler::dispatchToDevice(const char* deviceId, const char* commandName,
+                                      char* responseBuf, size_t responseBufLen,
+                                      const char*& errorCode, const char*& errorMessage) {
+    // Look up the device in the registry.
+    // If device_id is empty (station-scoped scripts), default to the sole device.
+    const DeviceInfo* device = nullptr;
+    if (deviceId == nullptr || deviceId[0] == '\0') {
+        int count = 0;
+        const DeviceInfo* all = getDevices(count);
+        if (count == 1) {
+            device = &all[0];
+            LOG_INFO("CMD", "Empty device_id, defaulting to %s", device->deviceId);
+        }
+    } else {
+        device = getDevice(deviceId);
+    }
+
+    if (device == nullptr) {
+        errorCode = "device_not_found";
+        errorMessage = "Device not registered on this station";
+        LOG_ERROR("CMD", "Unknown device: %s", deviceId ? deviceId : "(null)");
+        return false;
+    }
+
+    if (strcmp(device->protocolType, "cti") == 0) {
+        if (_ctiOnBoardDevice == nullptr) {
+            errorCode = "device_unavailable";
+            errorMessage = "CTI OnBoard device not initialized";
+            LOG_ERROR("CMD", "CTI OnBoard device not available for %s", device->deviceId);
+            return false;
+        }
+        const char* ctiCmd = ctiOnBoardLookupCommand(commandName);
+        if (ctiCmd == nullptr) {
+            errorCode = "unknown_command";
+            errorMessage = "Command not in CTI OnBoard command table";
+            LOG_ERROR("CMD", "Unknown CTI OnBoard command: %s", commandName);
+            return false;
+        }
+        bool success = _ctiOnBoardDevice->executeCommand(ctiCmd, responseBuf, responseBufLen);
+        if (!success) {
+            errorCode = "device_error";
+            errorMessage = "CTI OnBoard command failed";
+        }
+        return success;
+    }
+
+    // Other protocols (scpi, modbus) — placeholder for future dispatch
+    errorCode = "unsupported_protocol";
+    errorMessage = "Protocol dispatch not yet implemented";
+    LOG_ERROR("CMD", "No dispatcher for protocol: %s", device->protocolType);
+    return false;
+}
+
+bool CommandHandler::executeLocal(const char* commandName, char* responseBuf, size_t responseBufLen) {
+    const char* errorCode = nullptr;
+    const char* errorMessage = nullptr;
+
+    LOG_INFO("CMD", "Local command: %s", commandName);
+    bool success = dispatchToDevice(nullptr, commandName, responseBuf, responseBufLen,
+                                    errorCode, errorMessage);
+    if (success) {
+        LOG_INFO("CMD", "Local command OK: %s -> '%s'", commandName, responseBuf);
+    } else {
+        LOG_ERROR("CMD", "Local command failed: %s (%s)", commandName,
+                  errorMessage ? errorMessage : "unknown");
+    }
+    return success;
+}
+
+void CommandHandler::handleTestStateUpdate(JsonDocument& doc) {
+    JsonObjectConst payload = doc["payload"];
+    if (payload.isNull()) {
+        LOG_ERROR("CMD", "test.state.update missing payload");
+        return;
+    }
+
+    const char* state = payload["state"];
+    const char* testId = payload["test_id"];
+    const char* testName = payload["test_name"];
+    uint32_t elapsed = payload["elapsed_seconds"] | 0;
+
+    if (state == nullptr) {
+        LOG_ERROR("CMD", "test.state.update missing state field");
+        return;
+    }
+
+    if (strcmp(state, "running") == 0) {
+        _testState.mode = OperationalMode::TESTING;
+        _testState.paused = false;
+    } else if (strcmp(state, "paused") == 0) {
+        _testState.mode = OperationalMode::TESTING;
+        _testState.paused = true;
+    } else if (strcmp(state, "completed") == 0 || strcmp(state, "aborted") == 0) {
+        _testState.mode = OperationalMode::IDLE;
+        _testState.paused = false;
+    } else {
+        LOG_ERROR("CMD", "Unknown test state: %s", state);
+        return;
+    }
+
+    if (testId) strncpy(_testState.testId, testId, sizeof(_testState.testId) - 1);
+    if (testName) strncpy(_testState.testName, testName, sizeof(_testState.testName) - 1);
+    _testState.elapsedSecs = elapsed;
+    _testState.lastUpdateMs = millis();
+
+    LOG_INFO("CMD", "Test state: %s (id=%s name=%s elapsed=%lu)",
+             state, _testState.testId, _testState.testName,
+             (unsigned long)_testState.elapsedSecs);
 }
 
 void CommandHandler::handleDeviceCommand(const char* messageJson) {
@@ -141,56 +253,12 @@ void CommandHandler::handleDeviceCommand(const char* messageJson) {
 
     unsigned long startMs = millis();
 
-    // Look up the device in the registry.
-    // If device_id is empty (station-scoped scripts), default to the sole device.
-    const DeviceInfo* device = nullptr;
-    if (req.deviceId == nullptr || req.deviceId[0] == '\0') {
-        int count = 0;
-        const DeviceInfo* all = getDevices(count);
-        if (count == 1) {
-            device = &all[0];
-            req.deviceId = device->deviceId;
-            LOG_INFO("CMD", "Empty device_id, defaulting to %s", req.deviceId);
-        }
-    } else {
-        device = getDevice(req.deviceId);
-    }
-
-    bool success = false;
     char responseBuf[256] = {0};
     const char* errorCode = nullptr;
     const char* errorMessage = nullptr;
-
-    if (device == nullptr) {
-        errorCode = "device_not_found";
-        errorMessage = "Device not registered on this station";
-        LOG_ERROR("CMD", "Unknown device: %s", req.deviceId ? req.deviceId : "(null)");
-    } else if (strcmp(device->protocolType, "cti") == 0) {
-        // CTI protocol dispatch
-        if (_ctiOnBoardDevice == nullptr) {
-            errorCode = "device_unavailable";
-            errorMessage = "CTI OnBoard device not initialized";
-            LOG_ERROR("CMD", "CTI OnBoard device not available for %s", req.deviceId);
-        } else {
-            const char* ctiCmd = ctiOnBoardLookupCommand(req.commandName);
-            if (ctiCmd == nullptr) {
-                errorCode = "unknown_command";
-                errorMessage = "Command not in CTI OnBoard command table";
-                LOG_ERROR("CMD", "Unknown CTI OnBoard command: %s", req.commandName);
-            } else {
-                success = _ctiOnBoardDevice->executeCommand(ctiCmd, responseBuf, sizeof(responseBuf));
-                if (!success) {
-                    errorCode = "device_error";
-                    errorMessage = "CTI OnBoard command failed";
-                }
-            }
-        }
-    } else {
-        // Other protocols (scpi, modbus) — placeholder for future dispatch
-        errorCode = "unsupported_protocol";
-        errorMessage = "Protocol dispatch not yet implemented";
-        LOG_ERROR("CMD", "No dispatcher for protocol: %s", device->protocolType);
-    }
+    bool success = dispatchToDevice(req.deviceId, req.commandName,
+                                    responseBuf, sizeof(responseBuf),
+                                    errorCode, errorMessage);
 
     unsigned long durationMs = millis() - startMs;
 

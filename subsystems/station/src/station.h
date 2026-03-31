@@ -13,6 +13,8 @@
 #include "safety/ota_update.h"
 #include "display/display.h"
 #include "pump_telemetry.h"
+#include "operational_mode.h"
+#include "commands/local_command.h"
 #include "screenshot_server.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -45,6 +47,13 @@ private:
 
     // CTI device mutex — guards _ctiDevice access between commTask and pumpPollTask
     SemaphoreHandle_t _ctiMutex = nullptr;
+
+    // Local command queue — Display enqueues, commTask drains
+    QueueHandle_t _localCmdQueue = nullptr;
+
+    // Test state (updated from Redis test.state.update messages)
+    TestState _testState;
+    SemaphoreHandle_t _testStateMutex = nullptr;
 
     // Timing
     unsigned long _lastHeartbeatMs = 0;

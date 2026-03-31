@@ -89,6 +89,11 @@ bool Station::begin() {
     // 5c. Create mutexes for shared CTI device and pump telemetry
     _ctiMutex = xSemaphoreCreateMutex();
     _pumpTelemetryMutex = xSemaphoreCreateMutex();
+    _testStateMutex = xSemaphoreCreateMutex();
+
+    // 5d. Create local command queue (Display → commTask) and pass to Display
+    _localCmdQueue = xQueueCreate(LOCAL_CMD_QUEUE_SIZE, sizeof(LocalCommand));
+    _display.setCommandQueue(_localCmdQueue);
 
     // 6. First heartbeat (status="starting")
     publishHeartbeat("starting");
@@ -97,7 +102,7 @@ bool Station::begin() {
 
     // 8. Screenshot server (debug tool — disable via config.h)
 #ifdef ENABLE_SCREENSHOT_SERVER
-    screenshot_server_init();
+    screenshot_server_init(&_display);
 #endif
 
     // 9. Log free heap
@@ -110,7 +115,7 @@ bool Station::begin() {
     //     Core 1: LVGL (priority 10), comm (priority 5), display update (priority 3)
     xTaskCreatePinnedToCore(commTaskEntry, "tComm", 8192, this, 5, nullptr, 1);
     xTaskCreatePinnedToCore(pumpPollTaskEntry, "tPumpPoll", 4096, this, 4, nullptr, 1);
-    xTaskCreatePinnedToCore(displayTaskEntry, "tDisplay", 3072, this, 3, nullptr, 1);
+    xTaskCreatePinnedToCore(displayTaskEntry, "tDisplay", 4096, this, 3, nullptr, 1);
 #ifdef ENABLE_SCREENSHOT_SERVER
     xTaskCreatePinnedToCore([](void*) {
         for (;;) {
@@ -202,6 +207,27 @@ void Station::commTask() {
             }
         }
 
+        // Update test state from CommandHandler (set by test.state.update messages)
+        if (_cmdHandler) {
+            if (xSemaphoreTake(_testStateMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+                _testState = _cmdHandler->testState();
+                xSemaphoreGive(_testStateMutex);
+            }
+        }
+
+        // Drain local command queue (from Display UI controls)
+        if (_cmdHandler && _localCmdQueue) {
+            LocalCommand cmd;
+            while (xQueueReceive(_localCmdQueue, &cmd, 0) == pdTRUE) {
+                if (xSemaphoreTake(_ctiMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                    char resp[256];
+                    _cmdHandler->executeLocal(cmd.commandName, resp, sizeof(resp));
+                    xSemaphoreGive(_ctiMutex);
+                }
+                _watchdog.feed();
+            }
+        }
+
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
@@ -247,6 +273,12 @@ void Station::displayTask() {
         if (xSemaphoreTake(_pumpTelemetryMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
             _display.setPumpTelemetry(_pumpTelemetry);
             xSemaphoreGive(_pumpTelemetryMutex);
+        }
+
+        // Push test state to display
+        if (xSemaphoreTake(_testStateMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+            _display.setTestState(_testState);
+            xSemaphoreGive(_testStateMutex);
         }
 
         _display.loop();

@@ -29,9 +29,11 @@
 
 #include <Arduino.h>
 
+namespace arturo { class Display; }
+
 // Initialize screenshot server (HTTP server only — WiFi must already be connected)
-// Call from setup() after LVGL and WiFi initialization
-void screenshot_server_init();
+// Pass Display pointer to enable tab switching via /tab?id=N endpoint
+void screenshot_server_init(arturo::Display* display = nullptr);
 
 // Update screenshot server (handle HTTP requests)
 // Call from a task or loop periodically

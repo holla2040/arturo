@@ -1,6 +1,7 @@
 #pragma once
 #include <ArduinoJson.h>
 #include "../messaging/envelope.h"
+#include "../operational_mode.h"
 
 namespace arturo {
 
@@ -44,6 +45,14 @@ public:
     int commandsProcessed() const { return _processed; }
     int commandsFailed() const { return _failed; }
 
+    // Execute a command locally (from UI controls, not Redis).
+    // Reuses device registry lookup + protocol dispatch without JSON/Redis overhead.
+    // Caller must hold _ctiMutex.
+    bool executeLocal(const char* commandName, char* responseBuf, size_t responseBufLen);
+
+    // Current test state (updated from test.state.update messages)
+    const TestState& testState() const { return _testState; }
+
     // Register a CTI OnBoard device for command dispatch
     void setCtiOnBoardDevice(CtiOnBoardDevice* device) { _ctiOnBoardDevice = device; }
 
@@ -59,13 +68,20 @@ private:
     char _channelName[64];
     CtiOnBoardDevice* _ctiOnBoardDevice = nullptr;
     OTAUpdateHandler* _otaHandler = nullptr;
+    TestState _testState;
 
     void handleMessage(const char* messageJson);
     void handleDeviceCommand(const char* messageJson);
+    void handleTestStateUpdate(JsonDocument& doc);
     void handleOTARequest(JsonDocument& doc);
     void sendOTAResponse(const char* correlationId, const char* replyTo,
                          bool success, const char* response,
                          const char* errorCode, const char* errorMessage);
+
+    // Shared dispatch logic used by both handleDeviceCommand() and executeLocal()
+    bool dispatchToDevice(const char* deviceId, const char* commandName,
+                          char* responseBuf, size_t responseBufLen,
+                          const char*& errorCode, const char*& errorMessage);
 };
 #endif
 

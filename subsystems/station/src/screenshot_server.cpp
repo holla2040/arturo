@@ -11,6 +11,7 @@
 
 #include "screenshot_server.h"
 #include "debug_log.h"
+#include "display/display.h"
 #include "display/lvgl_port.h"
 #include <WiFi.h>
 #include <WebServer.h>
@@ -20,6 +21,9 @@
 
 // HTTP server
 static WebServer server(80);
+
+// Display reference for tab switching
+static arturo::Display* g_display = nullptr;
 
 // Stats
 static uint32_t captureCount = 0;
@@ -37,9 +41,11 @@ static void handleRoot();
 static void handleScreenshot();
 static void handleStats();
 static void handleCapture();
+static void handleTab();
 
 // Initialize screenshot server (WiFi must already be connected)
-void screenshot_server_init() {
+void screenshot_server_init(arturo::Display* display) {
+    g_display = display;
     LOG_INFO(TAG, "Initializing...");
 
     // Initialize semaphore
@@ -61,6 +67,7 @@ void screenshot_server_init() {
     server.on("/screen.jpg", HTTP_GET, handleScreenshot);
     server.on("/stats", HTTP_GET, handleStats);
     server.on("/capture", HTTP_GET, handleCapture);
+    server.on("/tab", HTTP_GET, handleTab);
 
     server.begin();
     LOG_INFO(TAG, "HTTP server started");
@@ -301,6 +308,39 @@ static void handleCapture() {
     server.send(200, "text/plain", "Capture started - check stats for screenshot size");
 }
 
+// HTTP handler for tab switching
+// GET /tab           - returns current tab as JSON
+// GET /tab?id=0..3   - switches to tab and returns new state
+static void handleTab() {
+    static const char* tabNames[] = {"Status", "Chart", "Controls", "System"};
+
+    if (!g_display) {
+        server.send(503, "application/json", "{\"error\":\"display not available\"}");
+        return;
+    }
+
+    if (server.hasArg("id")) {
+        int id = server.arg("id").toInt();
+        int count = g_display->getTabCount();
+        if (id < 0 || id >= count) {
+            char buf[128];
+            snprintf(buf, sizeof(buf), "{\"error\":\"invalid tab id, must be 0..%d\"}", count - 1);
+            server.send(400, "application/json", buf);
+            return;
+        }
+        g_display->setActiveTab(id);
+        LOG_INFO(TAG, "Tab switched to %d (%s)", id, tabNames[id]);
+    }
+
+    int current = g_display->getActiveTab();
+    int count = g_display->getTabCount();
+    char buf[256];
+    snprintf(buf, sizeof(buf),
+             "{\"tab\":%d,\"name\":\"%s\",\"count\":%d,\"tabs\":[\"Status\",\"Chart\",\"Controls\",\"System\"]}",
+             current, tabNames[current], count);
+    server.send(200, "application/json", buf);
+}
+
 // HTTP handler for main page
 static void handleRoot() {
     LOG_DEBUG(TAG, "Root page request");
@@ -324,6 +364,14 @@ static void handleRoot() {
     <button onclick="updateStats()">Refresh Stats</button>
     <button onclick="captureNew()">Capture Screenshot</button>
     <br>
+    <div style="margin:10px 0">
+        <b>Tab:</b>
+        <button onclick="switchTab(0)">Status</button>
+        <button onclick="switchTab(1)">Chart</button>
+        <button onclick="switchTab(2)">Controls</button>
+        <button onclick="switchTab(3)">System</button>
+        <span id="tabInfo" style="margin-left:10px;color:#888"></span>
+    </div>
     <label>
         <input type="checkbox" id="autoRefresh" onchange="toggleAutoRefresh()">
         Auto-refresh every <input type="number" id="interval" value="5" min="1" max="60" style="width:60px"> seconds
@@ -379,7 +427,22 @@ static void handleRoot() {
                 document.getElementById('msg').textContent = 'Auto-refresh disabled';
             }
         }
+        function switchTab(id) {
+            fetch('/tab?id=' + id)
+                .then(r => r.json())
+                .then(d => {
+                    document.getElementById('tabInfo').textContent = 'Active: ' + d.name;
+                });
+        }
+        function updateTab() {
+            fetch('/tab')
+                .then(r => r.json())
+                .then(d => {
+                    document.getElementById('tabInfo').textContent = 'Active: ' + d.name;
+                });
+        }
         updateStats();
+        updateTab();
         setInterval(updateStats, 5000);
     </script>
 </body>

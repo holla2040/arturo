@@ -3,15 +3,21 @@
 #ifdef ARDUINO
 #include "lvgl.h"
 #include "../pump_telemetry.h"
+#include "../operational_mode.h"
+#include "../commands/local_command.h"
+#include "chart_persistence.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 
 namespace arturo {
 
 // Tab indices
 enum TabIndex {
-    TAB_STATUS = 0,
-    TAB_CHART  = 1,
-    TAB_SYSTEM = 2,
-    TAB_COUNT  = 3
+    TAB_STATUS   = 0,
+    TAB_CHART    = 1,
+    TAB_CONTROLS = 2,
+    TAB_SYSTEM   = 3,
+    TAB_COUNT    = 4
 };
 
 class Display {
@@ -19,7 +25,14 @@ public:
     bool begin();
     void loop();
 
+    // Tab control
+    void setActiveTab(int tab);
+    int getActiveTab();
+    int getTabCount() const { return TAB_COUNT; }
+
     // Push state from Station — Display never reaches outside itself
+    void setCommandQueue(QueueHandle_t q) { _localCmdQueue = q; }
+    void setTestState(const TestState& state) { _testState = state; }
     void setWifiStatus(bool connected, const char* ip, int rssi);
     void setRedisStatus(bool connected, const char* host, uint16_t port);
     void setSystemStats(uint32_t freeHeapKB, uint32_t minFreeHeapKB,
@@ -93,6 +106,30 @@ private:
     // Cached pump telemetry
     PumpTelemetry _pump;
 
+    // Local command queue (Display enqueues, Station's commTask drains)
+    QueueHandle_t _localCmdQueue = nullptr;
+
+    // Test state
+    TestState _testState;
+
+    // Controls tab widgets — idle mode
+    lv_obj_t* _idleModePanel = nullptr;
+    lv_obj_t* _swPump = nullptr;
+    lv_obj_t* _swRough = nullptr;
+    lv_obj_t* _swPurge = nullptr;
+    lv_obj_t* _lblPumpMeaning = nullptr;
+    lv_obj_t* _lblRoughMeaning = nullptr;
+    lv_obj_t* _lblPurgeMeaning = nullptr;
+    lv_obj_t* _lblRegenStatus = nullptr;
+
+    // Controls tab widgets — test mode
+    lv_obj_t* _testModePanel = nullptr;
+    lv_obj_t* _lblTestName = nullptr;
+    lv_obj_t* _lblTestElapsed = nullptr;
+
+    // Optimistic update tracking
+    uint32_t _lastOptimisticMs = 0;
+
     // Chart tab
     static const int CHART_POINTS = 200;
     static const int CHART_SAMPLE_INTERVAL_MS = 30000;  // 30s
@@ -103,6 +140,13 @@ private:
     lv_obj_t* _chartLegend2 = nullptr;
     unsigned long _lastChartSampleMs = 0;
     int _chartSampleCount = 0;
+
+    // Chart persistence
+    ChartPersistence _chartPersist;
+    ChartDataPoint _chartHistory[CHART_POINTS] = {};
+    int _chartWriteIndex = 0;
+    int _chartHistoryCount = 0;
+    int _chartSavePending = 0;
 
     // Last rendered text — skip redraw when unchanged
     char _lastTemp1Buf[16] = {};
@@ -115,13 +159,24 @@ private:
     void initBanner(lv_obj_t* scr);
     void initStatusTab(lv_obj_t* parent);
     void initChartTab(lv_obj_t* parent);
+    void initControlsTab(lv_obj_t* parent);
     void initSystemTab(lv_obj_t* parent);
 
     // Tab update helpers (only called for active tab)
     void updateBanner();
     void updateStatusTab();
+    void sampleChartData();
     void updateChartTab();
+    void updateControlsTab();
     void updateSystemTab();
+
+    // Controls tab helpers
+    void enqueueCommand(const char* commandName);
+    static void onPumpSwitch(lv_event_t* e);
+    static void onRoughSwitch(lv_event_t* e);
+    static void onPurgeSwitch(lv_event_t* e);
+    static void onRegenButton(lv_event_t* e);
+    static void onTestActionButton(lv_event_t* e);
 
     // Active tab tracking
     int activeTab() const;

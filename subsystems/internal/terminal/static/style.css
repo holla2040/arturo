@@ -468,7 +468,7 @@ textarea { resize: vertical; min-height: 60px; }
     flex-shrink: 0;
 }
 .station-top-row .temp-value {
-    font-size: 15rem;
+    font-size: 14.5rem;
     font-weight: 600;
     color: var(--text-primary);
     line-height: 0.95;

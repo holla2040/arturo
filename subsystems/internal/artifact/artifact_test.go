@@ -3,9 +3,11 @@ package artifact
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/holla2040/arturo/internal/store"
 )
@@ -114,6 +116,52 @@ func TestGeneratePDF(t *testing.T) {
 	}
 	if string(buf.Bytes()[:4]) != "%PDF" {
 		t.Error("PDF output does not start with %PDF magic bytes")
+	}
+}
+
+func setupRegenTestData(t *testing.T, st *store.Store) {
+	t.Helper()
+
+	st.CreateEmployee("emp-1", "John Doe")
+	st.CreateRMA("rma-1", "RMA-2024-001", "SN12345", "ACME Corp", "CT-8", "emp-1", "regen test")
+	st.CreateTestRunWithRMA("run-1", "onboard_regen.art", "rma-1", "station-01", "abc123def", "TEST \"regen\"\nENDTEST", "regen", "1.0")
+	st.RecordTestEvent("run-1", "started", "emp-1", "")
+
+	// Simulate query events like the regen script produces.
+	baseTime := time.Now()
+	for i := 0; i < 20; i++ {
+		offset := time.Duration(i*5) * time.Second
+		t1 := 300.0 - float64(i)*10   // 1st stage cooling from 300K
+		t2 := 80.0 - float64(i)*2.5   // 2nd stage cooling from 80K
+		st.RecordTestEventAt("run-1", "query", "", fmt.Sprintf("get_temp_1st_stage -> %.1f", t1), baseTime.Add(offset))
+		st.RecordTestEventAt("run-1", "query", "", fmt.Sprintf("get_temp_2nd_stage -> %.1f", t2), baseTime.Add(offset).Add(time.Second))
+		st.RecordTestEventAt("run-1", "query", "", "get_regen_status -> M", baseTime.Add(offset).Add(2*time.Second))
+	}
+
+	st.RecordTestEvent("run-1", "completed", "emp-1", "regen complete")
+	st.FinishTestRun("run-1", "passed", "regen complete")
+}
+
+func TestGenerateRegenPDF(t *testing.T) {
+	st := newTestStore(t)
+	setupRegenTestData(t, st)
+
+	var buf bytes.Buffer
+	if err := GeneratePDF(&buf, st, "rma-1"); err != nil {
+		t.Fatalf("GeneratePDF failed: %v", err)
+	}
+
+	if buf.Len() < 4 {
+		t.Fatal("PDF output too small")
+	}
+	if string(buf.Bytes()[:4]) != "%PDF" {
+		t.Error("PDF output does not start with %PDF magic bytes")
+	}
+
+	// A regen PDF with 20 sample rows + embedded plot image should be
+	// substantially larger than a minimal PDF.
+	if buf.Len() < 5000 {
+		t.Errorf("regen PDF suspiciously small (%d bytes), expected embedded plot image", buf.Len())
 	}
 }
 

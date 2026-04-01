@@ -960,6 +960,17 @@ func (s *Store) RecordTestEvent(testRunID, eventType, employeeID, reason string)
 	return err
 }
 
+// RecordTestEventAt is like RecordTestEvent but with an explicit timestamp.
+func (s *Store) RecordTestEventAt(testRunID, eventType, employeeID, reason string, ts time.Time) error {
+	_, err := s.db.Exec(
+		`INSERT INTO test_events (test_run_id, event_type, employee_id, reason, timestamp)
+		 VALUES (?, ?, ?, ?, ?)`,
+		testRunID, eventType, employeeID, reason,
+		ts.UTC().Format(time.RFC3339Nano),
+	)
+	return err
+}
+
 func (s *Store) QueryTestEvents(testRunID string) ([]TestEvent, error) {
 	rows, err := s.db.Query(
 		`SELECT id, test_run_id, event_type, employee_id, reason, timestamp

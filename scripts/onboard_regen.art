@@ -6,6 +6,7 @@ CONST REPORT_TYPE "regen"
 CONST REPORT_VERSION "1.0"
 CONST SAMPLE_INTERVAL 5000
 CONST QUERY_TIMEOUT 5000
+CONST PRE_POST_DURATION 60000
 
 # Map CTI O-command letter to human-readable regen state
 FUNCTION regen_state_name(letter)
@@ -60,11 +61,6 @@ TEST "Onboard Regen Verification"
     SET rs_name CALL regen_state_name(rs)
     ASSERT rs == "P" || rs == "V" "Regen already in progress: " + rs + " - " + rs_name
 
-    # Collect initial temperatures
-    QUERY "get_temp_1st_stage" t1 TIMEOUT QUERY_TIMEOUT
-    QUERY "get_temp_2nd_stage" t2 TIMEOUT QUERY_TIMEOUT
-    LOG INFO "Pre-regen temps - 1st stage: " + t1 + " K, 2nd stage: " + t2 + " K"
-
     # Data collection arrays
     SET timestamps []
     SET temps_1st []
@@ -72,6 +68,25 @@ TEST "Onboard Regen Verification"
     SET regen_letters []
     SET regen_states []
     SET sample_count 0
+
+    # Collect 60 seconds of pre-regen baseline data
+    LOG INFO "Collecting pre-regen baseline data for 60 seconds"
+    SET pre_elapsed 0
+    WHILE pre_elapsed < PRE_POST_DURATION
+        QUERY "get_regen_status" regen_letter TIMEOUT QUERY_TIMEOUT
+        SET state_name CALL regen_state_name(regen_letter)
+        QUERY "get_temp_1st_stage" t1 TIMEOUT QUERY_TIMEOUT
+        QUERY "get_temp_2nd_stage" t2 TIMEOUT QUERY_TIMEOUT
+        APPEND timestamps NOW()
+        APPEND temps_1st FLOAT(t1)
+        APPEND temps_2nd FLOAT(t2)
+        APPEND regen_letters regen_letter
+        APPEND regen_states state_name
+        SET sample_count sample_count + 1
+        LOG INFO "Pre-regen sample " + sample_count + " - " + t1 + "," + t2 + "," + regen_letter + "," + state_name
+        DELAY SAMPLE_INTERVAL
+        SET pre_elapsed pre_elapsed + SAMPLE_INTERVAL
+    ENDWHILE
 
     # Start regeneration
     SEND "start_regen"
@@ -111,6 +126,25 @@ TEST "Onboard Regen Verification"
             LOG INFO "Sample " + sample_count + " - " + t1 + "," + t2 + "," + regen_letter + "," + state_name
             DELAY SAMPLE_INTERVAL
         ENDIF
+    ENDWHILE
+
+    # Collect 60 seconds of post-regen data
+    LOG INFO "Collecting post-regen data for 60 seconds"
+    SET post_elapsed 0
+    WHILE post_elapsed < PRE_POST_DURATION
+        QUERY "get_regen_status" regen_letter TIMEOUT QUERY_TIMEOUT
+        SET state_name CALL regen_state_name(regen_letter)
+        QUERY "get_temp_1st_stage" t1 TIMEOUT QUERY_TIMEOUT
+        QUERY "get_temp_2nd_stage" t2 TIMEOUT QUERY_TIMEOUT
+        APPEND timestamps NOW()
+        APPEND temps_1st FLOAT(t1)
+        APPEND temps_2nd FLOAT(t2)
+        APPEND regen_letters regen_letter
+        APPEND regen_states state_name
+        SET sample_count sample_count + 1
+        LOG INFO "Post-regen sample " + sample_count + " - " + t1 + "," + t2 + "," + regen_letter + "," + state_name
+        DELAY SAMPLE_INTERVAL
+        SET post_elapsed post_elapsed + SAMPLE_INTERVAL
     ENDWHILE
 
     PASS "Regen completed, " + sample_count + " temperature samples recorded"

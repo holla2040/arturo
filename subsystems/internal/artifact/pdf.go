@@ -1,13 +1,19 @@
 package artifact
 
 import (
+	"bytes"
 	"fmt"
+	"image/color"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-pdf/fpdf"
 	"github.com/holla2040/arturo/internal/store"
+	"gonum.org/v1/plot"
+	"gonum.org/v1/plot/plotter"
+	"gonum.org/v1/plot/vg"
 )
 
 // regenStateName maps a CTI O-command response letter to a human-readable
@@ -141,6 +147,133 @@ func renderRegenCSV(pdf *fpdf.Fpdf, run ArtifactRun) {
 	}
 }
 
+// renderRegenPlot generates a temperature-vs-time line chart from regen
+// samples and embeds it in the PDF. Skips if fewer than 2 plottable points.
+func renderRegenPlot(pdf *fpdf.Fpdf, run ArtifactRun, runIndex int) {
+	samples := buildRegenSamples(run.Events)
+
+	// Parse temperature strings to floats, build XY series.
+	var firstPts, secondPts plotter.XYs
+	for _, s := range samples {
+		x := float64(s.timestamp.Unix())
+		if v, err := strconv.ParseFloat(s.first, 64); err == nil {
+			firstPts = append(firstPts, plotter.XY{X: x, Y: v})
+		}
+		if v, err := strconv.ParseFloat(s.second, 64); err == nil {
+			secondPts = append(secondPts, plotter.XY{X: x, Y: v})
+		}
+	}
+
+	if len(firstPts)+len(secondPts) < 2 {
+		return
+	}
+
+	p := plot.New()
+	p.Title.Text = "Temperature vs Time"
+	p.X.Label.Text = "Time (MST)"
+	p.Y.Label.Text = "Temperature (K)"
+
+	// Fixed Y-axis range 0-320 with grid lines every 20 degrees.
+	p.Y.Min = 0
+	p.Y.Max = 320
+	p.Y.Tick.Marker = fixedStepTicks{min: 0, max: 320, step: 40}
+
+	// Custom X-axis tick formatter: Unix seconds -> MST time strings.
+	p.X.Tick.Marker = mstTimeTicks{}
+
+	// Grid lines on both axes.
+	p.Add(plotter.NewGrid())
+
+	// Border around the plot area.
+	gridColor := color.RGBA{R: 200, G: 200, B: 200, A: 255}
+	p.X.Color = gridColor
+	p.Y.Color = gridColor
+
+	if len(firstPts) >= 2 {
+		line, err := plotter.NewLine(firstPts)
+		if err == nil {
+			line.Color = color.RGBA{R: 0, G: 0, B: 200, A: 255}
+			line.Width = vg.Points(2)
+			p.Add(line)
+			p.Legend.Add("1st Stage (K)", line)
+		}
+	}
+
+	if len(secondPts) >= 2 {
+		line, err := plotter.NewLine(secondPts)
+		if err == nil {
+			line.Color = color.RGBA{R: 200, G: 0, B: 0, A: 255}
+			line.Width = vg.Points(2)
+			p.Add(line)
+			p.Legend.Add("2nd Stage (K)", line)
+		}
+	}
+
+	p.Legend.Top = true
+
+	// Render to PNG in memory.
+	w, err := p.WriterTo(8*vg.Inch, 4*vg.Inch, "png")
+	if err != nil {
+		return
+	}
+	var buf bytes.Buffer
+	if _, err := w.WriteTo(&buf); err != nil {
+		return
+	}
+
+	imgName := fmt.Sprintf("regen_plot_%d", runIndex)
+	pdf.RegisterImageOptionsReader(imgName, fpdf.ImageOptions{ImageType: "PNG"}, &buf)
+	pdf.ImageOptions(imgName, 10, pdf.GetY(), 190, 0, true, fpdf.ImageOptions{ImageType: "PNG"}, 0, "")
+	pdf.Ln(4)
+}
+
+// fixedStepTicks generates ticks at a fixed interval between min and max.
+type fixedStepTicks struct {
+	min, max, step float64
+}
+
+func (t fixedStepTicks) Ticks(_, _ float64) []plot.Tick {
+	var ticks []plot.Tick
+	for v := t.min; v <= t.max; v += t.step {
+		ticks = append(ticks, plot.Tick{Value: v, Label: strconv.Itoa(int(v))})
+	}
+	return ticks
+}
+
+// mstTimeTicks formats Unix-second X values as MST time strings.
+type mstTimeTicks struct{}
+
+func (mstTimeTicks) Ticks(min, max float64) []plot.Tick {
+	span := max - min
+	// Choose interval: aim for ~6-10 ticks.
+	intervals := []float64{
+		10, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200,
+	}
+	interval := intervals[len(intervals)-1]
+	for _, iv := range intervals {
+		if span/iv <= 10 {
+			interval = iv
+			break
+		}
+	}
+
+	// Use longer format if span > 24 hours.
+	format := "15:04"
+	if span > 86400 {
+		format = "01/02 15:04"
+	}
+
+	start := float64(int64(min/interval) * int64(interval))
+	var ticks []plot.Tick
+	for v := start; v <= max; v += interval {
+		if v >= min {
+			label := time.Unix(int64(v), 0).In(denverTZ).Format(format)
+			ticks = append(ticks, plot.Tick{Value: v, Label: label})
+		}
+	}
+	return ticks
+}
+
 // denverTZ is used for operator-facing timestamps in customer PDFs.
 var denverTZ *time.Location
 
@@ -256,16 +389,23 @@ func renderPDF(w io.Writer, artifact *TestArtifact) error {
 		pdf.CellFormat(0, 10, runTitle, "", 1, "L", false, 0, "")
 
 		pdf.SetFont("Arial", "", 10)
-		pdf.CellFormat(0, 7, fmt.Sprintf("Status: %s    Started: %s", run.Status, run.StartedAt.In(denverTZ).Format("2006-01-02 15:04:05 MST")), "", 1, "L", false, 0, "")
-		if run.FinishedAt != nil {
-			pdf.CellFormat(0, 7, fmt.Sprintf("Finished: %s", run.FinishedAt.In(denverTZ).Format("2006-01-02 15:04:05 MST")), "", 1, "L", false, 0, "")
+		runInfo := []struct{ label, value string }{
+			{"Status:", run.Status},
+			{"Started:", run.StartedAt.In(denverTZ).Format("2006-01-02 15:04:05 MST")},
 		}
-		if run.Summary != "" {
-			pdf.CellFormat(0, 7, fmt.Sprintf("Summary: %s", run.Summary), "", 1, "L", false, 0, "")
+		if run.FinishedAt != nil {
+			runInfo = append(runInfo, struct{ label, value string }{"Finished:", run.FinishedAt.In(denverTZ).Format("2006-01-02 15:04:05 MST")})
+		}
+		for _, item := range runInfo {
+			pdf.SetFont("Arial", "B", 10)
+			pdf.CellFormat(25, 7, item.label, "", 0, "L", false, 0, "")
+			pdf.SetFont("Arial", "", 10)
+			pdf.CellFormat(0, 7, item.value, "", 1, "L", false, 0, "")
 		}
 		pdf.Ln(4)
 
 		if run.ReportType == "regen" {
+			renderRegenPlot(pdf, run, i)
 			renderRegenCSV(pdf, run)
 		} else {
 			// Measurements

@@ -1089,6 +1089,27 @@ button.pid-regen:active { background: rgba(255,255,255,0.12); transform: scale(0
     display: flex;
     gap: 16px;
 }
+.rma-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+.rma-dates {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 1.3rem;
+    color: var(--text-secondary);
+}
+.rma-date-row {
+    display: flex;
+    gap: 6px;
+}
+.rma-date-label {
+    display: inline-block;
+    text-align: right;
+    width: 75px;
+}
 .rma-status-badge {
     padding: 4px 16px;
     border-radius: 14px;

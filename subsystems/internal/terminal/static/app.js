@@ -132,6 +132,15 @@ var App = (function() {
         return s + 's';
     }
 
+    function formatDateOnly(iso) {
+        if (!iso) return '--';
+        try {
+            var d = new Date(iso);
+            if (isNaN(d.getTime())) return '--';
+            return d.toLocaleDateString('en-CA', { timeZone: 'America/Denver' });
+        } catch(e) { return '--'; }
+    }
+
     function formatTime(iso) {
         if (!iso) return '--';
         try {
@@ -1028,7 +1037,15 @@ var App = (function() {
             html += '<span>' + escapeHtml(r.PumpModel) + '</span>';
             html += '</div>';
             html += '</div>';
+            html += '<div class="rma-right">';
+            html += '<div class="rma-dates">';
+            html += '<div class="rma-date-row"><span class="rma-date-label">Created:</span><span class="rma-date-value">' + formatDateOnly(r.CreatedAt) + '</span></div>';
+            if (r.Status === 'closed' && r.ClosedAt) {
+                html += '<div class="rma-date-row"><span class="rma-date-label">Closed:</span><span class="rma-date-value">' + formatDateOnly(r.ClosedAt) + '</span></div>';
+            }
+            html += '</div>';
             html += '<span class="rma-status-badge ' + (r.Status || 'open') + '">' + (r.Status || 'open') + '</span>';
+            html += '</div>';
             html += '</div>';
         }
         listEl.innerHTML = html;

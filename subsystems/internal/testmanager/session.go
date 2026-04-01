@@ -161,18 +161,20 @@ func NewSession(ctx context.Context, params StartSessionParams) (*TestSession, e
 type sessionEventEmitter struct {
 	testRunID       string
 	stationInstance string
+	employeeID      string
 	store           *store.Store
 	hub             Broadcaster
 }
 
 func (se *sessionEventEmitter) EmitEvent(eventType, detail string) {
-	se.store.RecordTestEvent(se.testRunID, eventType, "", detail)
+	se.store.RecordTestEvent(se.testRunID, eventType, se.employeeID, detail)
 
 	if se.hub != nil {
 		se.hub.BroadcastEvent("test_event", map[string]interface{}{
 			"test_run_id":      se.testRunID,
 			"event_type":       eventType,
 			"station_instance": se.stationInstance,
+			"employee_id":      se.employeeID,
 			"reason":           detail,
 			"timestamp":        time.Now().UTC().Format(time.RFC3339Nano),
 		})
@@ -190,6 +192,7 @@ func (s *TestSession) runExecutor(ctx context.Context, scriptSource string) {
 	emitter := &sessionEventEmitter{
 		testRunID:       s.testRunID,
 		stationInstance: s.stationInstance,
+		employeeID:      s.employeeID,
 		store:           s.store,
 		hub:             s.hub,
 	}
@@ -241,6 +244,7 @@ func (s *TestSession) finish(status, summary string) {
 			"test_run_id":      s.testRunID,
 			"event_type":       "completed",
 			"station_instance": s.stationInstance,
+			"employee_id":      s.employeeID,
 			"status":           status,
 			"summary":          summary,
 			"timestamp":        time.Now().UTC().Format(time.RFC3339Nano),

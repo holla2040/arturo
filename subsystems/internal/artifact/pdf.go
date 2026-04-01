@@ -155,7 +155,7 @@ func GeneratePDF(w io.Writer, st *store.Store, rmaID string) error {
 			pdf.SetFillColor(220, 220, 220)
 			pdf.CellFormat(30, 6, "Type", "1", 0, "L", true, 0, "")
 			pdf.CellFormat(30, 6, "Employee", "1", 0, "L", true, 0, "")
-			pdf.CellFormat(60, 6, "Reason", "1", 0, "L", true, 0, "")
+			pdf.CellFormat(60, 6, "Description", "1", 0, "L", true, 0, "")
 			pdf.CellFormat(0, 6, "Time", "1", 1, "L", true, 0, "")
 
 			pdf.SetFont("Arial", "", 8)

@@ -1030,6 +1030,18 @@ button.pid-regen:hover { background: rgba(255,255,255,0.06); }
 .test-run-item.passed { border-left: 3px solid var(--success-green); }
 .test-run-item.failed, .test-run-item.error { border-left: 3px solid var(--fail-red); }
 .test-run-item.terminated { border-left: 3px solid var(--warning-yellow); }
+.test-run-item:hover { background: var(--bg-secondary); }
+.test-run-events {
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-top: none;
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    padding: 8px;
+    margin-top: -10px;
+    margin-bottom: 10px;
+    max-height: 300px;
+    overflow-y: auto;
+}
 .test-run-info { display: flex; flex-direction: column; gap: 4px; }
 .test-run-script {
     font-family: var(--font-mono);

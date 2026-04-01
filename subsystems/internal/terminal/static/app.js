@@ -137,9 +137,15 @@ var App = (function() {
             if (isNaN(d.getTime())) return '--';
             return d.toLocaleString('en-US', {
                 timeZone: 'America/Denver',
-                month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'
+                month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit'
             });
         } catch(e) { return '--'; }
+    }
+
+    function scriptLabel(path) {
+        if (!path) return '--';
+        var name = path.split('/').pop();
+        return name;
     }
 
     function elapsed(startISO) {
@@ -494,7 +500,7 @@ var App = (function() {
         // Test info
         var testInfoHtml = '';
         if (ss.script_name) {
-            testInfoHtml += '<div class="station-info-row"><span class="info-label">Script:</span> ' + escapeHtml(ss.script_name) + '</div>';
+            testInfoHtml += '<div class="station-info-row"><span class="info-label">Script:</span> ' + escapeHtml(scriptLabel(ss.script_name)) + '</div>';
         }
         if (ss.rma_id) {
             testInfoHtml += '<div class="station-info-row"><span class="info-label">RMA:</span> ' + escapeHtml(ss.rma_id) + '</div>';
@@ -511,14 +517,14 @@ var App = (function() {
         } else if (stateStr === 'testing') {
             controlsHtml += '<div class="btn-group">';
             controlsHtml += '<button class="btn btn-warning" onclick="App.pauseTest(\'' + escapeHtml(instance) + '\')">Pause</button>';
-            controlsHtml += '<button class="btn" onclick="App.terminateTest(\'' + escapeHtml(instance) + '\')">Terminate</button>';
-            controlsHtml += '<button class="btn btn-danger btn-sm" onclick="App.abortTest(\'' + escapeHtml(instance) + '\')">Abort</button>';
+            controlsHtml += '<button class="btn" title="Stop test and save collected data" onclick="App.terminateTest(\'' + escapeHtml(instance) + '\')">Terminate</button>';
+            controlsHtml += '<button class="btn btn-danger btn-sm" title="Stop test and discard all data" onclick="App.abortTest(\'' + escapeHtml(instance) + '\')">Abort</button>';
             controlsHtml += '</div>';
         } else if (stateStr === 'paused') {
             controlsHtml += '<div class="btn-group">';
             controlsHtml += '<button class="btn btn-success" onclick="App.resumeTest(\'' + escapeHtml(instance) + '\')">Resume</button>';
-            controlsHtml += '<button class="btn" onclick="App.terminateTest(\'' + escapeHtml(instance) + '\')">Terminate</button>';
-            controlsHtml += '<button class="btn btn-danger btn-sm" onclick="App.abortTest(\'' + escapeHtml(instance) + '\')">Abort</button>';
+            controlsHtml += '<button class="btn" title="Stop test and save collected data" onclick="App.terminateTest(\'' + escapeHtml(instance) + '\')">Terminate</button>';
+            controlsHtml += '<button class="btn btn-danger btn-sm" title="Stop test and discard all data" onclick="App.abortTest(\'' + escapeHtml(instance) + '\')">Abort</button>';
             controlsHtml += '</div>';
         }
         document.getElementById('detail-controls').innerHTML = controlsHtml;
@@ -575,7 +581,7 @@ var App = (function() {
             html += '<td class="timestamp">' + formatDateTime(e.Timestamp) + '</td>';
             html += '<td class="mono">' + escapeHtml(e.EventType) + '</td>';
             html += '<td>' + escapeHtml(e.EmployeeID || '--') + '</td>';
-            html += '<td>' + escapeHtml(e.Reason || '--') + '</td>';
+            html += '<td>' + escapeHtml(e.Reason || e.Description || '--') + '</td>';
             html += '</tr>';
         }
         tbody.innerHTML = html;
@@ -1046,20 +1052,52 @@ var App = (function() {
             for (var i = 0; i < runs.length; i++) {
                 var run = runs[i];
                 var statusClass = run.Status || 'error';
-                html += '<div class="test-run-item ' + escapeHtml(statusClass) + '">';
+                html += '<div class="test-run-item ' + escapeHtml(statusClass) + '" onclick="App.toggleTestRunEvents(this, \'' + escapeHtml(run.ID) + '\')" style="cursor:pointer">';
                 html += '<div class="test-run-info">';
-                html += '<div class="test-run-script">' + escapeHtml(run.ScriptName) + '</div>';
+                html += '<div class="test-run-script">' + escapeHtml(scriptLabel(run.ScriptName)) + '</div>';
                 html += '<div class="test-run-meta">';
                 html += '<span>' + formatDateTime(run.StartedAt) + '</span>';
                 if (run.Summary) html += '<span>' + escapeHtml(run.Summary) + '</span>';
                 html += '</div></div>';
                 html += '<span class="test-run-status ' + escapeHtml(statusClass) + '">' + (statusClass.charAt(0).toUpperCase() + statusClass.slice(1)) + '</span>';
                 html += '</div>';
+                html += '<div class="test-run-events" id="run-events-' + escapeHtml(run.ID) + '" style="display:none"></div>';
             }
             runsEl.innerHTML = html;
         } else {
             runsEl.innerHTML = '<div class="empty-state">No test runs for this RMA</div>';
         }
+    }
+
+    function toggleTestRunEvents(el, testRunId) {
+        var eventsDiv = document.getElementById('run-events-' + testRunId);
+        if (!eventsDiv) return;
+        if (eventsDiv.style.display !== 'none') {
+            eventsDiv.style.display = 'none';
+            return;
+        }
+        eventsDiv.style.display = 'block';
+        if (eventsDiv.dataset.loaded) return;
+        eventsDiv.innerHTML = '<div class="empty-state">Loading...</div>';
+        api('GET', '/test-runs/' + encodeURIComponent(testRunId) + '/events', null, function(err, data) {
+            if (err || !Array.isArray(data) || data.length === 0) {
+                eventsDiv.innerHTML = '<div class="empty-state">No events</div>';
+                return;
+            }
+            var html = '<table class="data-table"><thead><tr><th>Time</th><th>Event</th><th>Employee</th><th>Description</th></tr></thead><tbody>';
+            for (var i = 0; i < data.length; i++) {
+                var e = data[i];
+                html += '<tr>';
+                html += '<td class="timestamp">' + formatDateTime(e.Timestamp) + '</td>';
+                html += '<td class="mono">' + escapeHtml(e.EventType) + '</td>';
+                html += '<td>' + escapeHtml(e.EmployeeID || '--') + '</td>';
+                html += '<td>' + escapeHtml(e.Reason || '--') + '</td>';
+                html += '</tr>';
+            }
+            html += '</tbody></table>';
+            eventsDiv.innerHTML = html;
+            eventsDiv.dataset.loaded = '1';
+        });
     }
 
     function createRMA() {
@@ -1326,7 +1364,7 @@ var App = (function() {
         tr.innerHTML = '<td class="timestamp">' + formatDateTime(payload.timestamp) + '</td>' +
             '<td class="mono event-' + escapeHtml(payload.event_type) + '">' + escapeHtml(payload.event_type) + '</td>' +
             '<td>' + escapeHtml(payload.employee_id || '--') + '</td>' +
-            '<td>' + escapeHtml(payload.reason || payload.summary || '--') + '</td>';
+            '<td>' + escapeHtml(payload.description || payload.reason || payload.summary || '--') + '</td>';
         tbody.appendChild(tr);
 
         // Auto-scroll to bottom
@@ -1416,6 +1454,7 @@ var App = (function() {
         openRMA: openRMA,
         createRMA: createRMA,
         closeRMA: closeRMA,
+        toggleTestRunEvents: toggleTestRunEvents,
         closeModal: closeModal,
         downloadArtifact: downloadArtifact,
         downloadPDF: downloadPDF,

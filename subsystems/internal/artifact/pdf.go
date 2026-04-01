@@ -20,12 +20,25 @@ func init() {
 	}
 }
 
+// GenerateFilteredPDF creates a PDF report containing only the specified runs.
+func GenerateFilteredPDF(w io.Writer, st *store.Store, rmaID string, runIDs []string) error {
+	artifact, err := GenerateFiltered(st, rmaID, runIDs)
+	if err != nil {
+		return fmt.Errorf("generate artifact: %w", err)
+	}
+	return renderPDF(w, artifact)
+}
+
 // GeneratePDF creates a customer-facing PDF report for the given RMA.
 func GeneratePDF(w io.Writer, st *store.Store, rmaID string) error {
 	artifact, err := Generate(st, rmaID)
 	if err != nil {
 		return fmt.Errorf("generate artifact: %w", err)
 	}
+	return renderPDF(w, artifact)
+}
+
+func renderPDF(w io.Writer, artifact *TestArtifact) error {
 	if artifact == nil {
 		return fmt.Errorf("RMA not found")
 	}

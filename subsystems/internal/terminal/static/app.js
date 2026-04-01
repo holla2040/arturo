@@ -22,7 +22,8 @@ var App = (function() {
         startTestRMAId: null,
         tempChartData: { timestamps: [], first: [], second: [] },
         tempWindowHours: null,  // null = autorange, number = hours preset
-        userZoom: null          // {x0, x1, y0, y1} when user drags a zoom region
+        userZoom: null,         // {x0, x1, y0, y1} when user drags a zoom region
+        rmaRunSelections: {}    // runID -> boolean (include in report)
     };
 
     var MAX_CHART_POINTS = 17280; // 12 hours at 5s intervals, 2 stages interleaved
@@ -50,7 +51,7 @@ var App = (function() {
     }
 
     function toggleTheme() {
-        var current = document.documentElement.dataset.theme || 'dark';
+        var current = document.documentElement.dataset.theme || 'industrial';
         var idx = THEMES.indexOf(current);
         var next = THEMES[(idx + 1) % THEMES.length];
         applyTheme(next);
@@ -1039,6 +1040,7 @@ var App = (function() {
     }
 
     function loadRMADetail(id) {
+        state.rmaRunSelections = {};
         api('GET', '/rmas/' + encodeURIComponent(id), null, function(err, data) {
             if (err) {
                 document.getElementById('rma-detail-info').innerHTML = '<div class="empty-state">Failed to load RMA</div>';
@@ -1081,11 +1083,18 @@ var App = (function() {
 
         // Test runs (already provided from the same API call)
         var runsEl = document.getElementById('rma-detail-runs');
+        var panelHeader = document.querySelector('.rma-runs-panel .panel-header');
         if (runs && runs.length > 0) {
+            panelHeader.innerHTML = '<div class="panel-title">Test Runs</div>' +
+                '<button class="btn btn-sm btn-toggle-all" onclick="App.toggleAllRuns()">Toggle All</button>';
             var html = '';
             for (var i = 0; i < runs.length; i++) {
                 var run = runs[i];
                 var statusClass = run.Status || 'error';
+                if (state.rmaRunSelections[run.ID] === undefined) {
+                    state.rmaRunSelections[run.ID] = (run.Status === 'passed');
+                }
+                var checked = state.rmaRunSelections[run.ID];
                 html += '<div class="test-run-item ' + escapeHtml(statusClass) + '" onclick="App.toggleTestRunEvents(this, \'' + escapeHtml(run.ID) + '\')" style="cursor:pointer">';
                 html += '<div class="test-run-info">';
                 html += '<div class="test-run-script">' + escapeHtml(scriptLabel(run.ScriptName)) + '</div>';
@@ -1093,12 +1102,18 @@ var App = (function() {
                 html += '<span>' + formatDateTime(run.StartedAt) + '</span>';
                 if (run.Summary) html += '<span>' + escapeHtml(run.Summary) + '</span>';
                 html += '</div></div>';
+                html += '<label class="run-include-check" onclick="event.stopPropagation()">';
+                html += '<input type="checkbox"' + (checked ? ' checked' : '') +
+                    ' onchange="App.toggleRunInclude(\'' + escapeHtml(run.ID) + '\', this.checked)">';
+                html += '<span class="check-label">Include in report</span>';
+                html += '</label>';
                 html += '<span class="test-run-status ' + escapeHtml(statusClass) + '">' + (statusClass.charAt(0).toUpperCase() + statusClass.slice(1)) + '</span>';
                 html += '</div>';
                 html += '<div class="test-run-events" id="run-events-' + escapeHtml(run.ID) + '" style="display:none"></div>';
             }
             runsEl.innerHTML = html;
         } else {
+            panelHeader.innerHTML = '<div class="panel-title">Test Runs</div>';
             runsEl.innerHTML = '<div class="empty-state">No test runs for this RMA</div>';
         }
     }
@@ -1192,12 +1207,45 @@ var App = (function() {
         );
     }
 
+    function toggleRunInclude(runId, checked) {
+        state.rmaRunSelections[runId] = checked;
+    }
+
+    function toggleAllRuns() {
+        var keys = Object.keys(state.rmaRunSelections);
+        var anyUnchecked = false;
+        for (var i = 0; i < keys.length; i++) {
+            if (!state.rmaRunSelections[keys[i]]) { anyUnchecked = true; break; }
+        }
+        var newState = anyUnchecked;
+        for (var i = 0; i < keys.length; i++) {
+            state.rmaRunSelections[keys[i]] = newState;
+        }
+        var checkboxes = document.querySelectorAll('.run-include-check input[type="checkbox"]');
+        for (var i = 0; i < checkboxes.length; i++) {
+            checkboxes[i].checked = newState;
+        }
+    }
+
+    function getSelectedRunIDs() {
+        var ids = [];
+        var keys = Object.keys(state.rmaRunSelections);
+        for (var i = 0; i < keys.length; i++) {
+            if (state.rmaRunSelections[keys[i]]) ids.push(keys[i]);
+        }
+        return ids;
+    }
+
     function downloadArtifact(id) {
-        window.open('/rmas/' + encodeURIComponent(id) + '/artifact', '_blank');
+        var ids = getSelectedRunIDs();
+        var url = '/rmas/' + encodeURIComponent(id) + '/artifact?runs=' + ids.map(encodeURIComponent).join(',');
+        window.open(url, '_blank');
     }
 
     function downloadPDF(id) {
-        window.open('/rmas/' + encodeURIComponent(id) + '/pdf', '_blank');
+        var ids = getSelectedRunIDs();
+        var url = '/rmas/' + encodeURIComponent(id) + '/pdf?runs=' + ids.map(encodeURIComponent).join(',');
+        window.open(url, '_blank');
     }
 
 
@@ -1585,6 +1633,8 @@ var App = (function() {
         createRMA: createRMA,
         closeRMA: closeRMA,
         toggleTestRunEvents: toggleTestRunEvents,
+        toggleRunInclude: toggleRunInclude,
+        toggleAllRuns: toggleAllRuns,
         closeModal: closeModal,
         downloadArtifact: downloadArtifact,
         downloadPDF: downloadPDF,

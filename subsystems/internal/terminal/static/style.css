@@ -48,7 +48,7 @@
 }
 
 button, .btn, a, [onclick], .station-card, .rma-item, .test-run-item, .start-test-btn,
-.pid-pump, .pid-valve, .pid-regen, .employee-badge, .theme-toggle, .back-btn {
+.pid-pump, .pid-valve, .pid-regen, .employee-badge, .theme-toggle, .back-btn, .run-include-check {
     touch-action: manipulation;
     -webkit-user-select: none;
     user-select: none;
@@ -1212,6 +1212,7 @@ button.pid-regen:active { background: rgba(255,255,255,0.12); transform: scale(0
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 12px;
 }
 .test-run-item.running { border-left: 3px solid var(--accent-blue); }
 .test-run-item.passed { border-left: 3px solid var(--success-green); }
@@ -1230,7 +1231,7 @@ button.pid-regen:active { background: rgba(255,255,255,0.12); transform: scale(0
     max-height: 300px;
     overflow-y: auto;
 }
-.test-run-info { display: flex; flex-direction: column; gap: 4px; }
+.test-run-info { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
 .test-run-script {
     font-family: var(--font-mono);
     font-weight: 600;
@@ -1421,6 +1422,9 @@ button.pid-regen:active { background: rgba(255,255,255,0.12); transform: scale(0
     font-size: 0.7rem;
     font-weight: 600;
     text-transform: uppercase;
+    width: 90px;
+    text-align: center;
+    flex-shrink: 0;
 }
 .test-run-status.running {
     background: rgba(74, 158, 255, 0.15);
@@ -1438,6 +1442,35 @@ button.pid-regen:active { background: rgba(255,255,255,0.12); transform: scale(0
 .test-run-status.terminated {
     background: var(--status-stale-bg);
     color: var(--status-stale);
+}
+
+/* Include-in-report checkbox */
+.run-include-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    flex-shrink: 0;
+    width: 160px;
+    justify-content: flex-end;
+}
+.run-include-check input[type="checkbox"] {
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+    accent-color: var(--success-green);
+    flex-shrink: 0;
+}
+.check-label {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+.btn-toggle-all {
+    font-size: 0.75rem;
+    padding: 6px 16px;
+    min-height: 36px;
 }
 
 /* =====================================================================

@@ -771,15 +771,17 @@ func (h *Handler) getTestEvents(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) getRMAArtifact(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	runIDs := parseRunIDs(r)
 
 	w.Header().Set("Content-Type", "application/json")
-	if err := artifact.GenerateJSON(w, h.Store, id); err != nil {
+	if err := artifact.GenerateFilteredJSON(w, h.Store, id, runIDs); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("failed to generate artifact: %v", err)})
 	}
 }
 
 func (h *Handler) getRMAPDF(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	runIDs := parseRunIDs(r)
 
 	rma, err := h.Store.GetRMA(id)
 	if err != nil || rma == nil {
@@ -789,9 +791,34 @@ func (h *Handler) getRMAPDF(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/pdf")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s.pdf", rma.RMANumber))
-	if err := artifact.GeneratePDF(w, h.Store, id); err != nil {
+	if err := artifact.GenerateFilteredPDF(w, h.Store, id, runIDs); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+// parseRunIDs extracts an optional comma-separated list of test run IDs from
+// the "runs" query parameter. Returns nil if the parameter is absent (no filter).
+// Returns an empty non-nil slice if present but empty (filter to nothing).
+func parseRunIDs(r *http.Request) []string {
+	if !r.URL.Query().Has("runs") {
+		return nil
+	}
+	raw := r.URL.Query().Get("runs")
+	if raw == "" {
+		return []string{}
+	}
+	parts := strings.Split(raw, ",")
+	var ids []string
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			ids = append(ids, p)
+		}
+	}
+	if ids == nil {
+		return []string{}
+	}
+	return ids
 }
 
 // ---------------------------------------------------------------------------

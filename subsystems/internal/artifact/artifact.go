@@ -167,9 +167,48 @@ func Generate(st *store.Store, rmaID string) (*TestArtifact, error) {
 	return artifact, nil
 }
 
+// GenerateFiltered builds a TestArtifact and filters runs to only those in runIDs.
+// If runIDs is nil, all runs are included (no filter).
+// If runIDs is non-nil (even empty), only matching runs are included.
+func GenerateFiltered(st *store.Store, rmaID string, runIDs []string) (*TestArtifact, error) {
+	artifact, err := Generate(st, rmaID)
+	if err != nil || artifact == nil || runIDs == nil {
+		return artifact, err
+	}
+
+	allowed := make(map[string]bool, len(runIDs))
+	for _, id := range runIDs {
+		allowed[id] = true
+	}
+
+	filtered := make([]ArtifactRun, 0, len(runIDs))
+	for _, run := range artifact.Runs {
+		if allowed[run.RunID] {
+			filtered = append(filtered, run)
+		}
+	}
+	artifact.Runs = filtered
+	return artifact, nil
+}
+
 // GenerateJSON writes the JSON artifact to the given writer.
 func GenerateJSON(w io.Writer, st *store.Store, rmaID string) error {
 	artifact, err := Generate(st, rmaID)
+	if err != nil {
+		return err
+	}
+	if artifact == nil {
+		return nil
+	}
+
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(artifact)
+}
+
+// GenerateFilteredJSON writes a JSON artifact containing only the specified runs.
+func GenerateFilteredJSON(w io.Writer, st *store.Store, rmaID string, runIDs []string) error {
+	artifact, err := GenerateFiltered(st, rmaID, runIDs)
 	if err != nil {
 		return err
 	}

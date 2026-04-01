@@ -1119,6 +1119,7 @@ var App = (function() {
                 html += '<span>' + formatDateTime(run.StartedAt) + '</span>';
                 if (run.Summary) html += '<span>' + escapeHtml(run.Summary) + '</span>';
                 html += '</div></div>';
+                html += '<button class="btn-csv" onclick="event.stopPropagation(); App.downloadRunCSV(\'' + escapeHtml(rma.ID) + '\', \'' + escapeHtml(run.ID) + '\')" title="Download CSV">CSV</button>';
                 html += '<label class="run-include-check" onclick="event.stopPropagation()">';
                 html += '<input type="checkbox"' + (checked ? ' checked' : '') +
                     ' onchange="App.toggleRunInclude(\'' + escapeHtml(run.ID) + '\', this.checked)">';
@@ -1263,6 +1264,10 @@ var App = (function() {
         var ids = getSelectedRunIDs();
         var url = '/rmas/' + encodeURIComponent(id) + '/pdf?runs=' + ids.map(encodeURIComponent).join(',');
         window.open(url, '_blank');
+    }
+
+    function downloadRunCSV(rmaId, runId) {
+        window.open('/rmas/' + encodeURIComponent(rmaId) + '/runs/' + encodeURIComponent(runId) + '/csv', '_blank');
     }
 
 
@@ -1655,6 +1660,7 @@ var App = (function() {
         closeModal: closeModal,
         downloadArtifact: downloadArtifact,
         downloadPDF: downloadPDF,
+        downloadRunCSV: downloadRunCSV,
         setTempWindow: setTempWindow,
         exportTempCSV: exportTempCSV,
         toggleTheme: toggleTheme

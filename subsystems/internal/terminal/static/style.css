@@ -1466,6 +1466,23 @@ button.pid-regen:active { background: rgba(255,255,255,0.12); transform: scale(0
     color: var(--status-stale);
 }
 
+/* CSV download button */
+.btn-csv {
+    padding: 4px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font-size: 1.3rem;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.btn-csv:hover {
+    border-color: var(--accent-blue-dim);
+    color: var(--text-primary);
+}
+
 /* Include-in-report checkbox */
 .run-include-check {
     display: flex;

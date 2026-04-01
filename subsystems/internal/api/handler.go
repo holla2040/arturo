@@ -126,6 +126,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	// Artifact routes
 	mux.HandleFunc("GET /rmas/{id}/artifact", h.getRMAArtifact)
 	mux.HandleFunc("GET /rmas/{id}/pdf", h.getRMAPDF)
+	mux.HandleFunc("GET /rmas/{rmaId}/runs/{runId}/csv", h.getRunCSV)
 
 	// Script listing
 	mux.HandleFunc("GET /scripts", h.listScripts)
@@ -280,6 +281,16 @@ func (h *Handler) exportPDF(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/pdf")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s.pdf", id))
 	if err := report.ExportPDF(w, h.Store, id); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (h *Handler) getRunCSV(w http.ResponseWriter, r *http.Request) {
+	rmaID := r.PathValue("rmaId")
+	runID := r.PathValue("runId")
+	w.Header().Set("Content-Type", "text/csv")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s_%s.csv", rmaID, runID))
+	if err := artifact.ExportRunCSV(w, h.Store, rmaID, runID); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }

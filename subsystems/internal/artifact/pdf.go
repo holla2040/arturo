@@ -67,10 +67,11 @@ func regenStateName(letter string) string {
 
 // regenSample holds one grouped sample row for the regen CSV table.
 type regenSample struct {
-	timestamp  time.Time
-	first      string
-	second     string
-	regenState string
+	timestamp   time.Time
+	first       string
+	second      string
+	regenLetter string
+	regenState  string
 }
 
 // buildRegenSamples groups query events into sample rows by parsing the
@@ -117,6 +118,7 @@ func buildRegenSamples(events []ArtifactEvent) []regenSample {
 		case "get_temp_2nd_stage":
 			cur.second = val
 		case "get_regen_status":
+			cur.regenLetter = val
 			cur.regenState = regenStateName(val)
 		}
 	}

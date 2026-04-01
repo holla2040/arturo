@@ -326,7 +326,6 @@ func renderPDF(w io.Writer, artifact *TestArtifact) error {
 		{"Pump Serial Number", artifact.PumpSerialNumber},
 		{"Customer", artifact.CustomerName},
 		{"Pump Model", artifact.PumpModel},
-		{"Employee", fmt.Sprintf("%s (%s)", artifact.Employee.Name, artifact.Employee.ID)},
 		{"Status", artifact.Status},
 		{"Created", artifact.CreatedAt.In(denverTZ).Format("2006-01-02 15:04:05 MST")},
 	}
@@ -363,18 +362,18 @@ func renderPDF(w io.Writer, artifact *TestArtifact) error {
 		// Table header
 		pdf.SetFont("Arial", "B", 9)
 		pdf.SetFillColor(220, 220, 220)
-		pdf.CellFormat(35, 7, "Script", "1", 0, "L", true, 0, "")
+		pdf.CellFormat(55, 7, "Test", "1", 0, "L", true, 0, "")
 		pdf.CellFormat(35, 7, "Started", "1", 0, "L", true, 0, "")
 		pdf.CellFormat(25, 7, "Status", "1", 0, "C", true, 0, "")
-		pdf.CellFormat(0, 7, "Summary", "1", 1, "L", true, 0, "")
+		pdf.CellFormat(0, 7, "Employee", "1", 1, "L", true, 0, "")
 
 		// Table rows
 		pdf.SetFont("Arial", "", 9)
 		for _, run := range artifact.Runs {
-			pdf.CellFormat(35, 7, truncate(run.ScriptName, 20), "1", 0, "L", false, 0, "")
+			pdf.CellFormat(55, 7, truncate(run.ScriptName, 30), "1", 0, "L", false, 0, "")
 			pdf.CellFormat(35, 7, run.StartedAt.In(denverTZ).Format("2006-01-02 15:04"), "1", 0, "L", false, 0, "")
 			pdf.CellFormat(25, 7, run.Status, "1", 0, "C", false, 0, "")
-			pdf.CellFormat(0, 7, truncate(run.Summary, 40), "1", 1, "L", false, 0, "")
+			pdf.CellFormat(0, 7, run.EmployeeName, "1", 1, "L", false, 0, "")
 		}
 	}
 

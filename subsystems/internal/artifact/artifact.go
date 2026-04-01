@@ -36,6 +36,7 @@ type ArtifactRun struct {
 	ScriptSHA256  string              `json:"script_sha256,omitempty"`
 	ReportType    string              `json:"report_type,omitempty"`
 	ReportVersion string              `json:"report_version,omitempty"`
+	EmployeeName  string              `json:"employee_name,omitempty"`
 	StartedAt     time.Time           `json:"started_at"`
 	FinishedAt    *time.Time          `json:"finished_at,omitempty"`
 	Status        string              `json:"status"`
@@ -126,6 +127,16 @@ func Generate(st *store.Store, rmaID string) (*TestArtifact, error) {
 					Reason:     e.Reason,
 					Timestamp:  e.Timestamp,
 				})
+			}
+		}
+
+		// Employee name from "started" event
+		for _, e := range ar.Events {
+			if e.Type == "started" && e.EmployeeID != "" {
+				if emp, err := st.GetEmployee(e.EmployeeID); err == nil && emp != nil {
+					ar.EmployeeName = emp.Name
+				}
+				break
 			}
 		}
 

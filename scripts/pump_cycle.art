@@ -1,4 +1,4 @@
-TEST "Pump On/Off Cycle"
+TEST "Pump On-Off Cycle"
     SEND "pump_on"
     DELAY 2000
     QUERY "pump_status" status TIMEOUT 5000

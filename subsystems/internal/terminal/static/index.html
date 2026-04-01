@@ -172,7 +172,8 @@
                     <div class="panel-body">
                         <div class="manual-cmd">
                             <input type="text" id="manual-device" placeholder="PUMP-01" style="width:120px;flex:none">
-                            <input type="text" id="manual-command" placeholder="e.g. pump_status">
+                            <input type="text" id="manual-command" placeholder="e.g. pump_status" list="command-list" autocomplete="off">
+                            <datalist id="command-list"></datalist>
                             <button class="btn btn-primary btn-sm" onclick="App.sendManualCommand()">Send</button>
                         </div>
                         <div id="manual-response" style="margin-top:8px;font-family:var(--font-mono);font-size:0.85rem;color:var(--text-secondary)"></div>

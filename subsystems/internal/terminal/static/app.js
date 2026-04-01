@@ -420,6 +420,7 @@ var App = (function() {
         state.tempWindowHours = 1;
         state.userZoom = null;
         renderTestEvents([]);
+        populateCommandList();
         showView('station-detail');
     }
 
@@ -969,6 +970,34 @@ var App = (function() {
         }, function(){});
     }
 
+    // CTI OnBoard command vocabulary (matches firmware command table)
+    var CTI_COMMANDS = [
+        'pump_status', 'pump_on', 'pump_off',
+        'get_temp_1st_stage', 'get_temp_2nd_stage',
+        'get_pump_tc_pressure', 'get_aux_tc_pressure',
+        'get_status_1', 'get_status_2', 'get_status_3',
+        'get_rough_valve', 'open_rough_valve', 'close_rough_valve',
+        'get_purge_valve', 'open_purge_valve', 'close_purge_valve',
+        'start_regen', 'start_fast_regen', 'abort_regen',
+        'get_regen_step', 'get_regen_status'
+    ];
+
+    function populateCommandList() {
+        var dl = document.getElementById('command-list');
+        dl.innerHTML = '';
+        for (var i = 0; i < CTI_COMMANDS.length; i++) {
+            var opt = document.createElement('option');
+            opt.value = CTI_COMMANDS[i];
+            dl.appendChild(opt);
+        }
+        var cmdInput = document.getElementById('manual-command');
+        cmdInput.oninput = function() {
+            if (CTI_COMMANDS.indexOf(cmdInput.value) !== -1) {
+                sendManualCommand();
+            }
+        };
+    }
+
     function sendManualCommand() {
         var instance = state.detailStation;
         var deviceId = document.getElementById('manual-device').value.trim();
@@ -980,6 +1009,7 @@ var App = (function() {
             device_id: deviceId,
             command: command
         }, function(err, data) {
+            document.getElementById('manual-command').value = '';
             if (err) {
                 document.getElementById('manual-response').innerHTML = '<span style="color:var(--fail-red)">Error: ' + escapeHtml(err.message) + '</span>';
             } else if (data) {

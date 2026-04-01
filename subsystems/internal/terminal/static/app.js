@@ -30,17 +30,30 @@ var App = (function() {
     // =================================================================
     // Theme
     // =================================================================
+    var THEMES = ['industrial', 'contrast', 'light'];
+    var THEME_LABELS = { industrial: 'Industrial', contrast: 'Hi-Con', light: 'Light' };
+
     function initTheme() {
-        var saved = localStorage.getItem('theme') || 'dark';
-        if (saved === 'light') {
-            document.documentElement.dataset.theme = 'light';
+        var saved = localStorage.getItem('theme') || 'industrial';
+        if (THEMES.indexOf(saved) === -1) saved = 'industrial';
+        applyTheme(saved);
+    }
+
+    function applyTheme(theme) {
+        if (theme === 'industrial') {
+            delete document.documentElement.dataset.theme;
+        } else {
+            document.documentElement.dataset.theme = theme;
         }
+        var label = document.getElementById('theme-label');
+        if (label) label.textContent = THEME_LABELS[theme] || theme;
     }
 
     function toggleTheme() {
         var current = document.documentElement.dataset.theme || 'dark';
-        var next = current === 'dark' ? 'light' : 'dark';
-        document.documentElement.dataset.theme = next;
+        var idx = THEMES.indexOf(current);
+        var next = THEMES[(idx + 1) % THEMES.length];
+        applyTheme(next);
         localStorage.setItem('theme', next);
         // Defer so computed styles settle before Plotly reads them
         requestAnimationFrame(function() {
@@ -518,13 +531,13 @@ var App = (function() {
             controlsHtml += '<div class="btn-group">';
             controlsHtml += '<button class="btn btn-warning" onclick="App.pauseTest(\'' + escapeHtml(instance) + '\')">Pause</button>';
             controlsHtml += '<button class="btn" title="Stop test and save collected data" onclick="App.terminateTest(\'' + escapeHtml(instance) + '\')">Terminate</button>';
-            controlsHtml += '<button class="btn btn-danger btn-sm" title="Stop test and discard all data" onclick="App.abortTest(\'' + escapeHtml(instance) + '\')">Abort</button>';
+            controlsHtml += '<button class="btn btn-danger" title="Stop test and discard all data" style="margin-left:auto" onclick="App.abortTest(\'' + escapeHtml(instance) + '\')">Abort</button>';
             controlsHtml += '</div>';
         } else if (stateStr === 'paused') {
             controlsHtml += '<div class="btn-group">';
             controlsHtml += '<button class="btn btn-success" onclick="App.resumeTest(\'' + escapeHtml(instance) + '\')">Resume</button>';
             controlsHtml += '<button class="btn" title="Stop test and save collected data" onclick="App.terminateTest(\'' + escapeHtml(instance) + '\')">Terminate</button>';
-            controlsHtml += '<button class="btn btn-danger btn-sm" title="Stop test and discard all data" onclick="App.abortTest(\'' + escapeHtml(instance) + '\')">Abort</button>';
+            controlsHtml += '<button class="btn btn-danger" title="Stop test and discard all data" style="margin-left:auto" onclick="App.abortTest(\'' + escapeHtml(instance) + '\')">Abort</button>';
             controlsHtml += '</div>';
         }
         document.getElementById('detail-controls').innerHTML = controlsHtml;
@@ -864,14 +877,14 @@ var App = (function() {
 
     function pauseTest(instance) {
         api('POST', '/stations/' + encodeURIComponent(instance) + '/test/pause', null, function(err) {
-            if (err) alert('Pause failed: ' + err.message);
+            if (err) showToast('Pause failed: ' + err.message, 'error');
             else loadStationDetail(instance);
         });
     }
 
     function resumeTest(instance) {
         api('POST', '/stations/' + encodeURIComponent(instance) + '/test/resume', null, function(err) {
-            if (err) alert('Resume failed: ' + err.message);
+            if (err) showToast('Resume failed: ' + err.message, 'error');
             else loadStationDetail(instance);
         });
     }
@@ -888,18 +901,25 @@ var App = (function() {
         api('POST', '/stations/' + encodeURIComponent(instance) + '/test/terminate', {
             reason: reason || 'operator terminated'
         }, function(err) {
-            if (err) alert('Terminate failed: ' + err.message);
+            if (err) showToast('Terminate failed: ' + err.message, 'error');
             closeModal('terminate-modal');
             loadStationDetail(instance);
         });
     }
 
     function abortTest(instance) {
-        if (!confirm('Abort test? This will discard all collected data.')) return;
-        api('POST', '/stations/' + encodeURIComponent(instance) + '/test/abort', null, function(err) {
-            if (err) alert('Abort failed: ' + err.message);
-            else loadStationDetail(instance);
-        });
+        showConfirm(
+            'Abort Test',
+            'This will discard all collected data. Are you sure?',
+            'Abort', 'btn-danger',
+            function(confirmed) {
+                if (!confirmed) return;
+                api('POST', '/stations/' + encodeURIComponent(instance) + '/test/abort', null, function(err) {
+                    if (err) showToast('Abort failed: ' + err.message, 'error');
+                    else loadStationDetail(instance);
+                });
+            }
+        );
     }
 
     function togglePump(instance, deviceId) {
@@ -1052,7 +1072,7 @@ var App = (function() {
         if (status === 'open') {
             actionsHtml += '<button class="btn btn-sm" onclick="App.downloadArtifact(\'' + escapeHtml(rma.ID) + '\')">Download JSON</button>';
             actionsHtml += '<button class="btn btn-sm" onclick="App.downloadPDF(\'' + escapeHtml(rma.ID) + '\')">Download PDF</button>';
-            actionsHtml += '<button class="btn btn-sm btn-danger" onclick="App.closeRMA(\'' + escapeHtml(rma.ID) + '\')">Close RMA</button>';
+            actionsHtml += '<button class="btn btn-sm btn-danger" style="margin-left:24px" onclick="App.closeRMA(\'' + escapeHtml(rma.ID) + '\')">Close RMA</button>';
         } else {
             actionsHtml += '<button class="btn btn-sm" onclick="App.downloadArtifact(\'' + escapeHtml(rma.ID) + '\')">Download JSON</button>';
             actionsHtml += '<button class="btn btn-sm" onclick="App.downloadPDF(\'' + escapeHtml(rma.ID) + '\')">Download PDF</button>';
@@ -1155,14 +1175,21 @@ var App = (function() {
     }
 
     function closeRMA(id) {
-        if (!confirm('Close this RMA? This will generate final artifacts and export to the file server.')) return;
-        api('POST', '/rmas/' + encodeURIComponent(id) + '/close', null, function(err) {
-            if (err) {
-                alert('Failed to close RMA: ' + err.message);
-                return;
+        showConfirm(
+            'Close RMA',
+            'This will generate final artifacts and export to the file server. Continue?',
+            'Close RMA', 'btn-danger',
+            function(confirmed) {
+                if (!confirmed) return;
+                api('POST', '/rmas/' + encodeURIComponent(id) + '/close', null, function(err) {
+                    if (err) {
+                        showToast('Failed to close RMA: ' + err.message, 'error');
+                        return;
+                    }
+                    loadRMADetail(id);
+                });
             }
-            loadRMADetail(id);
-        });
+        );
     }
 
     function downloadArtifact(id) {
@@ -1182,6 +1209,62 @@ var App = (function() {
     }
     function closeModal(id) {
         document.getElementById(id).classList.remove('active');
+    }
+
+    // Tap outside modal overlay to close
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('modal-overlay') && e.target.classList.contains('active')) {
+            // For confirm dialog, trigger cancel
+            if (e.target.id === 'confirm-dialog') {
+                var cancelBtn = document.getElementById('confirm-dialog-cancel');
+                if (cancelBtn && cancelBtn.onclick) cancelBtn.onclick();
+                return;
+            }
+            e.target.classList.remove('active');
+        }
+    });
+
+    // =================================================================
+    // Custom Confirm Dialog (replaces native confirm())
+    // =================================================================
+    function showConfirm(title, message, okLabel, okClass, callback) {
+        document.getElementById('confirm-dialog-title').textContent = title;
+        document.getElementById('confirm-dialog-message').textContent = message;
+        var okBtn = document.getElementById('confirm-dialog-ok');
+        okBtn.textContent = okLabel || 'OK';
+        okBtn.className = 'btn ' + (okClass || 'btn-primary');
+
+        var cancelBtn = document.getElementById('confirm-dialog-cancel');
+
+        function cleanup() {
+            okBtn.onclick = null;
+            cancelBtn.onclick = null;
+            closeModal('confirm-dialog');
+        }
+
+        okBtn.onclick = function() { cleanup(); callback(true); };
+        cancelBtn.onclick = function() { cleanup(); callback(false); };
+        openModal('confirm-dialog');
+    }
+
+    // =================================================================
+    // Toast Notifications (replaces native alert())
+    // =================================================================
+    function showToast(message, type) {
+        type = type || 'error';
+        var container = document.getElementById('toast-container');
+        var toast = document.createElement('div');
+        toast.className = 'toast ' + type;
+        toast.textContent = message;
+        toast.onclick = function() { dismissToast(toast); };
+        container.appendChild(toast);
+        setTimeout(function() { dismissToast(toast); }, 5000);
+    }
+
+    function dismissToast(el) {
+        if (!el || !el.parentNode) return;
+        el.style.animation = 'toast-out 0.3s ease-in forwards';
+        setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 300);
     }
 
     // =================================================================
@@ -1442,6 +1525,37 @@ var App = (function() {
             else if (state.currentView === 'rma-list' || state.currentView === 'rma-new') showView('stations');
         }
     });
+
+    // =================================================================
+    // Swipe-right gesture for back navigation
+    // =================================================================
+    (function() {
+        var touchStartX = 0;
+        var touchStartY = 0;
+        var touchStartTime = 0;
+
+        document.addEventListener('touchstart', function(e) {
+            var touch = e.touches[0];
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
+            touchStartTime = Date.now();
+        }, { passive: true });
+
+        document.addEventListener('touchend', function(e) {
+            var touch = e.changedTouches[0];
+            var dx = touch.clientX - touchStartX;
+            var dy = Math.abs(touch.clientY - touchStartY);
+            var dt = Date.now() - touchStartTime;
+
+            // Trigger if: started near left edge, swiped right >80px,
+            // minimal vertical drift, and quick gesture
+            if (touchStartX < 40 && dx > 80 && dy < 50 && dt < 400) {
+                if (state.currentView === 'station-detail') showView('stations');
+                else if (state.currentView === 'rma-detail') showView('rma-list');
+                else if (state.currentView === 'rma-list' || state.currentView === 'rma-new') showView('stations');
+            }
+        }, { passive: true });
+    })();
 
     // =================================================================
     // Public API

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Arturo - Cryo Test System</title>
 <link rel="stylesheet" href="/static/style.css">
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
@@ -30,9 +30,10 @@
         <button class="btn btn-sm btn-primary" onclick="App.showView('rma-new')">New RMA</button>
     </div>
     <div class="status-bar">
-        <button class="theme-toggle" onclick="App.toggleTheme()" title="Toggle theme">
+        <button class="theme-toggle" onclick="App.toggleTheme()" title="Cycle theme">
             <svg class="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
             <svg class="theme-icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            <span class="theme-label" id="theme-label">Industrial</span>
         </button>
         <div class="status-item">
             <div class="ws-indicator" id="ws-indicator"></div>
@@ -100,8 +101,8 @@
         </div>
 
         <div class="detail-grid">
-            <!-- Temperature Chart -->
-            <div class="panel span-full">
+            <!-- Left column: Temperature Chart -->
+            <div class="panel detail-chart-panel">
                 <div class="panel-header">
                     <div class="panel-title">Temperature</div>
                     <div class="btn-group" id="temp-time-presets">
@@ -110,14 +111,14 @@
                         <button class="btn btn-sm" onclick="App.setTempWindow(4)">4h</button>
                         <button class="btn btn-sm" onclick="App.setTempWindow(8)">8h</button>
                         <button class="btn btn-sm" onclick="App.setTempWindow(null)">Full</button>
-                        <button class="btn btn-sm" onclick="App.exportTempCSV()">Export CSV</button>
+                        <button class="btn btn-sm" onclick="App.exportTempCSV()">CSV</button>
                     </div>
                 </div>
-                <div class="panel-body">
+                <div class="panel-body detail-chart-body">
                     <div class="chart-container">
                         <div id="temp-chart"></div>
                     </div>
-                    <div style="display:flex;gap:24px;margin-top:12px">
+                    <div class="detail-temp-row">
                         <div class="temp-display">
                             <span class="temp-label">1st Stage</span>
                             <span class="temp-value" id="detail-temp-1st">-- K</span>
@@ -134,51 +135,50 @@
                 </div>
             </div>
 
-            <!-- Pump Status -->
-            <div class="panel">
-                <div class="panel-header">
-                    <div class="panel-title">Pump Status</div>
-                </div>
-                <div class="panel-body" id="detail-pump-status"></div>
-            </div>
-
-            <!-- Test Info + Controls -->
-            <div class="panel">
-                <div class="panel-header">
-                    <div class="panel-title">Test Controls</div>
-                </div>
-                <div class="panel-body">
-                    <div id="detail-test-info"></div>
-                    <div class="controls-section" id="detail-controls" style="margin-top:12px"></div>
-                </div>
-            </div>
-
-            <!-- Station Info -->
-            <div class="panel">
-                <div class="panel-header">
-                    <div class="panel-title">Station Info</div>
-                </div>
-                <div class="panel-body" id="detail-station-info"></div>
-            </div>
-
-            <!-- Manual Command (only when idle) -->
-            <div class="panel" id="manual-cmd-panel" style="display:none">
-                <div class="panel-header">
-                    <div class="panel-title">Manual Command</div>
-                </div>
-                <div class="panel-body">
-                    <div class="field">
-                        <label for="manual-device">Device ID</label>
-                        <input type="text" id="manual-device" placeholder="PUMP-01">
+            <!-- Right column: Side panels stacked -->
+            <div class="detail-side">
+                <!-- Pump Status -->
+                <div class="panel detail-side-panel">
+                    <div class="panel-header">
+                        <div class="panel-title">Pump Status</div>
                     </div>
-                    <div class="manual-cmd" style="margin-top:8px">
-                        <input type="text" id="manual-command" placeholder="e.g. pump_status">
-                        <button class="btn btn-primary btn-sm" onclick="App.sendManualCommand()">Send</button>
+                    <div class="panel-body" id="detail-pump-status"></div>
+                </div>
+
+                <!-- Test Info + Controls -->
+                <div class="panel detail-side-panel">
+                    <div class="panel-header">
+                        <div class="panel-title">Test Controls</div>
                     </div>
-                    <div id="manual-response" style="margin-top:12px;font-family:var(--font-mono);font-size:0.85rem;color:var(--text-secondary)"></div>
+                    <div class="panel-body">
+                        <div id="detail-test-info"></div>
+                        <div class="controls-section" id="detail-controls" style="margin-top:8px"></div>
+                    </div>
+                </div>
+
+                <!-- Station Info -->
+                <div class="panel detail-side-panel">
+                    <div class="panel-header">
+                        <div class="panel-title">Station Info</div>
+                    </div>
+                    <div class="panel-body" id="detail-station-info"></div>
+                </div>
+
+                <!-- Manual Command (only when idle) -->
+                <div class="panel detail-side-panel" id="manual-cmd-panel" style="display:none">
+                    <div class="panel-header">
+                        <div class="panel-title">Manual Command</div>
+                    </div>
+                    <div class="panel-body">
+                        <div class="manual-cmd">
+                            <input type="text" id="manual-device" placeholder="PUMP-01" style="width:120px;flex:none">
+                            <input type="text" id="manual-command" placeholder="e.g. pump_status">
+                            <button class="btn btn-primary btn-sm" onclick="App.sendManualCommand()">Send</button>
+                        </div>
+                        <div id="manual-response" style="margin-top:8px;font-family:var(--font-mono);font-size:0.85rem;color:var(--text-secondary)"></div>
+                    </div>
                 </div>
             </div>
-
         </div>
 
         <!-- Events Log (outside grid, flex-fills remaining height) -->
@@ -277,11 +277,11 @@
         </div>
         <div class="rma-detail-info" id="rma-detail-info"></div>
 
-        <div class="panel">
+        <div class="panel rma-runs-panel">
             <div class="panel-header">
                 <div class="panel-title">Test Runs</div>
             </div>
-            <div class="panel-body">
+            <div class="panel-body rma-runs-body">
                 <div class="test-run-list" id="rma-detail-runs"></div>
             </div>
         </div>
@@ -335,6 +335,23 @@
         </div>
     </div>
 </div>
+
+<!-- =====================================================================
+     CONFIRM DIALOG (replaces native confirm())
+     ===================================================================== -->
+<div class="modal-overlay" id="confirm-dialog">
+    <div class="modal">
+        <h3 id="confirm-dialog-title">Confirm</h3>
+        <p id="confirm-dialog-message" style="color:var(--text-secondary);margin-bottom:24px;font-size:1rem;line-height:1.5"></p>
+        <div class="modal-actions">
+            <button class="btn" id="confirm-dialog-cancel">Cancel</button>
+            <button class="btn" id="confirm-dialog-ok">OK</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast container (replaces native alert()) -->
+<div id="toast-container"></div>
 
 <script src="/static/app.js"></script>
 </body>

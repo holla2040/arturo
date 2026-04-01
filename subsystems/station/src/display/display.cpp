@@ -871,7 +871,70 @@ void Display::onTestActionButton(lv_event_t* e) {
     if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
     Display* self = static_cast<Display*>(lv_event_get_user_data(e));
     const char* cmd = static_cast<const char*>(lv_obj_get_user_data(lv_event_get_target(e)));
-    if (cmd) self->enqueueCommand(cmd);
+    if (!cmd) return;
+
+    // Pause/Continue — direct action, no confirmation
+    if (strcmp(cmd, "test_pause") == 0 || strcmp(cmd, "test_continue") == 0) {
+        self->enqueueCommand(cmd);
+        return;
+    }
+
+    // Terminate and Abort — require confirmation
+    self->showConfirmDialog(cmd);
+}
+
+void Display::onConfirmDialogButton(lv_event_t* e) {
+    lv_obj_t* btn = lv_event_get_target(e);
+    lv_obj_t* mbox = lv_obj_get_parent(lv_obj_get_parent(btn));  // btn -> btn row -> msgbox
+    Display* self = static_cast<Display*>(lv_obj_get_user_data(mbox));
+    const char* label = lv_msgbox_get_active_btn_text(mbox);
+
+    if (label && (strcmp(label, "Terminate") == 0 || strcmp(label, "Abort") == 0)) {
+        const char* cmd = static_cast<const char*>(lv_event_get_user_data(e));
+        if (cmd) self->enqueueCommand(cmd);
+    }
+
+    lv_msgbox_close(mbox);
+}
+
+void Display::showConfirmDialog(const char* cmd) {
+    const char* title;
+    const char* message;
+    static const char* terminateBtns[] = {"Terminate", "Cancel", ""};
+    static const char* abortBtns[] = {"Abort", "Cancel", ""};
+    const char** btns;
+
+    if (strcmp(cmd, "test_terminate") == 0) {
+        title = "Terminate Test";
+        message = "Stop test and save collected data?";
+        btns = terminateBtns;
+    } else {
+        title = "Abort Test";
+        message = "Stop test and discard ALL collected data?";
+        btns = abortBtns;
+    }
+
+    lv_obj_t* mbox = lv_msgbox_create(NULL, title, message, btns, false);
+    lv_obj_set_user_data(mbox, this);
+    lv_obj_center(mbox);
+
+    // Style the msgbox for touch
+    lv_obj_set_width(mbox, 500);
+    lv_obj_set_style_text_font(mbox, &lv_font_montserrat_24, 0);
+
+    // Style the buttons
+    lv_obj_t* btnRow = lv_msgbox_get_btns(mbox);
+    lv_obj_set_style_text_font(btnRow, &lv_font_montserrat_24, 0);
+    lv_btnmatrix_set_btn_ctrl(btnRow, 1, LV_BTNMATRIX_CTRL_CHECKED);  // highlight Cancel
+
+    // Color the action button
+    if (strcmp(cmd, "test_abort") == 0) {
+        // Red background for Abort action
+        lv_obj_set_style_bg_color(btnRow, lv_color_hex(0xCC0000), LV_PART_ITEMS | LV_STATE_DEFAULT);
+        lv_obj_set_style_text_color(btnRow, lv_color_white(), LV_PART_ITEMS | LV_STATE_DEFAULT);
+    }
+
+    lv_obj_add_event_cb(btnRow, onConfirmDialogButton, LV_EVENT_CLICKED, (void*)cmd);
 }
 
 // Helper: create a control switch with labels
@@ -1048,21 +1111,21 @@ void Display::initControlsTab(lv_obj_t* parent) {
     lv_obj_set_width(_lblTestElapsed, CONTENT_W);
     lv_obj_set_pos(_lblTestElapsed, 0, 140);
 
-    // Test action buttons — centered row: PAUSE | TERMINATE | ABORT
+    // Test action buttons — centered row: Pause | Terminate | Abort
     int btnY = 300;
     int btnSpacing = 230;
     int btnStartX = (CONTENT_W - 3 * 200 - 2 * 30) / 2;  // center 3 buttons with 30px gaps
 
     _btnPauseResume = createTestActionButton(_testModePanel, btnStartX, btnY,
-                            lv_color_hex(0xCC9900), "PAUSE", "test_pause",
+                            lv_color_hex(0xCC9900), "Pause", "test_pause",
                             onTestActionButton, this);
     _lblPauseResume = lv_obj_get_child(_btnPauseResume, 0);
 
     createTestActionButton(_testModePanel, btnStartX + btnSpacing, btnY,
-                            lv_color_hex(0x666666), "TERMINATE", "test_terminate",
+                            lv_color_hex(0x666666), "Terminate", "test_terminate",
                             onTestActionButton, this);
     createTestActionButton(_testModePanel, btnStartX + btnSpacing * 2, btnY,
-                            lv_color_hex(0xCC0000), "ABORT", "test_abort",
+                            lv_color_hex(0xCC0000), "Abort", "test_abort",
                             onTestActionButton, this);
 
     // Start in idle mode — hide test panel
@@ -1094,13 +1157,13 @@ void Display::updateControlsTab() {
         snprintf(timeBuf, sizeof(timeBuf), "Elapsed: %d:%02d:%02d", h, m, sec);
         lv_label_set_text(_lblTestElapsed, timeBuf);
 
-        // Swap PAUSE/CONTINUE button based on paused state
+        // Swap Pause/Continue button based on paused state
         if (_testState.paused) {
-            lv_label_set_text(_lblPauseResume, "CONTINUE");
+            lv_label_set_text(_lblPauseResume, "Continue");
             lv_obj_set_user_data(_btnPauseResume, (void*)"test_continue");
             lv_obj_set_style_bg_color(_btnPauseResume, lv_color_hex(0x00AA00), 0);
         } else {
-            lv_label_set_text(_lblPauseResume, "PAUSE");
+            lv_label_set_text(_lblPauseResume, "Pause");
             lv_obj_set_user_data(_btnPauseResume, (void*)"test_pause");
             lv_obj_set_style_bg_color(_btnPauseResume, lv_color_hex(0xCC9900), 0);
         }

@@ -194,6 +194,8 @@ private:
     static void onPurgeSwitch(lv_event_t* e);
     static void onRegenButton(lv_event_t* e);
     static void onTestActionButton(lv_event_t* e);
+    static void onConfirmDialogButton(lv_event_t* e);
+    void showConfirmDialog(const char* cmd);
 
     // Active tab tracking
     int activeTab() const;

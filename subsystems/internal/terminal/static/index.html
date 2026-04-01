@@ -292,20 +292,26 @@
      START TEST MODAL
      ===================================================================== -->
 <div class="modal-overlay" id="start-test-modal">
-    <div class="modal">
-        <h3>Start Test</h3>
-        <div class="field">
-            <label for="test-rma-select">RMA</label>
-            <select id="test-rma-select"><option value="">Loading...</option></select>
+    <div class="modal modal-wide">
+        <!-- Step 1: Select RMA -->
+        <div id="start-test-step-rma" class="start-test-step">
+            <h3>Select RMA</h3>
+            <div id="start-test-error" class="login-error"></div>
+            <div id="start-test-rma-grid" class="start-test-grid">
+                <div class="empty-state">Loading...</div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn" onclick="App.closeModal('start-test-modal')">Cancel</button>
+            </div>
         </div>
-        <div class="field">
-            <label for="test-script-select">Script</label>
-            <select id="test-script-select"><option value="">Loading...</option></select>
-        </div>
-        <div id="start-test-error" class="login-error"></div>
-        <div class="modal-actions">
-            <button class="btn" onclick="App.closeModal('start-test-modal')">Cancel</button>
-            <button class="btn btn-primary" onclick="App.confirmStartTest()">Start</button>
+        <!-- Step 2: Select Script -->
+        <div id="start-test-step-script" class="start-test-step" style="display:none">
+            <h3>Select Script</h3>
+            <div id="start-test-script-grid" class="start-test-grid"></div>
+            <div class="modal-actions">
+                <button class="btn" onclick="App.backToRMASelect()">Back</button>
+                <button class="btn" onclick="App.closeModal('start-test-modal')">Cancel</button>
+            </div>
         </div>
     </div>
 </div>

@@ -1103,6 +1103,56 @@ button.pid-regen:hover { background: rgba(255,255,255,0.06); }
     font-size: 0.85rem;
     color: var(--text-secondary);
 }
+.modal-wide {
+    min-width: 60rem;
+    max-width: 80rem;
+}
+.start-test-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-bottom: 24px;
+    max-height: 65vh;
+    overflow-y: auto;
+}
+.start-test-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 24px;
+    min-height: 200px;
+    background: var(--bg-card);
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    text-align: center;
+}
+.start-test-btn:hover {
+    background: var(--bg-secondary);
+    border-color: var(--accent-blue);
+}
+.start-test-btn:active {
+    background: var(--accent-blue);
+    color: #fff;
+}
+.start-test-btn-title {
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+.start-test-btn-detail {
+    font-size: 1.6rem;
+    color: var(--text-secondary);
+}
+.start-test-btn:active .start-test-btn-detail {
+    color: rgba(255,255,255,0.8);
+}
+.modal-wide h3 {
+    font-size: 2rem;
+}
 .modal-actions {
     display: flex;
     gap: 8px;

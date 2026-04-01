@@ -791,61 +791,75 @@ var App = (function() {
     function startTest(instance) {
         state.startTestStation = instance;
         showError('start-test-error', '');
+
+        // Show step 1, hide step 2
+        document.getElementById('start-test-step-rma').style.display = '';
+        document.getElementById('start-test-step-script').style.display = 'none';
         openModal('start-test-modal');
 
-        // Populate RMA dropdown with open RMAs
-        var rmaSelect = document.getElementById('test-rma-select');
-        rmaSelect.innerHTML = '<option value="">Loading...</option>';
+        // Populate RMA grid
+        var grid = document.getElementById('start-test-rma-grid');
+        grid.innerHTML = '<div class="empty-state">Loading...</div>';
         api('GET', '/rmas?status=open', null, function(err, data) {
-            if (err || !Array.isArray(data)) {
-                rmaSelect.innerHTML = '<option value="">Failed to load RMAs</option>';
+            if (err || !Array.isArray(data) || data.length === 0) {
+                grid.innerHTML = '<div class="empty-state">No open RMAs</div>';
                 return;
             }
-            var html = '<option value="">-- Select RMA --</option>';
+            var html = '';
             for (var i = 0; i < data.length; i++) {
                 var r = data[i];
-                html += '<option value="' + escapeHtml(r.ID) + '">'
-                    + escapeHtml(r.RMANumber) + ' - ' + escapeHtml(r.CustomerName)
-                    + ' (' + escapeHtml(r.PumpSerialNumber) + ')</option>';
+                html += '<button class="start-test-btn" onclick="App.selectRMAForTest(\'' + escapeHtml(r.ID) + '\')">';
+                html += '<div class="start-test-btn-title">' + escapeHtml(r.RMANumber) + '</div>';
+                html += '<div class="start-test-btn-detail">' + escapeHtml(r.CustomerName) + '</div>';
+                html += '<div class="start-test-btn-detail">' + escapeHtml(r.PumpSerialNumber) + '</div>';
+                html += '</button>';
             }
-            if (data.length === 0) html = '<option value="">No open RMAs</option>';
-            rmaSelect.innerHTML = html;
-        });
-
-        // Populate script dropdown
-        var scriptSelect = document.getElementById('test-script-select');
-        scriptSelect.innerHTML = '<option value="">Loading...</option>';
-        api('GET', '/scripts', null, function(err, data) {
-            if (err || !Array.isArray(data)) {
-                scriptSelect.innerHTML = '<option value="">Failed to load scripts</option>';
-                return;
-            }
-            var html = '<option value="">-- Select Script --</option>';
-            for (var i = 0; i < data.length; i++) {
-                html += '<option value="' + escapeHtml(data[i].path) + '">'
-                    + escapeHtml(data[i].name) + '</option>';
-            }
-            if (data.length === 0) html = '<option value="">No scripts found</option>';
-            scriptSelect.innerHTML = html;
+            grid.innerHTML = html;
         });
     }
 
-    function confirmStartTest() {
-        var instance = state.startTestStation;
-        var rmaId = document.getElementById('test-rma-select').value;
-        var script = document.getElementById('test-script-select').value;
+    function selectRMAForTest(rmaId) {
+        state.startTestRMA = rmaId;
 
-        if (!rmaId) { showError('start-test-error', 'Select an RMA'); return; }
-        if (!script) { showError('start-test-error', 'Select a script'); return; }
+        // Show step 2, hide step 1
+        document.getElementById('start-test-step-rma').style.display = 'none';
+        document.getElementById('start-test-step-script').style.display = '';
+
+        // Populate script grid
+        var grid = document.getElementById('start-test-script-grid');
+        grid.innerHTML = '<div class="empty-state">Loading...</div>';
+        api('GET', '/scripts', null, function(err, data) {
+            if (err || !Array.isArray(data) || data.length === 0) {
+                grid.innerHTML = '<div class="empty-state">No scripts found</div>';
+                return;
+            }
+            var html = '';
+            for (var i = 0; i < data.length; i++) {
+                html += '<button class="start-test-btn" onclick="App.selectScriptForTest(\'' + escapeHtml(data[i].path) + '\')">';
+                html += '<div class="start-test-btn-title">' + escapeHtml(scriptLabel(data[i].name)) + '</div>';
+                html += '</button>';
+            }
+            grid.innerHTML = html;
+        });
+    }
+
+    function selectScriptForTest(scriptPath) {
+        var instance = state.startTestStation;
+        var rmaId = state.startTestRMA;
 
         api('POST', '/stations/' + encodeURIComponent(instance) + '/test/start', {
             rma_id: rmaId,
-            script_path: script
+            script_path: scriptPath
         }, function(err) {
-            if (err) { showError('start-test-error', err.message); return; }
+            if (err) { showError('start-test-error', err.message); backToRMASelect(); return; }
             closeModal('start-test-modal');
             loadStationDetail(instance);
         });
+    }
+
+    function backToRMASelect() {
+        document.getElementById('start-test-step-script').style.display = 'none';
+        document.getElementById('start-test-step-rma').style.display = '';
     }
 
     function pauseTest(instance) {
@@ -1438,7 +1452,9 @@ var App = (function() {
         logout: logout,
         openStation: openStation,
         startTest: startTest,
-        confirmStartTest: confirmStartTest,
+        selectRMAForTest: selectRMAForTest,
+        selectScriptForTest: selectScriptForTest,
+        backToRMASelect: backToRMASelect,
         pauseTest: pauseTest,
         resumeTest: resumeTest,
         terminateTest: terminateTest,

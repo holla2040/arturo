@@ -189,11 +189,30 @@ func renderRegenPlot(pdf *fpdf.Fpdf, run ArtifactRun, runIndex int) {
 	p.X.Color = gridColor
 	p.Y.Color = gridColor
 
+	// Horizontal dashed reference line at 20K.
+	refPts := plotter.XYs{plotter.XY{X: firstPts[0].X, Y: 20}, plotter.XY{X: firstPts[len(firstPts)-1].X, Y: 20}}
+	if len(secondPts) > 0 {
+		if secondPts[0].X < refPts[0].X {
+			refPts[0].X = secondPts[0].X
+		}
+		if secondPts[len(secondPts)-1].X > refPts[1].X {
+			refPts[1].X = secondPts[len(secondPts)-1].X
+		}
+	}
+	refLine, err := plotter.NewLine(refPts)
+	if err == nil {
+		refLine.Color = color.RGBA{R: 0, G: 160, B: 0, A: 255}
+		refLine.Width = vg.Points(1)
+		refLine.Dashes = []vg.Length{vg.Points(5), vg.Points(3)}
+		p.Add(refLine)
+		p.Legend.Add("20 K", refLine)
+	}
+
 	if len(firstPts) >= 2 {
 		line, err := plotter.NewLine(firstPts)
 		if err == nil {
 			line.Color = color.RGBA{R: 0, G: 0, B: 200, A: 255}
-			line.Width = vg.Points(2)
+			line.Width = vg.Points(1)
 			p.Add(line)
 			p.Legend.Add("1st Stage (K)", line)
 		}
@@ -203,7 +222,7 @@ func renderRegenPlot(pdf *fpdf.Fpdf, run ArtifactRun, runIndex int) {
 		line, err := plotter.NewLine(secondPts)
 		if err == nil {
 			line.Color = color.RGBA{R: 200, G: 0, B: 0, A: 255}
-			line.Width = vg.Points(2)
+			line.Width = vg.Points(1)
 			p.Add(line)
 			p.Legend.Add("2nd Stage (K)", line)
 		}
@@ -212,7 +231,7 @@ func renderRegenPlot(pdf *fpdf.Fpdf, run ArtifactRun, runIndex int) {
 	p.Legend.Top = true
 
 	// Render to PNG in memory.
-	w, err := p.WriterTo(8*vg.Inch, 4*vg.Inch, "png")
+	w, err := p.WriterTo(8*vg.Inch, 8*vg.Inch, "png")
 	if err != nil {
 		return
 	}
@@ -405,6 +424,7 @@ func renderPDF(w io.Writer, artifact *TestArtifact) error {
 
 		if run.ReportType == "regen" {
 			renderRegenPlot(pdf, run, i)
+			pdf.AddPage()
 			renderRegenCSV(pdf, run)
 		} else {
 			// Measurements

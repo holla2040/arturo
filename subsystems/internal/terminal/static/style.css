@@ -180,6 +180,8 @@ body {
     overflow: hidden;
     line-height: 1.5;
     overscroll-behavior: none;
+    display: flex;
+    flex-direction: column;
 }
 
 /* =====================================================================
@@ -333,7 +335,7 @@ body {
    Views
    ===================================================================== */
 .view { display: none; }
-.view.active { display: flex; flex-direction: column; height: calc(100vh - 3.5rem); overflow: hidden; }
+.view.active { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
 .view#view-station-detail.active { overflow: hidden; }
 .view#view-station-detail .main { overflow: hidden; }
 .main {
@@ -543,7 +545,7 @@ textarea { resize: vertical; min-height: 60px; }
 .station-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    grid-template-rows: 1fr 1fr;
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
     gap: 1rem;
     flex: 1;
     min-height: 0;
@@ -590,7 +592,7 @@ textarea { resize: vertical; min-height: 60px; }
     flex-shrink: 0;
 }
 .station-top-row .temp-value {
-    font-size: 14.5rem;
+    font-size: clamp(3rem, 10vh, 14.5rem);
     font-weight: 600;
     color: var(--text-primary);
     line-height: 0.95;

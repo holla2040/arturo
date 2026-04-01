@@ -21,7 +21,7 @@ var App = (function() {
         startTestStation: null,
         startTestRMAId: null,
         tempChartData: { timestamps: [], first: [], second: [] },
-        tempWindowHours: null,  // null = autorange, number = hours preset
+        tempWindowHours: 1,     // hours preset: 1, 2, 4, 8, or null = autorange
         userZoom: null,         // {x0, x1, y0, y1} when user drags a zoom region
         rmaRunSelections: {}    // runID -> boolean (include in report)
     };
@@ -417,7 +417,7 @@ var App = (function() {
     function openStation(instance) {
         state.detailStation = instance;
         state.tempChartData = { timestamps: [], first: [], second: [] };
-        state.tempWindowHours = null;
+        state.tempWindowHours = 1;
         state.userZoom = null;
         showView('station-detail');
     }

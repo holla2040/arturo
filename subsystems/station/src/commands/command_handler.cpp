@@ -183,6 +183,11 @@ bool CommandHandler::dispatchToDevice(const char* deviceId, const char* commandN
 }
 
 bool CommandHandler::executeLocal(const char* commandName, char* responseBuf, size_t responseBufLen) {
+    // Test control commands — publish to controller via Redis, not device dispatch
+    if (strncmp(commandName, "test_", 5) == 0) {
+        return publishTestControl(commandName + 5);  // strip "test_" prefix
+    }
+
     const char* errorCode = nullptr;
     const char* errorMessage = nullptr;
 
@@ -196,6 +201,34 @@ bool CommandHandler::executeLocal(const char* commandName, char* responseBuf, si
                   errorMessage ? errorMessage : "unknown");
     }
     return success;
+}
+
+bool CommandHandler::publishTestControl(const char* action) {
+    JsonDocument doc;
+    Source src = { STATION_SERVICE, STATION_INSTANCE, STATION_VERSION };
+
+    char msgId[48];
+    snprintf(msgId, sizeof(msgId), "tc-%s-%lu", _instance, (unsigned long)millis());
+
+    if (!buildEnvelope(doc, src, "test.control.request", msgId, arturo::getTimestamp())) {
+        LOG_ERROR("CMD", "Failed to build test.control.request envelope");
+        return false;
+    }
+
+    JsonObject payload = doc["payload"].to<JsonObject>();
+    payload["station_instance"] = STATION_INSTANCE;
+    payload["action"] = action;
+
+    char buffer[1024];
+    serializeJson(doc, buffer, sizeof(buffer));
+
+    if (!_pubRedis.publish("events:test.control", buffer)) {
+        LOG_ERROR("CMD", "Failed to PUBLISH test.control to events:test.control");
+        return false;
+    }
+
+    LOG_INFO("CMD", "Test control published: action=%s", action);
+    return true;
 }
 
 void CommandHandler::handleTestStateUpdate(JsonDocument& doc) {

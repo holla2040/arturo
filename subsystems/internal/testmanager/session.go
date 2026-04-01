@@ -3,6 +3,7 @@ package testmanager
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -10,13 +11,14 @@ import (
 	"sync"
 	"time"
 
-
+	"github.com/holla2040/arturo/internal/protocol"
 	"github.com/holla2040/arturo/internal/script/ast"
 	"github.com/holla2040/arturo/internal/script/executor"
 	"github.com/holla2040/arturo/internal/script/lexer"
 	"github.com/holla2040/arturo/internal/script/parser"
 	"github.com/holla2040/arturo/internal/script/result"
 	"github.com/holla2040/arturo/internal/store"
+	"github.com/redis/go-redis/v9"
 )
 
 // SessionState represents the state of a test session.
@@ -35,6 +37,7 @@ type TestSession struct {
 	stationInstance string
 	deviceID        string
 	scriptPath      string
+	displayName     string
 	state           SessionState
 	startedAt       time.Time
 	employeeID      string
@@ -44,6 +47,8 @@ type TestSession struct {
 	pausableRouter  *PausableRouter
 	rawRouter       executor.DeviceRouter
 	collector       *result.Collector
+	rdb             *redis.Client
+	source          protocol.Source
 
 	cancel          context.CancelFunc
 	tempCancel      context.CancelFunc
@@ -73,6 +78,8 @@ type StartSessionParams struct {
 	RawRouter       executor.DeviceRouter // bypasses pause for temp monitor
 	Store           *store.Store
 	Hub             Broadcaster
+	Rdb             *redis.Client
+	Source          protocol.Source
 }
 
 // NewSession creates and starts a test session. It launches the executor
@@ -135,6 +142,7 @@ func NewSession(ctx context.Context, params StartSessionParams) (*TestSession, e
 		stationInstance: params.StationInstance,
 		deviceID:        params.DeviceID,
 		scriptPath:      params.ScriptPath,
+		displayName:     displayName,
 		state:           StateRunning,
 		startedAt:       time.Now(),
 		employeeID:      params.EmployeeID,
@@ -143,6 +151,8 @@ func NewSession(ctx context.Context, params StartSessionParams) (*TestSession, e
 		pausableRouter:  pausable,
 		rawRouter:       params.RawRouter,
 		collector:       collector,
+		rdb:             params.Rdb,
+		source:          params.Source,
 		cancel:          execCancel,
 		tempCancel:      tempCancel,
 		doneCh:          make(chan struct{}),
@@ -157,6 +167,9 @@ func NewSession(ctx context.Context, params StartSessionParams) (*TestSession, e
 			"test_run_id":      params.TestRunID,
 		})
 	}
+
+	// Notify station display: test is running
+	session.notifyStation("running")
 
 	// Start temperature monitor
 	tempMon := NewTempMonitor(params.RawRouter, params.Store, params.Hub,
@@ -286,6 +299,8 @@ func (s *TestSession) finish(status, summary string) {
 			"test_run_id":      nil,
 		})
 	}
+
+	s.notifyStation("completed")
 }
 
 // Info returns a snapshot of the session state.
@@ -333,6 +348,8 @@ func (s *TestSession) Pause(employeeID string) error {
 		})
 	}
 
+	s.notifyStation("paused")
+
 	return nil
 }
 
@@ -364,6 +381,8 @@ func (s *TestSession) Resume(employeeID string) error {
 			"test_run_id":      s.testRunID,
 		})
 	}
+
+	s.notifyStation("running")
 
 	return nil
 }
@@ -407,6 +426,8 @@ func (s *TestSession) Terminate(employeeID, reason string) error {
 			"test_run_id":      nil,
 		})
 	}
+
+	s.notifyStation("completed")
 
 	return nil
 }
@@ -452,6 +473,8 @@ func (s *TestSession) Abort(employeeID string) error {
 		})
 	}
 
+	s.notifyStation("aborted")
+
 	return nil
 }
 
@@ -463,4 +486,38 @@ func (s *TestSession) Done() <-chan struct{} {
 // TestRunID returns the test run ID.
 func (s *TestSession) TestRunID() string {
 	return s.testRunID
+}
+
+// notifyStation publishes a test.state.update message to the station's command
+// channel so the station display can show test status and lock out manual controls.
+func (s *TestSession) notifyStation(state string) {
+	if s.rdb == nil {
+		return
+	}
+
+	elapsed := uint32(time.Since(s.startedAt).Seconds())
+
+	payload := map[string]interface{}{
+		"state":           state,
+		"test_id":         s.testRunID,
+		"test_name":       s.displayName,
+		"elapsed_seconds": elapsed,
+	}
+
+	msg, err := protocol.NewMessage(s.source, "test.state.update", payload)
+	if err != nil {
+		log.Printf("testmanager: build test.state.update: %v", err)
+		return
+	}
+
+	data, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("testmanager: marshal test.state.update: %v", err)
+		return
+	}
+
+	channel := "commands:" + s.stationInstance
+	if err := s.rdb.Publish(context.Background(), channel, string(data)).Err(); err != nil {
+		log.Printf("testmanager: publish test.state.update to %s: %v", channel, err)
+	}
 }

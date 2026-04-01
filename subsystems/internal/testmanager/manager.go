@@ -29,6 +29,8 @@ type TestManager struct {
 	store         *store.Store
 	hub           Broadcaster
 	routerFactory RouterFactory
+	rdb           *redis.Client
+	source        protocol.Source
 	ctx           context.Context
 }
 
@@ -38,6 +40,8 @@ func New(ctx context.Context, st *store.Store, hub Broadcaster, rdb *redis.Clien
 		sessions: make(map[string]*TestSession),
 		store:    st,
 		hub:      hub,
+		rdb:      rdb,
+		source:   source,
 		ctx:      ctx,
 		routerFactory: func(station string) executor.DeviceRouter {
 			return redisrouter.New(rdb, source, station)
@@ -77,6 +81,8 @@ func (m *TestManager) StartTest(stationInstance, deviceID, scriptPath, rmaID, te
 		RawRouter:       rawRouter,
 		Store:           m.store,
 		Hub:             m.hub,
+		Rdb:             m.rdb,
+		Source:          m.source,
 	})
 	if err != nil {
 		return err

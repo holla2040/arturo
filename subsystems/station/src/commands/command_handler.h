@@ -78,6 +78,9 @@ private:
                          bool success, const char* response,
                          const char* errorCode, const char* errorMessage);
 
+    // Publish test control action (pause/continue/terminate/abort) to controller via Redis
+    bool publishTestControl(const char* action);
+
     // Shared dispatch logic used by both handleDeviceCommand() and executeLocal()
     bool dispatchToDevice(const char* deviceId, const char* commandName,
                           char* responseBuf, size_t responseBufLen,

@@ -224,6 +224,13 @@ func main() {
 		}
 	}()
 
+	// 10. Test control listener (station UI buttons → test manager)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		runTestControlListener(ctx, rdb, testMgr)
+	}()
+
 	// Wait for shutdown signal
 	<-ctx.Done()
 	log.Println("Shutting down...")
@@ -403,6 +410,78 @@ func runHealthChecker(ctx context.Context, reg *registry.Registry, hub *api.Hub,
 					testMgr.HandleOffline(s.Instance)
 				}
 			}
+		}
+	}
+}
+
+// runTestControlListener subscribes to test control events from station UIs.
+// Stations publish to events:test.control when operator presses pause/terminate/abort.
+func runTestControlListener(ctx context.Context, rdb *redis.Client, testMgr *testmanager.TestManager) {
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+
+		sub := rdb.Subscribe(ctx, "events:test.control")
+		ch := sub.Channel()
+
+		func() {
+			defer sub.Close()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case msg, ok := <-ch:
+					if !ok {
+						log.Println("test.control: subscription channel closed, reconnecting...")
+						return
+					}
+					parsed, err := protocol.Parse([]byte(msg.Payload))
+					if err != nil {
+						log.Printf("test.control: parse error: %v", err)
+						continue
+					}
+
+					var payload struct {
+						StationInstance string `json:"station_instance"`
+						Action          string `json:"action"`
+					}
+					if err := json.Unmarshal(parsed.Payload, &payload); err != nil {
+						log.Printf("test.control: payload error: %v", err)
+						continue
+					}
+
+					employeeID := "station-ui"
+					station := payload.StationInstance
+
+					switch payload.Action {
+					case "pause":
+						if err := testMgr.PauseTest(station, employeeID); err != nil {
+							log.Printf("test.control: pause %s: %v", station, err)
+						}
+					case "continue":
+						if err := testMgr.ResumeTest(station, employeeID); err != nil {
+							log.Printf("test.control: resume %s: %v", station, err)
+						}
+					case "terminate":
+						if err := testMgr.TerminateTest(station, employeeID, "station UI"); err != nil {
+							log.Printf("test.control: terminate %s: %v", station, err)
+						}
+					case "abort":
+						if err := testMgr.AbortTest(station, employeeID); err != nil {
+							log.Printf("test.control: abort %s: %v", station, err)
+						}
+					default:
+						log.Printf("test.control: unknown action %q from %s", payload.Action, station)
+					}
+				}
+			}
+		}()
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(2 * time.Second):
 		}
 	}
 }

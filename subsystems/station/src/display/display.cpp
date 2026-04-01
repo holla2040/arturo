@@ -1048,19 +1048,21 @@ void Display::initControlsTab(lv_obj_t* parent) {
     lv_obj_set_width(_lblTestElapsed, CONTENT_W);
     lv_obj_set_pos(_lblTestElapsed, 0, 140);
 
-    // Test action buttons — centered row
+    // Test action buttons — centered row: PAUSE | TERMINATE | ABORT
     int btnY = 300;
     int btnSpacing = 230;
     int btnStartX = (CONTENT_W - 3 * 200 - 2 * 30) / 2;  // center 3 buttons with 30px gaps
 
-    createTestActionButton(_testModePanel, btnStartX, btnY,
-                            lv_color_hex(0xCC0000), "ABORT", "test_abort",
-                            onTestActionButton, this);
-    createTestActionButton(_testModePanel, btnStartX + btnSpacing, btnY,
+    _btnPauseResume = createTestActionButton(_testModePanel, btnStartX, btnY,
                             lv_color_hex(0xCC9900), "PAUSE", "test_pause",
                             onTestActionButton, this);
+    _lblPauseResume = lv_obj_get_child(_btnPauseResume, 0);
+
+    createTestActionButton(_testModePanel, btnStartX + btnSpacing, btnY,
+                            lv_color_hex(0x666666), "TERMINATE", "test_terminate",
+                            onTestActionButton, this);
     createTestActionButton(_testModePanel, btnStartX + btnSpacing * 2, btnY,
-                            lv_color_hex(0x00AA00), "CONTINUE", "test_continue",
+                            lv_color_hex(0xCC0000), "ABORT", "test_abort",
                             onTestActionButton, this);
 
     // Start in idle mode — hide test panel
@@ -1091,6 +1093,17 @@ void Display::updateControlsTab() {
         char timeBuf[32];
         snprintf(timeBuf, sizeof(timeBuf), "Elapsed: %d:%02d:%02d", h, m, sec);
         lv_label_set_text(_lblTestElapsed, timeBuf);
+
+        // Swap PAUSE/CONTINUE button based on paused state
+        if (_testState.paused) {
+            lv_label_set_text(_lblPauseResume, "CONTINUE");
+            lv_obj_set_user_data(_btnPauseResume, (void*)"test_continue");
+            lv_obj_set_style_bg_color(_btnPauseResume, lv_color_hex(0x00AA00), 0);
+        } else {
+            lv_label_set_text(_lblPauseResume, "PAUSE");
+            lv_obj_set_user_data(_btnPauseResume, (void*)"test_pause");
+            lv_obj_set_style_bg_color(_btnPauseResume, lv_color_hex(0xCC9900), 0);
+        }
     } else {
         if (!lv_obj_has_flag(_idleModePanel, LV_OBJ_FLAG_HIDDEN)) {
             // Already visible

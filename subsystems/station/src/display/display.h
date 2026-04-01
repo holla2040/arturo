@@ -126,6 +126,8 @@ private:
     lv_obj_t* _testModePanel = nullptr;
     lv_obj_t* _lblTestName = nullptr;
     lv_obj_t* _lblTestElapsed = nullptr;
+    lv_obj_t* _btnPauseResume = nullptr;
+    lv_obj_t* _lblPauseResume = nullptr;
 
     // Optimistic update tracking
     uint32_t _lastOptimisticMs = 0;

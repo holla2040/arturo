@@ -28,6 +28,7 @@
 #define NTP_SERVER         REDIS_HOST
 #endif
 
+
 // Station identity
 #define STATION_SERVICE    "station"
 #define STATION_VERSION    "1.0.0"

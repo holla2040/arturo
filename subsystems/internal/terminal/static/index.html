@@ -156,28 +156,24 @@
                     </div>
                 </div>
 
-                <!-- Station Info -->
-                <div class="panel detail-side-panel">
-                    <div class="panel-header">
-                        <div class="panel-title">Station Info</div>
-                    </div>
-                    <div class="panel-body" id="detail-station-info"></div>
-                </div>
-
                 <!-- Manual Command (only when idle) -->
                 <div class="panel detail-side-panel" id="manual-cmd-panel" style="display:none">
                     <div class="panel-header">
                         <div class="panel-title">Manual Command</div>
                     </div>
                     <div class="panel-body">
-                        <div class="manual-cmd">
-                            <input type="text" id="manual-device" placeholder="PUMP-01" style="width:120px;flex:none">
-                            <input type="text" id="manual-command" placeholder="e.g. pump_status" list="command-list" autocomplete="off">
-                            <datalist id="command-list"></datalist>
-                            <button class="btn btn-primary btn-sm" onclick="App.sendManualCommand()">Send</button>
-                        </div>
-                        <div id="manual-response" style="margin-top:8px;font-family:var(--font-mono);font-size:0.85rem;color:var(--text-secondary)"></div>
+                        <input type="hidden" id="manual-device" value="">
+                        <button class="btn btn-primary" style="width:100%" onclick="App.openModal('cmd-modal')">Send Command</button>
+                        <div id="manual-response" style="margin-top:8px;font-family:var(--font-mono);font-size:0.8rem;color:var(--text-secondary)"></div>
                     </div>
+                </div>
+
+                <!-- Station Info -->
+                <div class="panel detail-side-panel">
+                    <div class="panel-header">
+                        <div class="panel-title">Station Info</div>
+                    </div>
+                    <div class="panel-body" id="detail-station-info"></div>
                 </div>
             </div>
         </div>
@@ -347,6 +343,18 @@
         <div class="modal-actions">
             <button class="btn" id="confirm-dialog-cancel">Cancel</button>
             <button class="btn" id="confirm-dialog-ok">OK</button>
+        </div>
+    </div>
+</div>
+
+<!-- Manual Command modal -->
+<div class="modal-overlay" id="cmd-modal">
+    <div class="modal modal-cmd">
+        <h3>Manual Command</h3>
+        <div class="cmd-grid" id="cmd-grid"></div>
+        <div class="cmd-modal-response" id="cmd-modal-response"></div>
+        <div class="modal-actions">
+            <button class="btn" onclick="App.closeModal('cmd-modal')">Close</button>
         </div>
     </div>
 </div>

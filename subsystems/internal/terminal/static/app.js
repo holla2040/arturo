@@ -970,56 +970,146 @@ var App = (function() {
         }, function(){});
     }
 
-    // CTI OnBoard command vocabulary (matches firmware command table)
-    var CTI_COMMANDS = [
-        'pump_status', 'pump_on', 'pump_off',
-        'get_temp_1st_stage', 'get_temp_2nd_stage',
-        'get_pump_tc_pressure', 'get_aux_tc_pressure',
-        'get_status_1', 'get_status_2', 'get_status_3',
-        'get_rough_valve', 'open_rough_valve', 'close_rough_valve',
-        'get_purge_valve', 'open_purge_valve', 'close_purge_valve',
-        'start_regen', 'start_fast_regen', 'abort_regen',
-        'get_regen_step', 'get_regen_status'
+    // CTI OnBoard command vocabulary grouped for touch grid
+    var CMD_GROUPS = [
+        { label: 'PUMP CONTROL', commands: [
+            { cmd: 'pump_status', label: 'Status' },
+            { cmd: 'pump_on', label: 'ON', style: 'action' },
+            { cmd: 'pump_off', label: 'OFF', style: 'warn' }
+        ]},
+        { label: 'TEMPERATURE', commands: [
+            { cmd: 'get_temp_1st_stage', label: '1st Stage' },
+            { cmd: 'get_temp_2nd_stage', label: '2nd Stage' }
+        ]},
+        { label: 'PRESSURE', commands: [
+            { cmd: 'get_pump_tc_pressure', label: 'Pump TC' },
+            { cmd: 'get_aux_tc_pressure', label: 'Aux TC' }
+        ]},
+        { label: 'ROUGH VALVE', commands: [
+            { cmd: 'get_rough_valve', label: 'Status' },
+            { cmd: 'open_rough_valve', label: 'Open', style: 'action' },
+            { cmd: 'close_rough_valve', label: 'Close', style: 'warn' }
+        ]},
+        { label: 'PURGE VALVE', commands: [
+            { cmd: 'get_purge_valve', label: 'Status' },
+            { cmd: 'open_purge_valve', label: 'Open', style: 'action' },
+            { cmd: 'close_purge_valve', label: 'Close', style: 'warn' }
+        ]},
+        { label: 'REGENERATION', commands: [
+            { cmd: 'get_regen_status', label: 'Status' },
+            { cmd: 'start_regen', label: 'Start', style: 'action' },
+            { cmd: 'start_fast_regen', label: 'Fast', style: 'warn' },
+            { cmd: 'abort_regen', label: 'Abort', style: 'danger' }
+        ], break_after: 1},
+        { label: 'STATUS BYTES', commands: [
+            { cmd: 'get_status_1', label: 'Status 1' },
+            { cmd: 'get_status_2', label: 'Status 2' },
+            { cmd: 'get_status_3', label: 'Status 3' }
+        ]}
     ];
 
     function populateCommandList() {
-        var dl = document.getElementById('command-list');
-        dl.innerHTML = '';
-        for (var i = 0; i < CTI_COMMANDS.length; i++) {
-            var opt = document.createElement('option');
-            opt.value = CTI_COMMANDS[i];
-            dl.appendChild(opt);
-        }
-        var cmdInput = document.getElementById('manual-command');
-        cmdInput.oninput = function() {
-            if (CTI_COMMANDS.indexOf(cmdInput.value) !== -1) {
-                sendManualCommand();
+        var grid = document.getElementById('cmd-grid');
+        grid.innerHTML = '';
+        for (var g = 0; g < CMD_GROUPS.length; g++) {
+            var group = CMD_GROUPS[g];
+            var groupDiv = document.createElement('div');
+            groupDiv.className = 'cmd-group';
+
+            var label = document.createElement('div');
+            label.className = 'cmd-group-label';
+            label.textContent = group.label;
+            groupDiv.appendChild(label);
+
+            var breakAt = group.break_after || group.commands.length;
+            var btnsDiv = document.createElement('div');
+            btnsDiv.className = 'cmd-group-buttons';
+
+            for (var c = 0; c < group.commands.length; c++) {
+                if (c === breakAt) {
+                    groupDiv.appendChild(btnsDiv);
+                    btnsDiv = document.createElement('div');
+                    btnsDiv.className = 'cmd-group-buttons';
+                }
+                var cmdDef = group.commands[c];
+                var btn = document.createElement('button');
+                btn.className = 'cmd-btn' + (cmdDef.style ? ' cmd-' + cmdDef.style : '');
+                btn.textContent = cmdDef.label;
+                btn.setAttribute('data-cmd', cmdDef.cmd);
+                btn.onclick = (function(cmd) {
+                    return function() { sendManualCommand(cmd); };
+                })(cmdDef.cmd);
+                btnsDiv.appendChild(btn);
             }
-        };
+
+            groupDiv.appendChild(btnsDiv);
+            grid.appendChild(groupDiv);
+        }
     }
 
-    function sendManualCommand() {
+    function translateCmdResponse(command, raw) {
+        if (!raw && raw !== '0') return 'OK';
+        var r = String(raw).trim();
+        switch (command) {
+            case 'pump_status':
+                return r === '1' ? 'Running' : r === '0' ? 'Stopped' : r;
+            case 'get_regen_status':
+                return r + ' - ' + regenDescription(r);
+            case 'get_regen_step':
+                return r === '0' ? 'None' : 'Phase ' + r;
+            case 'get_rough_valve':
+            case 'get_purge_valve':
+                return r === '1' ? 'Open' : r === '0' ? 'Closed' : r;
+            case 'get_temp_1st_stage':
+            case 'get_temp_2nd_stage':
+                return r + ' K';
+            case 'get_pump_tc_pressure':
+            case 'get_aux_tc_pressure':
+                return r + ' mTorr';
+            case 'pump_on':
+            case 'pump_off':
+            case 'open_rough_valve':
+            case 'close_rough_valve':
+            case 'open_purge_valve':
+            case 'close_purge_valve':
+            case 'start_regen':
+            case 'start_fast_regen':
+            case 'abort_regen':
+                return r === 'A' ? 'OK' : r === 'B' ? 'OK (reset)' : r;
+            default:
+                return r;
+        }
+    }
+
+    function sendManualCommand(command) {
         var instance = state.detailStation;
         var deviceId = document.getElementById('manual-device').value.trim();
-        var command = document.getElementById('manual-command').value.trim();
         if (!deviceId || !command) return;
 
-        document.getElementById('manual-response').textContent = 'Sending...';
+        var btn = document.querySelector('.cmd-btn[data-cmd="' + command + '"]');
+        if (btn) btn.classList.add('cmd-sending');
+
+        var pending = '<span style="color:var(--text-muted)">' + escapeHtml(command) + '...</span>';
+        document.getElementById('cmd-modal-response').innerHTML = pending;
+        document.getElementById('manual-response').innerHTML = pending;
+
         api('POST', '/stations/' + encodeURIComponent(instance) + '/command', {
             device_id: deviceId,
             command: command
         }, function(err, data) {
-            document.getElementById('manual-command').value = '';
+            if (btn) btn.classList.remove('cmd-sending');
+            var html;
             if (err) {
-                document.getElementById('manual-response').innerHTML = '<span style="color:var(--fail-red)">Error: ' + escapeHtml(err.message) + '</span>';
+                html = '<span style="color:var(--fail-red)">' + escapeHtml(command) + ': ' + escapeHtml(err.message) + '</span>';
             } else if (data) {
-                var respText = data.success ? data.response || 'OK' : 'FAIL: ' + (data.error && data.error.message ? data.error.message : 'unknown');
+                var respText = data.success
+                    ? translateCmdResponse(command, data.response)
+                    : 'FAIL: ' + (data.error && data.error.message ? data.error.message : 'unknown');
                 var color = data.success ? 'var(--success-green)' : 'var(--fail-red)';
-                document.getElementById('manual-response').innerHTML = '<span style="color:' + color + '">' + escapeHtml(respText) + '</span>';
-                if (data.duration_ms != null) {
-                    document.getElementById('manual-response').innerHTML += ' <span class="duration-badge">' + data.duration_ms + ' ms</span>';
-                }
+                html = '<span style="color:' + color + '">' + escapeHtml(command) + ': ' + escapeHtml(respText) + '</span>';
             }
+            document.getElementById('cmd-modal-response').innerHTML = html;
+            document.getElementById('manual-response').innerHTML = html;
         });
     }
 
@@ -1688,6 +1778,7 @@ var App = (function() {
         toggleTestRunEvents: toggleTestRunEvents,
         toggleRunInclude: toggleRunInclude,
         toggleAllRuns: toggleAllRuns,
+        openModal: openModal,
         closeModal: closeModal,
         downloadArtifact: downloadArtifact,
         downloadPDF: downloadPDF,

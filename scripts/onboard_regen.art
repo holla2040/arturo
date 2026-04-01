@@ -1,0 +1,122 @@
+# onboard_regen.art
+# Monitor 1st and 2nd stage temperatures during a full regeneration cycle.
+# Records temperature and regen state every 5 seconds until the regen completes.
+
+CONST SAMPLE_INTERVAL 5000
+CONST QUERY_TIMEOUT 5000
+
+# Map CTI O-command letter to human-readable regen state
+FUNCTION regen_state_name(letter)
+    IF letter == "A" || letter == "\\"
+        RETURN "Pump OFF"
+    ELSEIF letter == "B" || letter == "C" || letter == "E" || letter == "^" || letter == "]"
+        RETURN "Warmup"
+    ELSEIF letter == "D" || letter == "F" || letter == "G" || letter == "Q" || letter == "R"
+        RETURN "Purge gas failure"
+    ELSEIF letter == "H"
+        RETURN "Extended purge"
+    ELSEIF letter == "S"
+        RETURN "Repurge cycle"
+    ELSEIF letter == "I" || letter == "J" || letter == "K" || letter == "T" || letter == "a" || letter == "b" || letter == "j" || letter == "n"
+        RETURN "Rough to base pressure"
+    ELSEIF letter == "L"
+        RETURN "Rate of rise test"
+    ELSEIF letter == "M" || letter == "N" || letter == "c" || letter == "d" || letter == "o"
+        RETURN "Cooldown"
+    ELSEIF letter == "P"
+        RETURN "Regen complete"
+    ELSEIF letter == "U"
+        RETURN "Beginning of fast regen"
+    ELSEIF letter == "V"
+        RETURN "Regen aborted"
+    ELSEIF letter == "W"
+        RETURN "Delay restart"
+    ELSEIF letter == "X" || letter == "Y"
+        RETURN "Power failure"
+    ELSEIF letter == "Z"
+        RETURN "Delay start"
+    ELSEIF letter == "O" || letter == "["
+        RETURN "Zeroing TC gauge"
+    ELSEIF letter == "f"
+        RETURN "Share regen wait"
+    ELSEIF letter == "e"
+        RETURN "Repurge during fast regen"
+    ELSEIF letter == "h"
+        RETURN "Purge coordinate wait"
+    ELSEIF letter == "i"
+        RETURN "Rough coordinate wait"
+    ELSEIF letter == "k"
+        RETURN "Purge gas fail, recovering"
+    ELSE
+        RETURN "Unknown (" + letter + ")"
+    ENDIF
+ENDFUNCTION
+
+TEST "Onboard Regen Monitor"
+    # Verify regen is not already running
+    QUERY "get_regen_status" rs TIMEOUT QUERY_TIMEOUT
+    SET rs_name CALL regen_state_name(rs)
+    ASSERT rs == "P" || rs == "V" "Regen already in progress: " + rs + " - " + rs_name
+
+    # Collect initial temperatures
+    QUERY "get_temp_1st_stage" t1 TIMEOUT QUERY_TIMEOUT
+    QUERY "get_temp_2nd_stage" t2 TIMEOUT QUERY_TIMEOUT
+    LOG INFO "Pre-regen temps - 1st stage: " + t1 + " K, 2nd stage: " + t2 + " K"
+
+    # Data collection arrays
+    SET timestamps []
+    SET temps_1st []
+    SET temps_2nd []
+    SET regen_letters []
+    SET regen_states []
+    SET sample_count 0
+
+    # Start regeneration
+    SEND "start_regen"
+    LOG INFO "Regen started"
+    DELAY 2000
+
+    # Poll until regen completes
+    SET regen_active true
+    WHILE regen_active
+        # Read regen step (0 = not in regen) and status letter
+        QUERY "get_regen_step" step TIMEOUT QUERY_TIMEOUT
+        QUERY "get_regen_status" regen_letter TIMEOUT QUERY_TIMEOUT
+        SET state_name CALL regen_state_name(regen_letter)
+
+        IF step == 0
+            # Regen finished - take one last sample and exit
+            QUERY "get_temp_1st_stage" t1 TIMEOUT QUERY_TIMEOUT
+            QUERY "get_temp_2nd_stage" t2 TIMEOUT QUERY_TIMEOUT
+            APPEND timestamps NOW()
+            APPEND temps_1st FLOAT(t1)
+            APPEND temps_2nd FLOAT(t2)
+            APPEND regen_letters regen_letter
+            APPEND regen_states state_name
+            SET sample_count sample_count + 1
+            LOG INFO "Regen complete - final temps - 1st: " + t1 + " K, 2nd: " + t2 + " K, state: " + regen_letter + " - " + state_name
+            SET regen_active false
+        ELSE
+            # Record temperatures and regen state
+            QUERY "get_temp_1st_stage" t1 TIMEOUT QUERY_TIMEOUT
+            QUERY "get_temp_2nd_stage" t2 TIMEOUT QUERY_TIMEOUT
+            APPEND timestamps NOW()
+            APPEND temps_1st FLOAT(t1)
+            APPEND temps_2nd FLOAT(t2)
+            APPEND regen_letters regen_letter
+            APPEND regen_states state_name
+            SET sample_count sample_count + 1
+            LOG INFO "Sample " + sample_count + " - 1st: " + t1 + " K, 2nd: " + t2 + " K, state: " + regen_letter + " - " + state_name
+            DELAY SAMPLE_INTERVAL
+        ENDIF
+    ENDWHILE
+
+    # Summary
+    LOG INFO "Total samples collected: " + sample_count
+    LOG INFO "1st stage temps: " + temps_1st
+    LOG INFO "2nd stage temps: " + temps_2nd
+    LOG INFO "Regen letters: " + regen_letters
+    LOG INFO "Regen states: " + regen_states
+
+    PASS "Regen completed, " + sample_count + " temperature samples recorded"
+ENDTEST

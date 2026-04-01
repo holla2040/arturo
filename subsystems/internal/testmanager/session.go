@@ -11,6 +11,7 @@ import (
 	"time"
 
 
+	"github.com/holla2040/arturo/internal/script/ast"
 	"github.com/holla2040/arturo/internal/script/executor"
 	"github.com/holla2040/arturo/internal/script/lexer"
 	"github.com/holla2040/arturo/internal/script/parser"
@@ -91,21 +92,32 @@ func NewSession(ctx context.Context, params StartSessionParams) (*TestSession, e
 		return nil, fmt.Errorf("script lex errors: %v", lexErrors[0].Error())
 	}
 
-	_, parseErrors := parser.New(tokens).Parse()
+	program, parseErrors := parser.New(tokens).Parse()
 	if len(parseErrors) > 0 {
 		return nil, fmt.Errorf("script parse errors: %v", parseErrors[0].Error())
 	}
 
-	// Create test run in SQLite
+	// Extract descriptive test title from the AST
+	testTitle := extractTestTitle(program)
+	displayName := testTitle
+	if displayName == "" {
+		displayName = filepath.Base(params.ScriptPath)
+	}
+
+	// Create test run in SQLite (store display name, not full path)
 	if err := params.Store.CreateTestRunWithRMA(
-		params.TestRunID, params.ScriptPath, params.RMAID,
+		params.TestRunID, displayName, params.RMAID,
 		params.StationInstance, scriptHash, scriptContent,
 	); err != nil {
 		return nil, fmt.Errorf("create test run: %w", err)
 	}
 
-	// Record started event
-	params.Store.RecordTestEvent(params.TestRunID, "started", params.EmployeeID, filepath.Base(params.ScriptPath))
+	// Record started event with both filename and title
+	startedDesc := filepath.Base(params.ScriptPath)
+	if testTitle != "" {
+		startedDesc += " - " + testTitle
+	}
+	params.Store.RecordTestEvent(params.TestRunID, "started", params.EmployeeID, startedDesc)
 
 	// Create pausable router wrapping the raw router
 	pausable := NewPausableRouter(params.RawRouter)
@@ -179,6 +191,25 @@ func (se *sessionEventEmitter) EmitEvent(eventType, detail string) {
 			"timestamp":        time.Now().UTC().Format(time.RFC3339Nano),
 		})
 	}
+}
+
+// extractTestTitle walks the AST to find the first TEST name.
+func extractTestTitle(program *ast.Program) string {
+	for _, stmt := range program.Statements {
+		switch s := stmt.(type) {
+		case *ast.TestDef:
+			if lit, ok := s.Name.(*ast.StringLit); ok {
+				return lit.Value
+			}
+		case *ast.SuiteDef:
+			for _, t := range s.Tests {
+				if lit, ok := t.Name.(*ast.StringLit); ok {
+					return lit.Value
+				}
+			}
+		}
+	}
+	return ""
 }
 
 // runExecutor creates and runs an executor with the given script source.

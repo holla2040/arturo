@@ -328,7 +328,30 @@ func renderPDF(w io.Writer, artifact *TestArtifact) error {
 	}
 
 	pdf := fpdf.New("P", "mm", "A4", "")
-	pdf.SetAutoPageBreak(true, 15)
+	pdf.SetAutoPageBreak(true, 20)
+	pdf.AliasNbPages("")
+
+	// Find the date of the last passed test run for the footer.
+	reportDate := ""
+	for i := len(artifact.Runs) - 1; i >= 0; i-- {
+		if artifact.Runs[i].Status == "passed" && artifact.Runs[i].FinishedAt != nil {
+			reportDate = artifact.Runs[i].FinishedAt.In(denverTZ).Format("2006-01-02")
+			break
+		}
+	}
+
+	rmaNum := artifact.RMANumber
+	pdf.SetFooterFunc(func() {
+		pdf.SetY(-15)
+		pdf.SetFont("Arial", "", 8)
+		pageW, _ := pdf.GetPageSize()
+		marginL, _, marginR, _ := pdf.GetMargins()
+		usable := pageW - marginL - marginR
+		colW := usable / 3
+		pdf.CellFormat(colW, 10, rmaNum, "", 0, "L", false, 0, "")
+		pdf.CellFormat(colW, 10, reportDate, "", 0, "C", false, 0, "")
+		pdf.CellFormat(colW, 10, fmt.Sprintf("Page %d/{nb}", pdf.PageNo()), "", 0, "R", false, 0, "")
+	})
 
 	// --- Page 1: RMA Header ---
 	pdf.AddPage()

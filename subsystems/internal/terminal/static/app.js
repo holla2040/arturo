@@ -1091,7 +1091,6 @@ var App = (function() {
 
         var pending = '<span style="color:var(--text-muted)">' + escapeHtml(command) + '...</span>';
         document.getElementById('cmd-modal-response').innerHTML = pending;
-        document.getElementById('manual-response').innerHTML = pending;
 
         api('POST', '/stations/' + encodeURIComponent(instance) + '/command', {
             device_id: deviceId,
@@ -1109,7 +1108,6 @@ var App = (function() {
                 html = '<span style="color:' + color + '">' + escapeHtml(command) + ': ' + escapeHtml(respText) + '</span>';
             }
             document.getElementById('cmd-modal-response').innerHTML = html;
-            document.getElementById('manual-response').innerHTML = html;
         });
     }
 

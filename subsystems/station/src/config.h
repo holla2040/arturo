@@ -22,6 +22,9 @@
 #ifndef STATION_INSTANCE
 #define STATION_INSTANCE   "station-01"
 #endif
+#ifndef OTA_PASSWORD
+#define OTA_PASSWORD       "arturo"
+#endif
 
 // NTP server (defaults to Redis host = controller machine)
 #ifndef NTP_SERVER

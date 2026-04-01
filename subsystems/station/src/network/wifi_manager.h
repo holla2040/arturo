@@ -1,6 +1,5 @@
 #pragma once
 #include <WiFi.h>
-#include <ESPmDNS.h>
 #include "../safety/wifi_reconnect.h"
 
 namespace arturo {
@@ -27,11 +26,7 @@ public:
     void onDisconnected();
     void onConnected();
 
-    // Start mDNS responder (STATION_INSTANCE.local)
-    void startMDNS();
-
 private:
-    bool _mdnsStarted = false;
     int _reconnects = 0;
     int _failedAttempts = 0;
     unsigned long _lastAttempt = 0;

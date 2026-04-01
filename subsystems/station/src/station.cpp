@@ -9,6 +9,7 @@
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <esp_random.h>
+#include <ArduinoOTA.h>
 #include <time.h>
 
 namespace arturo {
@@ -47,6 +48,33 @@ bool Station::begin() {
         LOG_ERROR("MAIN", "WiFi failed, retrying in 5s...");
         delay(5000);
     }
+
+    // 2a. ArduinoOTA — enables PlatformIO wireless upload via station-01.local
+    ArduinoOTA.setHostname(STATION_INSTANCE);
+    ArduinoOTA.setPassword(OTA_PASSWORD);
+    ArduinoOTA.onStart([]() {
+        LOG_INFO("OTA", "Update starting (%s)",
+                 ArduinoOTA.getCommand() == U_FLASH ? "firmware" : "filesystem");
+    });
+    ArduinoOTA.onEnd([]() {
+        LOG_INFO("OTA", "Update complete — rebooting");
+    });
+    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+        LOG_DEBUG("OTA", "Progress: %u%%", (progress * 100) / total);
+    });
+    ArduinoOTA.onError([](ota_error_t error) {
+        const char* msg = "Unknown";
+        switch (error) {
+            case OTA_AUTH_ERROR:    msg = "Auth Failed"; break;
+            case OTA_BEGIN_ERROR:   msg = "Begin Failed"; break;
+            case OTA_CONNECT_ERROR: msg = "Connect Failed"; break;
+            case OTA_RECEIVE_ERROR: msg = "Receive Failed"; break;
+            case OTA_END_ERROR:     msg = "End Failed"; break;
+        }
+        LOG_ERROR("OTA", "Error: %s", msg);
+    });
+    ArduinoOTA.begin();
+    LOG_INFO("OTA", "ArduinoOTA ready: %s.local (password protected)", STATION_INSTANCE);
 
     // Start NTP sync (non-blocking, runs in background)
     // Controller LAN IP first (always reachable), pool.ntp.org as internet fallback
@@ -121,6 +149,13 @@ bool Station::begin() {
     xTaskCreatePinnedToCore(commTaskEntry, "tComm", 8192, this, 5, nullptr, 1);
     xTaskCreatePinnedToCore(pumpPollTaskEntry, "tPumpPoll", 4096, this, 4, nullptr, 1);
     xTaskCreatePinnedToCore(displayTaskEntry, "tDisplay", 4096, this, 3, nullptr, 1);
+    // OTA task on Core 0 (with WiFi stack) — needs fast polling during firmware upload
+    xTaskCreatePinnedToCore([](void*) {
+        for (;;) {
+            ArduinoOTA.handle();
+            vTaskDelay(pdMS_TO_TICKS(1));
+        }
+    }, "tOTA", 4096, nullptr, 3, nullptr, 0);
 #ifdef ENABLE_SCREENSHOT_SERVER
     xTaskCreatePinnedToCore([](void*) {
         for (;;) {

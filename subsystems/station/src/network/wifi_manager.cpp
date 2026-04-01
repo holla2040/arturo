@@ -2,7 +2,6 @@
 #include "../config.h"
 #include "../debug_log.h"
 #include <esp_wifi.h>
-#include <ESPmDNS.h>
 
 namespace arturo {
 
@@ -83,7 +82,6 @@ bool WifiManager::connect() {
         _lastConnectedMs = millis();
 
         LOG_INFO("WIFI", "Connected rssi=%d", WiFi.RSSI());
-        startMDNS();
         return true;
     }
 
@@ -139,17 +137,6 @@ int WifiManager::rssi() {
 
 int WifiManager::reconnectCount() {
     return _reconnects;
-}
-
-void WifiManager::startMDNS() {
-    if (_mdnsStarted) return;
-
-    if (MDNS.begin(STATION_INSTANCE)) {
-        _mdnsStarted = true;
-        LOG_INFO("WIFI", "mDNS started: %s.local", STATION_INSTANCE);
-    } else {
-        LOG_ERROR("WIFI", "mDNS failed to start");
-    }
 }
 
 } // namespace arturo

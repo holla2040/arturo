@@ -13,3 +13,6 @@ REDIS_PASSWORD=
 
 # Station
 STATION_INSTANCE=station-01
+
+# OTA (ArduinoOTA password for PlatformIO wireless upload)
+OTA_PASSWORD=arturo

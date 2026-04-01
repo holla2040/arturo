@@ -19,6 +19,8 @@ type TestRun struct {
 	StationInstance *string
 	ScriptSHA256    *string
 	ScriptContent   *string
+	ReportType      *string
+	ReportVersion   *string
 }
 
 type Measurement struct {
@@ -223,6 +225,8 @@ func migrateTestRuns(db *sql.DB) error {
 		{"station_instance", "TEXT"},
 		{"script_sha256", "TEXT"},
 		{"script_content", "TEXT"},
+		{"report_type", "TEXT"},
+		{"report_version", "TEXT"},
 	}
 	for _, col := range columns {
 		_, err := db.Exec(fmt.Sprintf("ALTER TABLE test_runs ADD COLUMN %s %s", col.name, col.def))
@@ -279,11 +283,11 @@ func (s *Store) CreateTestRun(id, scriptName string) error {
 	return err
 }
 
-func (s *Store) CreateTestRunWithRMA(id, scriptName, rmaID, stationInstance, scriptSHA256, scriptContent string) error {
+func (s *Store) CreateTestRunWithRMA(id, scriptName, rmaID, stationInstance, scriptSHA256, scriptContent, reportType, reportVersion string) error {
 	_, err := s.db.Exec(
-		`INSERT INTO test_runs (id, script_name, started_at, status, summary, rma_id, station_instance, script_sha256, script_content) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO test_runs (id, script_name, started_at, status, summary, rma_id, station_instance, script_sha256, script_content, report_type, report_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		id, scriptName, time.Now().UTC().Format(time.RFC3339Nano), "running", "",
-		rmaID, stationInstance, scriptSHA256, scriptContent,
+		rmaID, stationInstance, scriptSHA256, scriptContent, reportType, reportVersion,
 	)
 	return err
 }
@@ -299,13 +303,15 @@ func (s *Store) FinishTestRun(id, status, summary string) error {
 func (s *Store) GetTestRun(id string) (*TestRun, error) {
 	var r TestRun
 	var startedAt string
-	var finishedAt, rmaID, stationInstance, scriptSHA256, scriptContent sql.NullString
+	var finishedAt, rmaID, stationInstance, scriptSHA256, scriptContent, reportType, reportVersion sql.NullString
 	err := s.db.QueryRow(
 		`SELECT id, script_name, started_at, finished_at, status, summary,
-		        rma_id, station_instance, script_sha256, script_content
+		        rma_id, station_instance, script_sha256, script_content,
+		        report_type, report_version
 		 FROM test_runs WHERE id = ?`, id,
 	).Scan(&r.ID, &r.ScriptName, &startedAt, &finishedAt, &r.Status, &r.Summary,
-		&rmaID, &stationInstance, &scriptSHA256, &scriptContent)
+		&rmaID, &stationInstance, &scriptSHA256, &scriptContent,
+		&reportType, &reportVersion)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -335,20 +341,28 @@ func (s *Store) GetTestRun(id string) (*TestRun, error) {
 	if scriptContent.Valid {
 		r.ScriptContent = &scriptContent.String
 	}
+	if reportType.Valid {
+		r.ReportType = &reportType.String
+	}
+	if reportVersion.Valid {
+		r.ReportVersion = &reportVersion.String
+	}
 	return &r, nil
 }
 
 func (s *Store) LatestTestRunForStation(stationInstance string) (*TestRun, error) {
 	var r TestRun
 	var startedAt string
-	var finishedAt, rmaID, si, scriptSHA256, scriptContent sql.NullString
+	var finishedAt, rmaID, si, scriptSHA256, scriptContent, reportType, reportVersion sql.NullString
 	err := s.db.QueryRow(
 		`SELECT id, script_name, started_at, finished_at, status, summary,
-		        rma_id, station_instance, script_sha256, script_content
+		        rma_id, station_instance, script_sha256, script_content,
+		        report_type, report_version
 		 FROM test_runs WHERE station_instance = ? ORDER BY started_at DESC LIMIT 1`,
 		stationInstance,
 	).Scan(&r.ID, &r.ScriptName, &startedAt, &finishedAt, &r.Status, &r.Summary,
-		&rmaID, &si, &scriptSHA256, &scriptContent)
+		&rmaID, &si, &scriptSHA256, &scriptContent,
+		&reportType, &reportVersion)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -378,12 +392,19 @@ func (s *Store) LatestTestRunForStation(stationInstance string) (*TestRun, error
 	if scriptContent.Valid {
 		r.ScriptContent = &scriptContent.String
 	}
+	if reportType.Valid {
+		r.ReportType = &reportType.String
+	}
+	if reportVersion.Valid {
+		r.ReportVersion = &reportVersion.String
+	}
 	return &r, nil
 }
 
 func (s *Store) QueryTestRuns() ([]TestRun, error) {
 	rows, err := s.db.Query(`SELECT id, script_name, started_at, finished_at, status, summary,
-	                                rma_id, station_instance, script_sha256, script_content
+	                                rma_id, station_instance, script_sha256, script_content,
+	                                report_type, report_version
 	                         FROM test_runs ORDER BY started_at DESC, _rowid_ DESC`)
 	if err != nil {
 		return nil, err
@@ -394,9 +415,10 @@ func (s *Store) QueryTestRuns() ([]TestRun, error) {
 	for rows.Next() {
 		var r TestRun
 		var startedAt string
-		var finishedAt, rmaID, stationInstance, scriptSHA256, scriptContent sql.NullString
+		var finishedAt, rmaID, stationInstance, scriptSHA256, scriptContent, reportType, reportVersion sql.NullString
 		if err := rows.Scan(&r.ID, &r.ScriptName, &startedAt, &finishedAt, &r.Status, &r.Summary,
-			&rmaID, &stationInstance, &scriptSHA256, &scriptContent); err != nil {
+			&rmaID, &stationInstance, &scriptSHA256, &scriptContent,
+			&reportType, &reportVersion); err != nil {
 			return nil, err
 		}
 		r.StartedAt, err = time.Parse(time.RFC3339Nano, startedAt)
@@ -422,6 +444,12 @@ func (s *Store) QueryTestRuns() ([]TestRun, error) {
 		if scriptContent.Valid {
 			r.ScriptContent = &scriptContent.String
 		}
+		if reportType.Valid {
+			r.ReportType = &reportType.String
+		}
+		if reportVersion.Valid {
+			r.ReportVersion = &reportVersion.String
+		}
 		runs = append(runs, r)
 	}
 	return runs, rows.Err()
@@ -430,7 +458,8 @@ func (s *Store) QueryTestRuns() ([]TestRun, error) {
 func (s *Store) QueryTestRunsByRMA(rmaID string) ([]TestRun, error) {
 	rows, err := s.db.Query(
 		`SELECT id, script_name, started_at, finished_at, status, summary,
-		        rma_id, station_instance, script_sha256, script_content
+		        rma_id, station_instance, script_sha256, script_content,
+		        report_type, report_version
 		 FROM test_runs WHERE rma_id = ? ORDER BY started_at ASC`,
 		rmaID,
 	)
@@ -443,9 +472,10 @@ func (s *Store) QueryTestRunsByRMA(rmaID string) ([]TestRun, error) {
 	for rows.Next() {
 		var r TestRun
 		var startedAt string
-		var finishedAt, rid, stationInstance, scriptSHA256, scriptContent sql.NullString
+		var finishedAt, rid, stationInstance, scriptSHA256, scriptContent, reportType, reportVersion sql.NullString
 		if err := rows.Scan(&r.ID, &r.ScriptName, &startedAt, &finishedAt, &r.Status, &r.Summary,
-			&rid, &stationInstance, &scriptSHA256, &scriptContent); err != nil {
+			&rid, &stationInstance, &scriptSHA256, &scriptContent,
+			&reportType, &reportVersion); err != nil {
 			return nil, err
 		}
 		r.StartedAt, err = time.Parse(time.RFC3339Nano, startedAt)
@@ -470,6 +500,12 @@ func (s *Store) QueryTestRunsByRMA(rmaID string) ([]TestRun, error) {
 		}
 		if scriptContent.Valid {
 			r.ScriptContent = &scriptContent.String
+		}
+		if reportType.Valid {
+			r.ReportType = &reportType.String
+		}
+		if reportVersion.Valid {
+			r.ReportVersion = &reportVersion.String
 		}
 		runs = append(runs, r)
 	}

@@ -656,7 +656,7 @@ func TestCreateTestRunWithRMA(t *testing.T) {
 	s.CreateEmployee("emp-1", "Test User")
 	s.CreateRMA("rma-1", "RMA-001", "SN1", "Customer", "CT-8", "emp-1", "")
 
-	if err := s.CreateTestRunWithRMA("run-1", "test.art", "rma-1", "station-01", "abc123", "TEST \"hello\"\nENDTEST"); err != nil {
+	if err := s.CreateTestRunWithRMA("run-1", "test.art", "rma-1", "station-01", "abc123", "TEST \"hello\"\nENDTEST", "standard", "1.0"); err != nil {
 		t.Fatalf("CreateTestRunWithRMA failed: %v", err)
 	}
 
@@ -680,8 +680,8 @@ func TestQueryTestRunsByRMA(t *testing.T) {
 	s.CreateEmployee("emp-1", "Test User")
 	s.CreateRMA("rma-1", "RMA-001", "SN1", "Customer", "CT-8", "emp-1", "")
 
-	s.CreateTestRunWithRMA("run-1", "test1.art", "rma-1", "station-01", "hash1", "")
-	s.CreateTestRunWithRMA("run-2", "test2.art", "rma-1", "station-01", "hash2", "")
+	s.CreateTestRunWithRMA("run-1", "test1.art", "rma-1", "station-01", "hash1", "", "standard", "1.0")
+	s.CreateTestRunWithRMA("run-2", "test2.art", "rma-1", "station-01", "hash2", "", "standard", "1.0")
 	s.CreateTestRun("run-3", "unrelated.art") // not linked to RMA
 
 	runs, err := s.QueryTestRunsByRMA("rma-1")

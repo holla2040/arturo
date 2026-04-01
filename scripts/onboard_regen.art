@@ -2,6 +2,8 @@
 # Monitor 1st and 2nd stage temperatures during a full regeneration cycle.
 # Records temperature and regen state every 5 seconds until the regen completes.
 
+CONST REPORT_TYPE "regen"
+CONST REPORT_VERSION "1.0"
 CONST SAMPLE_INTERVAL 5000
 CONST QUERY_TIMEOUT 5000
 
@@ -52,7 +54,7 @@ FUNCTION regen_state_name(letter)
     ENDIF
 ENDFUNCTION
 
-TEST "Onboard Regen Monitor"
+TEST "Onboard Regen Verification"
     # Verify regen is not already running
     QUERY "get_regen_status" rs TIMEOUT QUERY_TIMEOUT
     SET rs_name CALL regen_state_name(rs)
@@ -79,12 +81,11 @@ TEST "Onboard Regen Monitor"
     # Poll until regen completes
     SET regen_active true
     WHILE regen_active
-        # Read regen step (0 = not in regen) and status letter
-        QUERY "get_regen_step" step TIMEOUT QUERY_TIMEOUT
+        # Read regen status letter
         QUERY "get_regen_status" regen_letter TIMEOUT QUERY_TIMEOUT
         SET state_name CALL regen_state_name(regen_letter)
 
-        IF step == 0
+        IF regen_letter == "P" || regen_letter == "V"
             # Regen finished - take one last sample and exit
             QUERY "get_temp_1st_stage" t1 TIMEOUT QUERY_TIMEOUT
             QUERY "get_temp_2nd_stage" t2 TIMEOUT QUERY_TIMEOUT
@@ -95,6 +96,7 @@ TEST "Onboard Regen Monitor"
             APPEND regen_states state_name
             SET sample_count sample_count + 1
             LOG INFO "Regen complete - final temps - 1st: " + t1 + " K, 2nd: " + t2 + " K, state: " + regen_letter + " - " + state_name
+            LOG INFO "Regen Complete - " + t1 + "," + t2 + "," + regen_letter + "," + state_name
             SET regen_active false
         ELSE
             # Record temperatures and regen state
@@ -106,17 +108,10 @@ TEST "Onboard Regen Monitor"
             APPEND regen_letters regen_letter
             APPEND regen_states state_name
             SET sample_count sample_count + 1
-            LOG INFO "Sample " + sample_count + " - 1st: " + t1 + " K, 2nd: " + t2 + " K, state: " + regen_letter + " - " + state_name
+            LOG INFO "Sample " + sample_count + " - " + t1 + "," + t2 + "," + regen_letter + "," + state_name
             DELAY SAMPLE_INTERVAL
         ENDIF
     ENDWHILE
-
-    # Summary
-    LOG INFO "Total samples collected: " + sample_count
-    LOG INFO "1st stage temps: " + temps_1st
-    LOG INFO "2nd stage temps: " + temps_2nd
-    LOG INFO "Regen letters: " + regen_letters
-    LOG INFO "Regen states: " + regen_states
 
     PASS "Regen completed, " + sample_count + " temperature samples recorded"
 ENDTEST

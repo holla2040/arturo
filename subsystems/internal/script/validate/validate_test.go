@@ -6,12 +6,15 @@ import (
 	"testing"
 )
 
+// meta is the required metadata prefix for valid scripts.
+const meta = "CONST REPORT_TYPE \"standard\"\nCONST REPORT_VERSION \"1.0\"\n"
+
 // ---------------------------------------------------------------------------
 // ValidateSource — valid scripts
 // ---------------------------------------------------------------------------
 
 func TestValidScript(t *testing.T) {
-	src := `
+	src := meta + `
 SET x 5
 SET y 10
 IF x < y
@@ -28,7 +31,7 @@ ENDIF
 }
 
 func TestValidTestBlock(t *testing.T) {
-	src := `
+	src := meta + `
 TEST "voltage check"
   SET v 5.0
   ASSERT v > 4.5 "voltage too low"
@@ -42,7 +45,7 @@ ENDTEST
 }
 
 func TestValidSuiteBlock(t *testing.T) {
-	src := `
+	src := meta + `
 SUITE "power tests"
   TEST "5v rail"
     PASS "ok"
@@ -56,7 +59,7 @@ ENDSUITE
 }
 
 func TestValidFunctionDef(t *testing.T) {
-	src := `
+	src := meta + `
 FUNCTION add(a, b)
   RETURN a + b
 ENDFUNCTION
@@ -68,7 +71,7 @@ ENDFUNCTION
 }
 
 func TestValidLoopAndWhile(t *testing.T) {
-	src := `
+	src := meta + `
 LOOP 3 TIMES AS i
   LOG INFO i
 ENDLOOP
@@ -179,7 +182,7 @@ SET x 1
 func TestValidateFileValid(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "test.art")
-	if err := os.WriteFile(path, []byte("SET x 5\n"), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(meta+"SET x 5\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -221,8 +224,29 @@ func TestValidateFileNotFound(t *testing.T) {
 
 func TestValidateEmptySource(t *testing.T) {
 	res := ValidateSource("")
-	if !res.Valid {
-		t.Errorf("empty source should be valid, got errors: %+v", res.Errors)
+	if res.Valid {
+		t.Error("empty source should be invalid (missing REPORT_TYPE and REPORT_VERSION)")
+	}
+	if len(res.Errors) != 2 {
+		t.Errorf("expected 2 errors for empty source, got %d", len(res.Errors))
+	}
+}
+
+func TestMissingReportMetadata(t *testing.T) {
+	src := `SET x 5`
+	res := ValidateSource(src)
+	if res.Valid {
+		t.Error("expected invalid when REPORT_TYPE and REPORT_VERSION missing")
+	}
+	found := map[string]bool{}
+	for _, e := range res.Errors {
+		found[e.Message] = true
+	}
+	if !found["missing required CONST REPORT_TYPE"] {
+		t.Error("expected error about missing REPORT_TYPE")
+	}
+	if !found["missing required CONST REPORT_VERSION"] {
+		t.Error("expected error about missing REPORT_VERSION")
 	}
 }
 

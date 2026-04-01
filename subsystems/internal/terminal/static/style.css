@@ -1394,6 +1394,7 @@ button.pid-regen:active { background: rgba(255,255,255,0.12); transform: scale(0
     color: var(--text-muted);
     font-size: 0.75rem;
     font-family: var(--font-mono);
+    white-space: nowrap;
 }
 .duration-badge {
     font-family: var(--font-mono);

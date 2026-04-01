@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/holla2040/arturo/internal/script/ast"
 	"github.com/holla2040/arturo/internal/script/lexer"
 	"github.com/holla2040/arturo/internal/script/parser"
 )
@@ -49,7 +50,7 @@ func ValidateSource(source string) *ValidationResult {
 	}
 
 	// Run parser.
-	_, parseErrs := parser.New(tokens).Parse()
+	program, parseErrs := parser.New(tokens).Parse()
 	for _, pe := range parseErrs {
 		ctx := contextLine(lines, pe.Line)
 		result.Errors = append(result.Errors, ValidationError{
@@ -63,6 +64,39 @@ func ValidateSource(source string) *ValidationResult {
 
 	if len(parseErrs) > 0 {
 		result.Valid = false
+		return result
+	}
+
+	// Check for required metadata constants: REPORT_TYPE and REPORT_VERSION.
+	hasReportType := false
+	hasReportVersion := false
+	for _, stmt := range program.Statements {
+		if cs, ok := stmt.(*ast.ConstStmt); ok {
+			switch cs.Name {
+			case "REPORT_TYPE":
+				hasReportType = true
+			case "REPORT_VERSION":
+				hasReportVersion = true
+			}
+		}
+	}
+	if !hasReportType {
+		result.Valid = false
+		result.Errors = append(result.Errors, ValidationError{
+			Line:     1,
+			Column:   1,
+			Severity: "error",
+			Message:  "missing required CONST REPORT_TYPE",
+		})
+	}
+	if !hasReportVersion {
+		result.Valid = false
+		result.Errors = append(result.Errors, ValidationError{
+			Line:     1,
+			Column:   1,
+			Severity: "error",
+			Message:  "missing required CONST REPORT_VERSION",
+		})
 	}
 
 	return result

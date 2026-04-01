@@ -19,6 +19,10 @@ flash: build
 	@$(LOGGER) > /dev/null 2>&1 &
 	@echo "--- logger restarted on $(PORT) ---"
 
+# Build and flash over WiFi (no serial connection needed)
+ota: build
+	pio run -e ota -t upload
+
 # Start the serial logger (foreground, Ctrl-C to stop)
 monitor:
 	$(LOGGER)
@@ -55,4 +59,4 @@ test:
 clean:
 	pio run -e $(ENV) -t clean
 
-.PHONY: bin build flash monitor monitor-bg mon monitor-stop log log50 test clean
+.PHONY: bin build flash ota monitor monitor-bg mon monitor-stop log log50 test clean

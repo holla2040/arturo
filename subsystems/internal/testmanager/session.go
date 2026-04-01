@@ -111,10 +111,17 @@ func NewSession(ctx context.Context, params StartSessionParams) (*TestSession, e
 		displayName = filepath.Base(params.ScriptPath)
 	}
 
+	// Extract and enforce report metadata
+	reportType, reportVersion := extractScriptMeta(program)
+	if reportType == "" || reportVersion == "" {
+		return nil, fmt.Errorf("script missing required CONST: REPORT_TYPE and REPORT_VERSION")
+	}
+
 	// Create test run in SQLite (store display name, not full path)
 	if err := params.Store.CreateTestRunWithRMA(
 		params.TestRunID, displayName, params.RMAID,
 		params.StationInstance, scriptHash, scriptContent,
+		reportType, reportVersion,
 	); err != nil {
 		return nil, fmt.Errorf("create test run: %w", err)
 	}
@@ -204,6 +211,23 @@ func (se *sessionEventEmitter) EmitEvent(eventType, detail string) {
 			"timestamp":        time.Now().UTC().Format(time.RFC3339Nano),
 		})
 	}
+}
+
+// extractScriptMeta walks the AST to find CONST REPORT_TYPE and REPORT_VERSION.
+func extractScriptMeta(program *ast.Program) (reportType, reportVersion string) {
+	for _, stmt := range program.Statements {
+		if cs, ok := stmt.(*ast.ConstStmt); ok {
+			if lit, ok := cs.Value.(*ast.StringLit); ok {
+				switch cs.Name {
+				case "REPORT_TYPE":
+					reportType = lit.Value
+				case "REPORT_VERSION":
+					reportVersion = lit.Value
+				}
+			}
+		}
+	}
+	return
 }
 
 // extractTestTitle walks the AST to find the first TEST name.

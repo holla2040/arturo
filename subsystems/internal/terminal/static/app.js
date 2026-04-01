@@ -973,7 +973,7 @@ var App = (function() {
             if (err) {
                 document.getElementById('manual-response').innerHTML = '<span style="color:var(--fail-red)">Error: ' + escapeHtml(err.message) + '</span>';
             } else if (data) {
-                var respText = data.success ? data.response || 'OK' : 'FAIL: ' + (data.error || 'unknown');
+                var respText = data.success ? data.response || 'OK' : 'FAIL: ' + (data.error && data.error.message ? data.error.message : 'unknown');
                 var color = data.success ? 'var(--success-green)' : 'var(--fail-red)';
                 document.getElementById('manual-response').innerHTML = '<span style="color:' + color + '">' + escapeHtml(respText) + '</span>';
                 if (data.duration_ms != null) {

@@ -25,7 +25,7 @@ func setupTestData(t *testing.T, st *store.Store) {
 
 	st.CreateEmployee("emp-1", "John Doe")
 	st.CreateRMA("rma-1", "RMA-2024-001", "SN12345", "ACME Corp", "CT-8", "emp-1", "repair notes")
-	st.CreateTestRunWithRMA("run-1", "pump_test.art", "rma-1", "station-01", "abc123def", "TEST \"test\"\nENDTEST")
+	st.CreateTestRunWithRMA("run-1", "pump_test.art", "rma-1", "station-01", "abc123def", "TEST \"test\"\nENDTEST", "standard", "1.0")
 	st.RecordTestEvent("run-1", "started", "emp-1", "")
 	st.RecordTemperature("run-1", "station-01", "PUMP-01", "first_stage", 77.5)
 	st.RecordTemperature("run-1", "station-01", "PUMP-01", "second_stage", 15.2)

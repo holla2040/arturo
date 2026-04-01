@@ -1,3 +1,6 @@
+CONST REPORT_TYPE "standard"
+CONST REPORT_VERSION "1.0"
+
 TEST "Pump Motor Status"
     QUERY "pump_status" status TIMEOUT 5000
     LOG INFO "Motor status: " + status

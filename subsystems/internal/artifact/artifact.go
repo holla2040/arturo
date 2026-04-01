@@ -31,16 +31,18 @@ type ArtifactEmployee struct {
 
 // ArtifactRun represents a single test run within an RMA.
 type ArtifactRun struct {
-	RunID        string              `json:"run_id"`
-	ScriptName   string              `json:"script_name"`
-	ScriptSHA256 string              `json:"script_sha256,omitempty"`
-	StartedAt    time.Time           `json:"started_at"`
-	FinishedAt   *time.Time          `json:"finished_at,omitempty"`
-	Status       string              `json:"status"`
-	Summary      string              `json:"summary,omitempty"`
-	Events       []ArtifactEvent     `json:"events,omitempty"`
-	Temperatures []ArtifactTemp      `json:"temperatures,omitempty"`
-	Measurements []ArtifactMeasure   `json:"measurements,omitempty"`
+	RunID         string              `json:"run_id"`
+	ScriptName    string              `json:"script_name"`
+	ScriptSHA256  string              `json:"script_sha256,omitempty"`
+	ReportType    string              `json:"report_type,omitempty"`
+	ReportVersion string              `json:"report_version,omitempty"`
+	StartedAt     time.Time           `json:"started_at"`
+	FinishedAt    *time.Time          `json:"finished_at,omitempty"`
+	Status        string              `json:"status"`
+	Summary       string              `json:"summary,omitempty"`
+	Events        []ArtifactEvent     `json:"events,omitempty"`
+	Temperatures  []ArtifactTemp      `json:"temperatures,omitempty"`
+	Measurements  []ArtifactMeasure   `json:"measurements,omitempty"`
 }
 
 // ArtifactEvent is a test lifecycle event.
@@ -106,6 +108,12 @@ func Generate(st *store.Store, rmaID string) (*TestArtifact, error) {
 		}
 		if run.ScriptSHA256 != nil {
 			ar.ScriptSHA256 = *run.ScriptSHA256
+		}
+		if run.ReportType != nil {
+			ar.ReportType = *run.ReportType
+		}
+		if run.ReportVersion != nil {
+			ar.ReportVersion = *run.ReportVersion
 		}
 
 		// Events

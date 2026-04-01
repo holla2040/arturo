@@ -419,6 +419,7 @@ var App = (function() {
         state.tempChartData = { timestamps: [], first: [], second: [] };
         state.tempWindowHours = 1;
         state.userZoom = null;
+        renderTestEvents([]);
         showView('station-detail');
     }
 

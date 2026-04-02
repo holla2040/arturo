@@ -191,6 +191,9 @@ func NewSession(ctx context.Context, params StartSessionParams) (*TestSession, e
 	// Notify station display: test is running
 	session.notifyStation("running")
 
+	// Start periodic test state updates to station display
+	go session.runStatusTicker(execCtx)
+
 	// Start temperature monitor
 	tempMon := NewTempMonitor(params.RawRouter, params.Store, params.Hub,
 		params.TestRunID, params.StationInstance, params.DeviceID)
@@ -533,6 +536,28 @@ func (s *TestSession) Done() <-chan struct{} {
 // TestRunID returns the test run ID.
 func (s *TestSession) TestRunID() string {
 	return s.testRunID
+}
+
+// runStatusTicker sends periodic test.state.update messages to the station so
+// the display's elapsed counter stays current. Runs until ctx is cancelled.
+func (s *TestSession) runStatusTicker(ctx context.Context) {
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.mu.RLock()
+			state := s.state
+			s.mu.RUnlock()
+
+			if state == StateRunning {
+				s.notifyStation("running")
+			}
+		}
+	}
 }
 
 // notifyStation publishes a test.state.update message to the station's command

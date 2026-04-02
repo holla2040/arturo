@@ -203,7 +203,7 @@ func renderRegenPlot(pdf *fpdf.Fpdf, run ArtifactRun, runIndex int) {
 	}
 	refLine, err := plotter.NewLine(refPts)
 	if err == nil {
-		refLine.Color = color.RGBA{R: 0, G: 160, B: 0, A: 255}
+		refLine.Color = color.RGBA{R: 239, G: 68, B: 68, A: 255}
 		refLine.Width = vg.Points(1)
 		refLine.Dashes = []vg.Length{vg.Points(5), vg.Points(3)}
 		p.Add(refLine)
@@ -213,7 +213,7 @@ func renderRegenPlot(pdf *fpdf.Fpdf, run ArtifactRun, runIndex int) {
 	if len(firstPts) >= 2 {
 		line, err := plotter.NewLine(firstPts)
 		if err == nil {
-			line.Color = color.RGBA{R: 0, G: 0, B: 200, A: 255}
+			line.Color = color.RGBA{R: 34, G: 197, B: 94, A: 255}
 			line.Width = vg.Points(1)
 			p.Add(line)
 			p.Legend.Add("1st Stage (K)", line)
@@ -223,7 +223,7 @@ func renderRegenPlot(pdf *fpdf.Fpdf, run ArtifactRun, runIndex int) {
 	if len(secondPts) >= 2 {
 		line, err := plotter.NewLine(secondPts)
 		if err == nil {
-			line.Color = color.RGBA{R: 200, G: 0, B: 0, A: 255}
+			line.Color = color.RGBA{R: 74, G: 158, B: 255, A: 255}
 			line.Width = vg.Points(1)
 			p.Add(line)
 			p.Legend.Add("2nd Stage (K)", line)

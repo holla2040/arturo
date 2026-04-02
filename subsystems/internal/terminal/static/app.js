@@ -70,7 +70,7 @@ var App = (function() {
                     'yaxis.linecolor': chartColors().line,
                     'legend.font.color': chartColors().legend,
                     'shapes[0].line.color': chartColors().line,
-                    'shapes[1].line.color': '#22c55e'
+                    'shapes[1].line.color': '#ef4444'
                 });
             }
         });
@@ -672,7 +672,7 @@ var App = (function() {
                 name: '1st Stage',
                 type: 'scattergl',
                 mode: 'lines',
-                line: { color: '#4a9eff', width: 2 },
+                line: { color: '#22c55e', width: 2 },
                 connectgaps: false
             },
             {
@@ -680,7 +680,7 @@ var App = (function() {
                 name: '2nd Stage',
                 type: 'scattergl',
                 mode: 'lines',
-                line: { color: '#22c55e', width: 2 },
+                line: { color: '#4a9eff', width: 2 },
                 connectgaps: false
             }
         ];
@@ -733,7 +733,7 @@ var App = (function() {
                     type: 'line',
                     x0: 0, x1: 1, xref: 'paper',
                     y0: 20, y1: 20, yref: 'y',
-                    line: { color: '#22c55e', width: 1, dash: 'dash' }
+                    line: { color: '#ef4444', width: 1, dash: 'dash' }
                 }
             ]
         };

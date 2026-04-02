@@ -212,14 +212,31 @@ func (m *TestManager) EmergencyStopAll() {
 
 // HandleHeartbeat updates station state when a heartbeat is received.
 // If the station has no active session, ensures it's marked as idle.
+// If the station was previously offline, broadcasts the state change
+// so the terminal UI updates immediately.
 func (m *TestManager) HandleHeartbeat(stationInstance string) {
 	m.mu.RLock()
 	_, hasSession := m.sessions[stationInstance]
 	m.mu.RUnlock()
 
 	if !hasSession {
+		// Check if station was offline before updating
+		wasOffline := false
+		if prev, err := m.store.GetStationState(stationInstance); err == nil && prev != nil {
+			wasOffline = prev.State == "offline"
+		}
+
 		// Station is alive but not testing — make sure it's idle in the store
 		m.store.SetStationState(stationInstance, "idle", nil)
+
+		// Broadcast state change so terminal clears the stale "offline" status
+		if wasOffline && m.hub != nil {
+			m.hub.BroadcastEvent("station_state", map[string]interface{}{
+				"station_instance": stationInstance,
+				"state":            "idle",
+				"test_run_id":      nil,
+			})
+		}
 	}
 }
 

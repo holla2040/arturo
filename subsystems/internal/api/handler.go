@@ -679,9 +679,11 @@ func (h *Handler) getStationState(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Also check the store for persisted state
+	// Also check the store for persisted state (but never let a stale
+	// "offline" override the live "idle" from TestManager — the registry
+	// and heartbeats are the source of truth for online/offline).
 	if ss, err := h.Store.GetStationState(stationID); err == nil && ss != nil {
-		if state == "idle" {
+		if state == "idle" && ss.State != "offline" {
 			result["state"] = ss.State
 		}
 	}

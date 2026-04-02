@@ -132,6 +132,22 @@ var App = (function() {
         return s + 's';
     }
 
+    function formatHMS(secs) {
+        if (secs == null || secs < 0) return '--';
+        var h = Math.floor(secs / 3600);
+        var m = Math.floor((secs % 3600) / 60);
+        var s = secs % 60;
+        return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    function elapsedHMS(startISO) {
+        if (!startISO) return '--';
+        try {
+            var secs = Math.floor((Date.now() - new Date(startISO).getTime()) / 1000);
+            return secs >= 0 ? formatHMS(secs) : '--';
+        } catch(e) { return '--'; }
+    }
+
     function formatDateOnly(iso) {
         if (!iso) return '--';
         try {
@@ -381,6 +397,9 @@ var App = (function() {
             html += '<span class="temp-label">1st</span><span class="temp-value">' + t1 + '</span>';
             html += '<span class="temp-label">2nd</span><span class="temp-value">' + t2 + '</span>';
             html += '<span class="status-badge ' + escapeHtml(stateStr) + '">' + stateLabel + '</span>';
+            if ((stateStr === 'testing' || stateStr === 'paused') && ss.started_at) {
+                html += '<span class="station-elapsed" data-started="' + escapeHtml(ss.started_at) + '">' + elapsedHMS(ss.started_at) + '</span>';
+            }
             html += '</div>';
 
             if (stateStr !== 'offline') {
@@ -1692,6 +1711,12 @@ var App = (function() {
     }, 3000);
 
     setInterval(function() {
+        if (state.currentView === 'stations') {
+            var els = document.querySelectorAll('.station-elapsed[data-started]');
+            for (var i = 0; i < els.length; i++) {
+                els[i].textContent = elapsedHMS(els[i].getAttribute('data-started'));
+            }
+        }
         if (state.currentView === 'station-detail' && state.detailStation) {
             var ss = state.stationStates[state.detailStation] || {};
             if (ss.started_at) {

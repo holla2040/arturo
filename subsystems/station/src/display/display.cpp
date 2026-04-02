@@ -884,57 +884,110 @@ void Display::onTestActionButton(lv_event_t* e) {
 }
 
 void Display::onConfirmDialogButton(lv_event_t* e) {
-    lv_obj_t* btn = lv_event_get_target(e);
-    lv_obj_t* mbox = lv_obj_get_parent(lv_obj_get_parent(btn));  // btn -> btn row -> msgbox
-    Display* self = static_cast<Display*>(lv_obj_get_user_data(mbox));
-    const char* label = lv_msgbox_get_active_btn_text(mbox);
+    Display* self = static_cast<Display*>(lv_event_get_user_data(e));
+    if (!self || !self->_confirmOverlay) return;
 
-    if (label && (strcmp(label, "Terminate") == 0 || strcmp(label, "Abort") == 0)) {
-        const char* cmd = static_cast<const char*>(lv_event_get_user_data(e));
-        if (cmd) self->enqueueCommand(cmd);
+    lv_obj_t* btn = lv_event_get_target(e);
+    bool confirm = (bool)lv_obj_get_user_data(btn);  // true = confirm, false = cancel
+
+    if (confirm && self->_confirmCmd) {
+        self->enqueueCommand(self->_confirmCmd);
     }
 
-    lv_msgbox_close(mbox);
+    lv_obj_del(self->_confirmOverlay);
+    self->_confirmOverlay = nullptr;
+    self->_confirmCmd = nullptr;
 }
 
 void Display::showConfirmDialog(const char* cmd) {
-    const char* title;
-    const char* message;
-    static const char* terminateBtns[] = {"Terminate", "Cancel", ""};
-    static const char* abortBtns[] = {"Abort", "Cancel", ""};
-    const char** btns;
-
-    if (strcmp(cmd, "test_terminate") == 0) {
-        title = "Terminate Test";
-        message = "Stop test and save collected data?";
-        btns = terminateBtns;
-    } else {
-        title = "Abort Test";
-        message = "Stop test and discard ALL collected data?";
-        btns = abortBtns;
+    // Close any existing dialog
+    if (_confirmOverlay) {
+        lv_obj_del(_confirmOverlay);
+        _confirmOverlay = nullptr;
     }
 
-    lv_obj_t* mbox = lv_msgbox_create(NULL, title, message, btns, false);
-    lv_obj_set_user_data(mbox, this);
-    lv_obj_center(mbox);
+    _confirmCmd = cmd;
 
-    // Style the msgbox for touch
-    lv_obj_set_width(mbox, 500);
-    lv_obj_set_style_text_font(mbox, &lv_font_montserrat_24, 0);
+    bool isAbort = (strcmp(cmd, "test_abort") == 0);
+    const char* title   = isAbort ? "Abort Test"   : "Terminate Test";
+    const char* message  = isAbort
+        ? "Stop test and discard ALL data?"
+        : "Stop test and save collected data?";
+    const char* actionLabel = isAbort ? "Abort" : "Terminate";
+    lv_color_t actionColor  = isAbort ? lv_color_hex(0xCC0000) : COL_GRAY;
 
-    // Style the buttons
-    lv_obj_t* btnRow = lv_msgbox_get_btns(mbox);
-    lv_obj_set_style_text_font(btnRow, &lv_font_montserrat_24, 0);
-    lv_btnmatrix_set_btn_ctrl(btnRow, 1, LV_BTNMATRIX_CTRL_CHECKED);  // highlight Cancel
+    // --- Full-screen dimmed overlay ---
+    _confirmOverlay = lv_obj_create(lv_scr_act());
+    lv_obj_remove_style_all(_confirmOverlay);
+    lv_obj_set_size(_confirmOverlay, SCREEN_W, SCREEN_H);
+    lv_obj_set_pos(_confirmOverlay, 0, 0);
+    lv_obj_set_style_bg_color(_confirmOverlay, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(_confirmOverlay, LV_OPA_70, 0);
+    lv_obj_clear_flag(_confirmOverlay, LV_OBJ_FLAG_SCROLLABLE);
 
-    // Color the action button
-    if (strcmp(cmd, "test_abort") == 0) {
-        // Red background for Abort action
-        lv_obj_set_style_bg_color(btnRow, lv_color_hex(0xCC0000), LV_PART_ITEMS | LV_STATE_DEFAULT);
-        lv_obj_set_style_text_color(btnRow, lv_color_white(), LV_PART_ITEMS | LV_STATE_DEFAULT);
-    }
+    // --- Dialog panel ---
+    static const int DLG_W = 620;
+    static const int DLG_H = 300;
+    lv_obj_t* panel = lv_obj_create(_confirmOverlay);
+    lv_obj_set_size(panel, DLG_W, DLG_H);
+    lv_obj_center(panel);
+    lv_obj_set_style_bg_color(panel, lv_color_hex(0x2A2A2A), 0);
+    lv_obj_set_style_bg_opa(panel, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(panel, 16, 0);
+    lv_obj_set_style_border_color(panel, lv_color_hex(0x555555), 0);
+    lv_obj_set_style_border_width(panel, 2, 0);
+    lv_obj_set_style_pad_all(panel, 24, 0);
+    lv_obj_clear_flag(panel, LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_add_event_cb(btnRow, onConfirmDialogButton, LV_EVENT_CLICKED, (void*)cmd);
+    // Title
+    lv_obj_t* lbl_title = lv_label_create(panel);
+    lv_label_set_text(lbl_title, title);
+    lv_obj_set_style_text_font(lbl_title, &lv_font_montserrat_32, 0);
+    lv_obj_set_style_text_color(lbl_title, lv_color_white(), 0);
+    lv_obj_align(lbl_title, LV_ALIGN_TOP_MID, 0, 0);
+
+    // Message
+    lv_obj_t* lbl_msg = lv_label_create(panel);
+    lv_label_set_text(lbl_msg, message);
+    lv_obj_set_style_text_font(lbl_msg, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_color(lbl_msg, lv_color_hex(0xCCCCCC), 0);
+    lv_obj_align(lbl_msg, LV_ALIGN_TOP_MID, 0, 55);
+
+    // --- Buttons ---
+    static const int BTN_W = 250;
+    static const int BTN_H = 80;
+    static const int BTN_GAP = 30;
+    int btnsY = DLG_H - 24 - BTN_H - 24;  // 24 pad top, 24 pad bottom
+
+    // Cancel button (left)
+    lv_obj_t* btnCancel = lv_btn_create(panel);
+    lv_obj_set_size(btnCancel, BTN_W, BTN_H);
+    lv_obj_set_pos(btnCancel, (DLG_W - 48 - 2 * BTN_W - BTN_GAP) / 2, btnsY);
+    lv_obj_set_style_bg_color(btnCancel, lv_color_hex(0x444444), 0);
+    lv_obj_set_style_radius(btnCancel, 12, 0);
+    lv_obj_set_user_data(btnCancel, (void*)false);
+    lv_obj_add_event_cb(btnCancel, onConfirmDialogButton, LV_EVENT_CLICKED, this);
+
+    lv_obj_t* lblCancel = lv_label_create(btnCancel);
+    lv_label_set_text(lblCancel, "Cancel");
+    lv_obj_set_style_text_font(lblCancel, &lv_font_montserrat_32, 0);
+    lv_obj_set_style_text_color(lblCancel, lv_color_white(), 0);
+    lv_obj_center(lblCancel);
+
+    // Action button (right) — Terminate or Abort
+    lv_obj_t* btnAction = lv_btn_create(panel);
+    lv_obj_set_size(btnAction, BTN_W, BTN_H);
+    lv_obj_set_pos(btnAction, (DLG_W - 48 - 2 * BTN_W - BTN_GAP) / 2 + BTN_W + BTN_GAP, btnsY);
+    lv_obj_set_style_bg_color(btnAction, actionColor, 0);
+    lv_obj_set_style_radius(btnAction, 12, 0);
+    lv_obj_set_user_data(btnAction, (void*)true);
+    lv_obj_add_event_cb(btnAction, onConfirmDialogButton, LV_EVENT_CLICKED, this);
+
+    lv_obj_t* lblAction = lv_label_create(btnAction);
+    lv_label_set_text(lblAction, actionLabel);
+    lv_obj_set_style_text_font(lblAction, &lv_font_montserrat_32, 0);
+    lv_obj_set_style_text_color(lblAction, lv_color_white(), 0);
+    lv_obj_center(lblAction);
 }
 
 // Helper: create a control switch with labels

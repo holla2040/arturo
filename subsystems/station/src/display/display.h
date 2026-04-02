@@ -159,6 +159,10 @@ private:
     int _chartHistoryCount = 0;
     int _chartSavePending = 0;
 
+    // Confirm dialog
+    lv_obj_t* _confirmOverlay = nullptr;
+    const char* _confirmCmd = nullptr;
+
     // Last rendered text — skip redraw when unchanged
     char _lastTemp1Buf[16] = {};
     char _lastTemp2Buf[16] = {};

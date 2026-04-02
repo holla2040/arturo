@@ -568,7 +568,6 @@ textarea { resize: vertical; min-height: 60px; }
     box-shadow: var(--shadow-md);
 }
 .station-card:active:not(:has(button:active)) {
-    transform: scale(0.98);
     border-color: var(--accent-blue);
     box-shadow: var(--shadow-lg);
 }

@@ -567,7 +567,7 @@ textarea { resize: vertical; min-height: 60px; }
     border-color: var(--accent-blue-dim);
     box-shadow: var(--shadow-md);
 }
-.station-card:active {
+.station-card:active:not(:has(button:active)) {
     transform: scale(0.98);
     border-color: var(--accent-blue);
     box-shadow: var(--shadow-lg);
@@ -707,7 +707,7 @@ textarea { resize: vertical; min-height: 60px; }
 }
 button.pid-pump { cursor: pointer; }
 button.pid-pump:hover { background: rgba(255,255,255,0.06); }
-button.pid-pump:active { background: rgba(255,255,255,0.12); transform: scale(0.95); }
+button.pid-pump:active { background: rgba(255,255,255,0.12); }
 .pid-pump-symbol {
     width: 4rem;
     height: 4rem;
@@ -794,7 +794,7 @@ button.pid-pump:active { background: rgba(255,255,255,0.12); transform: scale(0.
 }
 button.pid-valve { cursor: pointer; }
 button.pid-valve:hover { background: rgba(255,255,255,0.06); }
-button.pid-valve:active { background: rgba(255,255,255,0.12); transform: scale(0.95); }
+button.pid-valve:active { background: rgba(255,255,255,0.12); }
 .pid-valve-symbol {
     display: flex;
     align-items: center;
@@ -854,7 +854,7 @@ button.pid-valve:active { background: rgba(255,255,255,0.12); transform: scale(0
 }
 button.pid-regen { cursor: pointer; }
 button.pid-regen:hover { background: rgba(255,255,255,0.06); }
-button.pid-regen:active { background: rgba(255,255,255,0.12); transform: scale(0.95); }
+button.pid-regen:active { background: rgba(255,255,255,0.12); }
 .pid-regen-symbol {
     width: 1.5rem;
     height: 1.5rem;

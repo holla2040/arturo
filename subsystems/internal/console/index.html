@@ -110,10 +110,12 @@ body {
 .led-item { display: flex; align-items: center; gap: 5px; font-size: 11px; cursor: pointer; }
 .led-item:hover { opacity: 0.8; }
 .led-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-.led-dot.on { background: #81c784; box-shadow: 0 0 6px #81c784; animation: led-blink 2s ease-in-out infinite; }
+.led-dot.on { background: #81c784; box-shadow: 0 0 6px #81c784; }
 .led-dot.off { background: #555; }
+.led-dot.valve-closed { background: #81c784; box-shadow: 0 0 6px #81c784; }
+.led-dot.valve-open { background: #ef5350; box-shadow: 0 0 6px #ef5350; }
 .led-diamond { width: 8px; height: 8px; transform: rotate(45deg); border: 1.5px solid #555; flex-shrink: 0; }
-.led-diamond.on { border-color: #ffa726; background: #ffa726; box-shadow: 0 0 6px #ffa726; animation: led-blink 2s ease-in-out infinite; }
+.led-diamond.on { border-color: #ffa726; background: #ffa726; box-shadow: 0 0 6px #ffa726; }
 .led-name { color: #888; font-weight: bold; }
 .led-state { color: #aaa; }
 @keyframes led-blink { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
@@ -321,8 +323,8 @@ function renderStations(stations) {
       </div>
       <div class="led-status-row">
         <div class="led-item" onclick="stationAction('${s.instance}','${p.state_name !== 'off' ? 'pump-off' : 'pump-on'}')"><span class="led-dot ${p.state_name !== 'off' ? 'on' : 'off'}"></span><span class="led-name">PUMP</span><span class="led-state">${p.state_name !== 'off' ? 'Running' : 'Stopped'}</span></div>
-        <div class="led-item" onclick="setRoughValve('${s.instance}',${!p.rough_valve_open})"><span class="led-dot ${p.rough_valve_open ? 'on' : 'off'}"></span><span class="led-name">ROUGH</span><span class="led-state">${p.rough_valve_open ? 'Open' : 'Closed'}</span></div>
-        <div class="led-item" onclick="setPurgeValve('${s.instance}',${!p.purge_valve_open})"><span class="led-dot ${p.purge_valve_open ? 'on' : 'off'}"></span><span class="led-name">PURGE</span><span class="led-state">${p.purge_valve_open ? 'Open' : 'Closed'}</span></div>
+        <div class="led-item" onclick="setRoughValve('${s.instance}',${!p.rough_valve_open})"><span class="led-dot ${p.rough_valve_open ? 'valve-open' : 'valve-closed'}"></span><span class="led-name">ROUGH</span><span class="led-state">${p.rough_valve_open ? 'Open' : 'Closed'}</span></div>
+        <div class="led-item" onclick="setPurgeValve('${s.instance}',${!p.purge_valve_open})"><span class="led-dot ${p.purge_valve_open ? 'valve-open' : 'valve-closed'}"></span><span class="led-name">PURGE</span><span class="led-state">${p.purge_valve_open ? 'Open' : 'Closed'}</span></div>
         <div class="led-item" onclick="stationAction('${s.instance}','${p.state_name === 'regen' ? 'abort-regen' : 'start-regen'}')"><span class="led-diamond ${p.state_name === 'regen' ? 'on' : ''}"></span><span class="led-name">REGEN</span><span class="led-state">${p.state_name === 'regen' ? 'On' : 'Off'}</span></div>
       </div>
       <div class="override-row">

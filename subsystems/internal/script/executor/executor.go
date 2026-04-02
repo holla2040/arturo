@@ -99,6 +99,13 @@ func WithEmitter(em EventEmitter) Option {
 	return func(e *Executor) { e.emitter = em }
 }
 
+// WithDeviceID sets the default device ID used by SEND and QUERY statements.
+// Scripts are station-scoped and do not name devices, so the executor needs
+// the device ID supplied at runtime.
+func WithDeviceID(id string) Option {
+	return func(e *Executor) { e.deviceID = id }
+}
+
 // ---------------------------------------------------------------------------
 // Executor
 // ---------------------------------------------------------------------------
@@ -111,6 +118,7 @@ type Executor struct {
 	collector    ResultCollector
 	emitter      EventEmitter
 	logger       io.Writer
+	deviceID     string // default device ID for SEND/QUERY (station-scoped scripts)
 	functions    map[string]*ast.FunctionDef
 	currentTest  string
 	testFinished bool // set when PASS/FAIL/SKIP explicitly ends the current test
@@ -566,13 +574,13 @@ func (e *Executor) execSendStmt(s *ast.SendStmt) error {
 		return nil
 	}
 
-	result, routeErr := e.router.SendCommand(e.ctx, "", cmdStr, nil, 0)
+	result, routeErr := e.router.SendCommand(e.ctx, e.deviceID, cmdStr, nil, 0)
 	if routeErr != nil {
 		return fmt.Errorf("SEND %s: %w", cmdStr, routeErr)
 	}
 
 	if e.collector != nil && e.currentTest != "" {
-		e.collector.RecordCommand(e.currentTest, "", cmdStr, result.Success, result.Response, result.DurationMs)
+		e.collector.RecordCommand(e.currentTest, e.deviceID, cmdStr, result.Success, result.Response, result.DurationMs)
 	}
 	e.emit("send", cmdStr)
 
@@ -604,13 +612,13 @@ func (e *Executor) execQueryStmt(s *ast.QueryStmt) error {
 		return e.env.Set(s.ResultVar, "")
 	}
 
-	result, routeErr := e.router.SendCommand(e.ctx, "", cmdStr, nil, timeoutMs)
+	result, routeErr := e.router.SendCommand(e.ctx, e.deviceID, cmdStr, nil, timeoutMs)
 	if routeErr != nil {
 		return fmt.Errorf("QUERY %s: %w", cmdStr, routeErr)
 	}
 
 	if e.collector != nil && e.currentTest != "" {
-		e.collector.RecordCommand(e.currentTest, "", cmdStr, result.Success, result.Response, result.DurationMs)
+		e.collector.RecordCommand(e.currentTest, e.deviceID, cmdStr, result.Success, result.Response, result.DurationMs)
 	}
 	e.emit("query", cmdStr+" -> "+result.Response)
 

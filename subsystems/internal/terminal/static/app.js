@@ -872,9 +872,12 @@ var App = (function() {
         var instance = state.startTestStation;
         var rmaId = state.startTestRMA;
 
+        var ps = state.stationPumpStatus[instance];
+        var deviceId = ps ? ps.device_id : '';
         api('POST', '/stations/' + encodeURIComponent(instance) + '/test/start', {
             rma_id: rmaId,
-            script_path: scriptPath
+            script_path: scriptPath,
+            device_id: deviceId
         }, function(err) {
             if (err) { showError('start-test-error', err.message); backToRMASelect(); return; }
             closeModal('start-test-modal');

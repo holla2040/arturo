@@ -1,4 +1,8 @@
-// Package mockpump simulates a CTI cryopump with realistic temperature curves.
+// Package mockpump simulates a CTI cryopump with pendant2-style temperature curves.
+//
+// Temperature simulation uses linear interpolation over fixed durations for state
+// transitions and sinusoidal variation for steady-state operation, matching the
+// pendant2 mock pump implementation.
 package mockpump
 
 import (
@@ -13,7 +17,7 @@ import (
 type State int
 
 const (
-	StateOff     State = iota // Pump off, at or drifting to room temp
+	StateOff     State = iota // Pump off, warming to room temp
 	StateCooling              // Pump on, cooling down
 	StateCold                 // Pump on, at base temperature
 	StateRegen                // Regeneration cycle
@@ -54,52 +58,50 @@ func (rp RegenPhase) String() string {
 // RegenParams holds configurable parameters for the regen cycle.
 type RegenParams struct {
 	WarmupTempK      float64       // Target warmup temperature (K)
-	ExtPurgeDuration time.Duration // Extended purge hold time
-	RoughVacuumTorr  float64       // Roughing target pressure (Torr)
+	RoughVacuumTorr  float64       // Retained for API compat
 	RORLimitMTorrMin float64       // Max acceptable rate-of-rise (mTorr/min)
 	MaxRORRetries    int           // Max ROR retry attempts before abort
-	WarmupTimeout    time.Duration // Max time in warming phase
-	RoughTimeout     time.Duration // Max time in roughing phase
-	CooldownTargetK  float64       // Target temp to end cooldown (K)
+	WarmupTimeout    time.Duration // Max time in warming phase (safety net)
+	RoughTimeout     time.Duration // Max time in roughing phase (safety net)
+	CooldownTargetK  float64       // Retained for API compat
 
-	// Simulation time constants (seconds). Control how fast the sim runs.
-	WarmupTau1    float64 // 1st stage warming exp-decay tau (s)
-	WarmupTau2    float64 // 2nd stage warming exp-decay tau (s)
-	RoughTau      float64 // Roughing pressure exp-decay tau (s)
-	CooldownTau1  float64 // 1st stage regen-cooling exp-decay tau (s)
-	CooldownTau2  float64 // 2nd stage regen-cooling exp-decay tau (s)
+	// Phase durations (pendant2-style fixed timing)
+	WarmupDuration   time.Duration
+	PurgeDuration    time.Duration
+	RoughDuration    time.Duration
+	RORDuration      time.Duration
+	CooldownDuration time.Duration
 }
 
-// DefaultRegenParams returns regen parameters tuned for a ~5-minute total cycle:
-// ~60s warming, ~60s purge, ~60s roughing, ~60s ROR, ~60s cooling.
+// DefaultRegenParams returns regen parameters matching pendant2 timing.
 func DefaultRegenParams() RegenParams {
 	return RegenParams{
-		WarmupTempK:      310.0,
-		ExtPurgeDuration: 60 * time.Second,
+		WarmupTempK:      295.0,
 		RoughVacuumTorr:  0.050,
 		RORLimitMTorrMin: 20.0,
 		MaxRORRetries:    3,
 		WarmupTimeout:    2 * time.Minute,
 		RoughTimeout:     2 * time.Minute,
-		CooldownTargetK:  20.0,
+		CooldownTargetK:  15.0,
 
-		WarmupTau1:   15.0,  // ~60s to reach 310K from 65K
-		WarmupTau2:   15.0,  // ~60s to reach 310K from 15K
-		RoughTau:     20.0,  // ~60s for pressure 1 Torr → 50 mTorr
-		CooldownTau1: 15.0,  // ~60s to cool from 310K → 65K
-		CooldownTau2: 15.0,  // ~60s to cool from 310K → 20K
+		WarmupDuration:   40 * time.Second,
+		PurgeDuration:    30 * time.Second,
+		RoughDuration:    20 * time.Second,
+		RORDuration:      20 * time.Second,
+		CooldownDuration: 60 * time.Second,
 	}
 }
 
-// Pump simulates a CTI cryopump with temperature curves.
+// Pump simulates a CTI cryopump with pendant2-style temperature curves.
 type Pump struct {
 	mu            sync.RWMutex
 	state         State
 	pumpOnTime    time.Time
 	firstStageK   float64
 	secondStageK  float64
+	pressure      float64 // Tracked pressure (Torr)
 	lastUpdate    time.Time
-	cooldownHours float64
+	cooldownHours float64 // Retained for API compat
 	failRate      float64
 
 	// Operating hours accumulator
@@ -109,31 +111,55 @@ type Pump struct {
 	roughValveOpen bool
 	purgeValveOpen bool
 
+	// Interpolation state (pendant2-style linear interpolation)
+	stage1Target   float64
+	stage2Target   float64
+	pressureTarget float64
+	stage1Start    float64
+	stage2Start    float64
+	pressureStart  float64
+	phaseDuration  float64   // Seconds; 0 = sinusoidal steady-state
+	phaseStartTime time.Time // When current phase began
+
+	// Sinusoidal variation state (pendant2-style steady-state)
+	variationPhase  float64   // Radians, wraps at 2*pi
+	lastVariationAt time.Time // Last sinusoidal phase increment
+
 	// Regen state
-	regenPhase      RegenPhase
-	regenPhaseStart time.Time
-	regenError      byte    // '@' = no error, 'F' = manual, 'E' = ROR limit, 'B' = warmup timeout, 'G' = rough timeout
-	regenRetryCount int     // ROR retry counter
-	regenPressure   float64 // Chamber pressure during roughing/ROR (Torr)
+	regenPhase       RegenPhase
+	regenPhaseStart  time.Time
+	regenError       byte    // '@' = no error, 'F' = manual, 'E' = ROR limit, 'B' = warmup timeout, 'G' = rough timeout
+	regenRetryCount  int     // ROR retry counter
+	regenPressure    float64 // Chamber pressure during roughing/ROR (Torr)
 	rorStartPressure float64
-	rorStartTime    time.Time
-	heatersOn       bool
-	regenParams     RegenParams
-	regenCompleted  bool // Post-regen flag, cleared on next pump-off or pump-on
+	rorStartTime     time.Time
+	heatersOn        bool
+	regenParams      RegenParams
+	regenCompleted   bool // Post-regen flag, cleared on next pump-off or pump-on
 }
 
 // NewPump creates a pump simulator.
 func NewPump(cooldownHours float64, failRate float64) *Pump {
 	now := time.Now()
 	return &Pump{
-		state:         StateOff,
-		firstStageK:   295.0, // Room temperature
-		secondStageK:  295.0,
-		lastUpdate:    now,
-		cooldownHours: cooldownHours,
-		failRate:      failRate,
-		regenError:    '@',
-		regenParams:   DefaultRegenParams(),
+		state:          StateOff,
+		firstStageK:    295.0,
+		secondStageK:   295.0,
+		pressure:       1.0,
+		lastUpdate:     now,
+		cooldownHours:  cooldownHours,
+		failRate:       failRate,
+		regenError:     '@',
+		regenParams:    DefaultRegenParams(),
+		stage1Target:   295.0,
+		stage2Target:   295.0,
+		pressureTarget: 1.0,
+		stage1Start:    295.0,
+		stage2Start:    295.0,
+		pressureStart:  1.0,
+		phaseDuration:  120.0,
+		phaseStartTime: now,
+		lastVariationAt: now,
 	}
 }
 
@@ -158,7 +184,7 @@ func (p *Pump) HandleCommand(command string) (string, bool) {
 
 	case "pump_on":
 		if p.state == StateOff {
-			p.state = StateCooling
+			p.transitionTo(StateCooling)
 			p.pumpOnTime = time.Now()
 			p.regenCompleted = false
 		}
@@ -168,7 +194,7 @@ func (p *Pump) HandleCommand(command string) (string, bool) {
 		if p.state == StateRegen {
 			p.abortRegen('F')
 		} else {
-			p.state = StateOff
+			p.transitionTo(StateOff)
 		}
 		p.regenCompleted = false
 		return "A", true
@@ -180,8 +206,7 @@ func (p *Pump) HandleCommand(command string) (string, bool) {
 		return fmt.Sprintf("%.1f", p.secondStageK), true
 
 	case "get_pump_tc_pressure":
-		pressure := p.simulatePressure()
-		return fmt.Sprintf("%.2e", pressure), true
+		return fmt.Sprintf("%.2e", p.simulatePressure()), true
 
 	case "get_operating_hours":
 		hours := p.totalOnSeconds / 3600.0
@@ -265,8 +290,10 @@ func (p *Pump) startRegen() {
 	p.enterPhase(RegenPhaseWarming)
 }
 
-// enterPhase transitions to a new regen phase and sets valve/heater state.
+// enterPhase transitions to a new regen phase, capturing start values and
+// setting targets/durations for pendant2-style linear interpolation.
 func (p *Pump) enterPhase(phase RegenPhase) {
+	p.captureStartValues()
 	p.regenPhase = phase
 	p.regenPhaseStart = time.Now()
 
@@ -275,29 +302,49 @@ func (p *Pump) enterPhase(phase RegenPhase) {
 		p.heatersOn = true
 		p.purgeValveOpen = true
 		p.roughValveOpen = false
+		p.stage1Target = 295.0
+		p.stage2Target = 295.0
+		p.pressureTarget = 100.0
+		p.phaseDuration = p.regenParams.WarmupDuration.Seconds()
 
 	case RegenPhasePurge:
 		p.heatersOn = true
 		p.purgeValveOpen = true
 		p.roughValveOpen = false
+		p.stage1Target = 295.0
+		p.stage2Target = 295.0
+		p.pressureTarget = 50.0
+		p.phaseDuration = p.regenParams.PurgeDuration.Seconds()
 
 	case RegenPhaseRoughing:
 		p.purgeValveOpen = false
 		p.roughValveOpen = true
 		p.heatersOn = true
-		p.regenPressure = 1.0 // Start at ~1 Torr
+		p.stage1Target = 295.0
+		p.stage2Target = 295.0
+		p.pressureTarget = 25.0
+		p.phaseDuration = p.regenParams.RoughDuration.Seconds()
 
 	case RegenPhaseROR:
 		p.roughValveOpen = false
 		p.purgeValveOpen = false
 		p.heatersOn = true
-		p.rorStartPressure = p.regenPressure
+		p.stage1Target = 295.0
+		p.stage2Target = 295.0
+		p.pressureTarget = 25.0
+		p.phaseDuration = p.regenParams.RORDuration.Seconds()
+		p.rorStartPressure = p.pressure
+		p.regenPressure = p.pressure
 		p.rorStartTime = time.Now()
 
 	case RegenPhaseCooling:
 		p.heatersOn = false
 		p.roughValveOpen = false
 		p.purgeValveOpen = false
+		p.stage1Target = 65.0
+		p.stage2Target = 15.0
+		p.pressureTarget = 1.5e-6
+		p.phaseDuration = p.regenParams.CooldownDuration.Seconds()
 	}
 }
 
@@ -308,10 +355,45 @@ func (p *Pump) abortRegen(errCode byte) {
 	p.heatersOn = false
 	p.roughValveOpen = false
 	p.purgeValveOpen = false
-	p.state = StateOff
+	p.transitionTo(StateOff)
 }
 
-// updateTemperatures simulates temperature changes based on state and elapsed time.
+// captureStartValues snapshots current values as interpolation start points.
+func (p *Pump) captureStartValues() {
+	p.stage1Start = p.firstStageK
+	p.stage2Start = p.secondStageK
+	p.pressureStart = p.pressure
+	p.phaseStartTime = time.Now()
+}
+
+// transitionTo transitions the pump to a new state with appropriate targets.
+func (p *Pump) transitionTo(s State) {
+	p.captureStartValues()
+	p.state = s
+
+	switch s {
+	case StateOff:
+		p.stage1Target = 295.0
+		p.stage2Target = 295.0
+		p.pressureTarget = 1.0
+		p.phaseDuration = 120.0
+
+	case StateCooling:
+		p.stage1Target = 65.0
+		p.stage2Target = 15.0
+		p.pressureTarget = 1.5e-6
+		p.phaseDuration = 60.0
+
+	case StateCold:
+		p.stage1Target = 65.0
+		p.stage2Target = 15.0
+		p.pressureTarget = 1.5e-6
+		p.phaseDuration = 0 // Sinusoidal steady-state
+	}
+}
+
+// updateTemperatures simulates temperature and pressure changes using
+// pendant2-style linear interpolation and sinusoidal variation.
 func (p *Pump) updateTemperatures() {
 	now := time.Now()
 	dt := now.Sub(p.lastUpdate).Seconds()
@@ -321,147 +403,144 @@ func (p *Pump) updateTemperatures() {
 		p.totalOnSeconds += dt
 	}
 
+	// State-specific transitions
 	switch p.state {
-	case StateOff:
-		// Drift toward room temperature (295K)
-		p.firstStageK = driftToward(p.firstStageK, 295.0, dt, 0.01)
-		p.secondStageK = driftToward(p.secondStageK, 295.0, dt, 0.005)
-
 	case StateCooling:
-		// Exponential decay toward base temperatures
-		tau1 := p.cooldownHours * 3600.0 / 4.0
-		tau2 := p.cooldownHours * 3600.0 / 3.5
-
-		p.firstStageK = exponentialDecay(p.firstStageK, 65.0, dt, tau1)
-		p.secondStageK = exponentialDecay(p.secondStageK, 15.0, dt, tau2)
-
-		// Add small noise
-		p.firstStageK += (rand.Float64() - 0.5) * 0.2
-		p.secondStageK += (rand.Float64() - 0.5) * 0.1
-
-		// Transition to cold when close enough
-		if p.firstStageK < 70.0 && p.secondStageK < 20.0 {
-			p.state = StateCold
+		if p.phaseDuration > 0 {
+			elapsed := now.Sub(p.phaseStartTime).Seconds()
+			if elapsed >= p.phaseDuration {
+				p.transitionTo(StateCold)
+			}
 		}
-
-	case StateCold:
-		// Stable at base temperatures with small fluctuations
-		p.firstStageK = 65.0 + (rand.Float64()-0.5)*2.0
-		p.secondStageK = 15.0 + (rand.Float64()-0.5)*1.0
-
 	case StateRegen:
 		p.updateRegen(now, dt)
 	}
 
-	// Clamp temperatures (upper bound 320K allows regen warmup past room temp)
-	p.firstStageK = math.Max(10.0, math.Min(320.0, p.firstStageK))
-	p.secondStageK = math.Max(4.0, math.Min(320.0, p.secondStageK))
+	// Temperature and pressure update
+	if p.phaseDuration > 0 {
+		// Linear interpolation over phase duration (pendant2-style)
+		elapsed := now.Sub(p.phaseStartTime).Seconds()
+		progress := math.Min(elapsed/p.phaseDuration, 1.0)
+
+		p.firstStageK = p.stage1Start + (p.stage1Target-p.stage1Start)*progress
+		p.secondStageK = p.stage2Start + (p.stage2Target-p.stage2Start)*progress
+
+		// Pressure: log-scale interpolation (skip during ROR -- handled by updateRegen)
+		if !(p.state == StateRegen && p.regenPhase == RegenPhaseROR) {
+			if p.pressureStart > 0 && p.pressureTarget > 0 {
+				logStart := math.Log(p.pressureStart)
+				logTarget := math.Log(p.pressureTarget)
+				p.pressure = math.Exp(logStart + (logTarget-logStart)*progress)
+			}
+		}
+	} else {
+		// Sinusoidal steady-state variation (pendant2-style)
+		if now.Sub(p.lastVariationAt) >= 250*time.Millisecond {
+			p.variationPhase += 0.196 // pi/16 radians
+			if p.variationPhase > 2*math.Pi {
+				p.variationPhase -= 2 * math.Pi
+			}
+			p.lastVariationAt = now
+		}
+
+		variation1 := 2.0 * math.Sin(p.variationPhase)
+		variation2 := 3.0 * math.Sin(p.variationPhase+math.Pi/2)
+
+		const maxChange = 0.1
+		delta1 := (p.stage1Target + variation1) - p.firstStageK
+		if delta1 > maxChange {
+			delta1 = maxChange
+		}
+		if delta1 < -maxChange {
+			delta1 = -maxChange
+		}
+		p.firstStageK += delta1
+
+		delta2 := (p.stage2Target + variation2) - p.secondStageK
+		if delta2 > maxChange {
+			delta2 = maxChange
+		}
+		if delta2 < -maxChange {
+			delta2 = -maxChange
+		}
+		p.secondStageK += delta2
+
+		// Pressure: sinusoidal +/-20% variation around target
+		pressureVariation := 0.2 * math.Sin(p.variationPhase+math.Pi)
+		effectiveTarget := p.pressureTarget * (1.0 + pressureVariation)
+		p.pressure += (effectiveTarget - p.pressure) * 0.05
+	}
+
+	// Track regenPressure during roughing for Snapshot
+	if p.state == StateRegen && p.regenPhase == RegenPhaseRoughing {
+		p.regenPressure = p.pressure
+	}
+
+	// Clamp temperatures (pendant2 bounds: 10-350K)
+	p.firstStageK = math.Max(10.0, math.Min(350.0, p.firstStageK))
+	p.secondStageK = math.Max(10.0, math.Min(350.0, p.secondStageK))
+	p.pressure = math.Max(1e-9, math.Min(1000.0, p.pressure))
 }
 
-// updateRegen runs the phase-specific simulation logic for the regen cycle.
+// updateRegen handles regen phase transitions and ROR-specific pressure logic.
 func (p *Pump) updateRegen(now time.Time, dt float64) {
 	elapsed := now.Sub(p.regenPhaseStart)
 
 	switch p.regenPhase {
 	case RegenPhaseWarming:
-		p.firstStageK = exponentialDecay(p.firstStageK, p.regenParams.WarmupTempK, dt, p.regenParams.WarmupTau1)
-		p.secondStageK = exponentialDecay(p.secondStageK, p.regenParams.WarmupTempK, dt, p.regenParams.WarmupTau2)
-
-		// Transition when 2nd stage is within 1K of warmup target
-		if p.secondStageK >= p.regenParams.WarmupTempK-1.0 {
+		if elapsed >= p.regenParams.WarmupDuration {
 			p.enterPhase(RegenPhasePurge)
 		} else if elapsed >= p.regenParams.WarmupTimeout {
 			p.abortRegen('B')
 		}
 
 	case RegenPhasePurge:
-		// Hold near warmup temp with small fluctuation
-		p.firstStageK = p.regenParams.WarmupTempK + (rand.Float64()-0.5)*2.0
-		p.secondStageK = p.regenParams.WarmupTempK + (rand.Float64()-0.5)*2.0
-
-		// Transition after extended purge duration
-		if elapsed >= p.regenParams.ExtPurgeDuration {
+		if elapsed >= p.regenParams.PurgeDuration {
 			p.enterPhase(RegenPhaseRoughing)
 		}
 
 	case RegenPhaseRoughing:
-		// Hold near warmup temp
-		p.firstStageK = p.regenParams.WarmupTempK + (rand.Float64()-0.5)*2.0
-		p.secondStageK = p.regenParams.WarmupTempK + (rand.Float64()-0.5)*2.0
-
-		p.regenPressure = exponentialDecay(p.regenPressure, 0.001, dt, p.regenParams.RoughTau)
-
-		// Transition when pressure below target
-		if p.regenPressure <= p.regenParams.RoughVacuumTorr {
+		if elapsed >= p.regenParams.RoughDuration {
 			p.enterPhase(RegenPhaseROR)
 		} else if elapsed >= p.regenParams.RoughTimeout {
 			p.abortRegen('G')
 		}
 
 	case RegenPhaseROR:
-		// Hold near warmup temp
-		p.firstStageK = p.regenParams.WarmupTempK + (rand.Float64()-0.5)*2.0
-		p.secondStageK = p.regenParams.WarmupTempK + (rand.Float64()-0.5)*2.0
-
-		// Pressure rises slowly (~10 mTorr/min simulated)
-		riseTorrPerSec := 10.0e-3 / 60.0 // 10 mTorr/min
+		// Pressure rises linearly for rate-of-rise test
+		riseTorrPerSec := 10.0e-3 / 60.0
 		p.regenPressure += riseTorrPerSec * dt
+		p.pressure = p.regenPressure
 
-		// Evaluate after 1 minute
+		// Evaluate after ROR duration
 		rorElapsed := now.Sub(p.rorStartTime)
-		if rorElapsed >= time.Minute {
-			// Calculate rate in mTorr/min
+		if rorElapsed >= p.regenParams.RORDuration {
 			minutes := rorElapsed.Minutes()
 			rateMTorrMin := (p.regenPressure - p.rorStartPressure) * 1000.0 / minutes
 
 			if rateMTorrMin < p.regenParams.RORLimitMTorrMin {
-				// PASS - proceed to cooling
 				p.enterPhase(RegenPhaseCooling)
 			} else {
-				// FAIL - retry
 				p.regenRetryCount++
 				if p.regenRetryCount >= p.regenParams.MaxRORRetries {
 					p.abortRegen('E')
 				} else {
-					// Loop back to purge phase for retry
 					p.enterPhase(RegenPhasePurge)
 				}
 			}
 		}
 
 	case RegenPhaseCooling:
-		p.firstStageK = exponentialDecay(p.firstStageK, 65.0, dt, p.regenParams.CooldownTau1)
-		p.secondStageK = exponentialDecay(p.secondStageK, 15.0, dt, p.regenParams.CooldownTau2)
-
-		// Add small noise
-		p.firstStageK += (rand.Float64() - 0.5) * 0.2
-		p.secondStageK += (rand.Float64() - 0.5) * 0.1
-
-		// Transition to StateCooling when cold enough
-		if p.secondStageK < p.regenParams.CooldownTargetK {
-			p.state = StateCooling
+		if elapsed >= p.regenParams.CooldownDuration {
 			p.regenPhase = RegenPhaseNone
 			p.regenCompleted = true
+			p.transitionTo(StateCooling)
 		}
 	}
 }
 
 func (p *Pump) simulatePressure() float64 {
-	// During roughing/ROR, return the actual chamber pressure being simulated
-	if p.state == StateRegen &&
-		(p.regenPhase == RegenPhaseRoughing || p.regenPhase == RegenPhaseROR) {
-		return p.regenPressure
-	}
-
-	// Lower temp = lower pressure (rough simulation)
-	avgTemp := (p.firstStageK + p.secondStageK) / 2.0
-	if avgTemp < 30 {
-		return 1e-8 + rand.Float64()*1e-9
-	}
-	if avgTemp < 100 {
-		return 1e-6 + rand.Float64()*1e-7
-	}
-	return 1e-3 + rand.Float64()*1e-4
+	return p.pressure
 }
 
 // statusByte1 returns CTI S1 status byte.
@@ -522,7 +601,7 @@ func (p *Pump) regenStatusChar() byte {
 		return 'M' // Still cooling
 	}
 
-	return 'A' // Pump off or normal operation
+	return 'P' // No regen in progress
 }
 
 // String returns the human-readable name for a pump state.
@@ -596,38 +675,38 @@ func (p *Pump) SetState(s State) {
 	defer p.mu.Unlock()
 
 	p.updateTemperatures()
-	now := time.Now()
 
 	switch s {
 	case StateCooling:
 		if p.state == StateOff {
-			p.pumpOnTime = now
+			p.pumpOnTime = time.Now()
 		}
+		p.transitionTo(StateCooling)
 	case StateRegen:
 		if p.state == StateRegen {
 			return
 		}
 		p.startRegen()
-		return
 	case StateOff:
 		if p.state == StateRegen {
 			p.abortRegen('F')
 			return
 		}
 		p.regenPhase = RegenPhaseNone
+		p.transitionTo(StateOff)
+	case StateCold:
+		p.transitionTo(StateCold)
 	}
-
-	p.state = s
 }
 
 // SetTemperatures overrides first and second stage temperatures.
-// Values are clamped to [4, 300].
+// Values are clamped to [10, 350].
 func (p *Pump) SetTemperatures(firstK, secondK float64) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	p.firstStageK = math.Max(4.0, math.Min(320.0, firstK))
-	p.secondStageK = math.Max(4.0, math.Min(320.0, secondK))
+	p.firstStageK = math.Max(10.0, math.Min(350.0, firstK))
+	p.secondStageK = math.Max(10.0, math.Min(350.0, secondK))
 	p.lastUpdate = time.Now()
 }
 
@@ -679,8 +758,7 @@ func (p *Pump) AbortRegen() {
 	}
 }
 
-// AdvanceRegenStep advances to the next regen phase, setting temps/pressure
-// to make transitions immediate (for console "+" button).
+// AdvanceRegenStep advances to the next regen phase (for console "+" button).
 func (p *Pump) AdvanceRegenStep() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -690,45 +768,25 @@ func (p *Pump) AdvanceRegenStep() {
 
 	switch p.regenPhase {
 	case RegenPhaseWarming:
-		// Set temps to warmup target to trigger transition
-		p.secondStageK = p.regenParams.WarmupTempK
-		p.firstStageK = p.regenParams.WarmupTempK
+		// Set temps to warmup target for clean transition
+		p.firstStageK = p.stage1Target
+		p.secondStageK = p.stage2Target
 		p.enterPhase(RegenPhasePurge)
 
 	case RegenPhasePurge:
 		p.enterPhase(RegenPhaseRoughing)
 
 	case RegenPhaseRoughing:
-		// Set pressure below target to trigger transition
-		p.regenPressure = p.regenParams.RoughVacuumTorr * 0.5
 		p.enterPhase(RegenPhaseROR)
 
 	case RegenPhaseROR:
-		// Force pass: set up low rate-of-rise
-		p.rorStartPressure = p.regenPressure
 		p.enterPhase(RegenPhaseCooling)
 
 	case RegenPhaseCooling:
-		// Set temps cold enough to finish
-		p.secondStageK = p.regenParams.CooldownTargetK - 1.0
 		p.firstStageK = 65.0
-		p.state = StateCooling
+		p.secondStageK = 15.0
 		p.regenPhase = RegenPhaseNone
 		p.regenCompleted = true
+		p.transitionTo(StateCooling)
 	}
-}
-
-// exponentialDecay returns the next value decaying toward target.
-func exponentialDecay(current, target, dt, tau float64) float64 {
-	return target + (current-target)*math.Exp(-dt/tau)
-}
-
-// driftToward moves current toward target at the given rate.
-func driftToward(current, target, dt, rate float64) float64 {
-	diff := target - current
-	step := diff * rate * dt
-	if math.Abs(step) > math.Abs(diff) {
-		return target
-	}
-	return current + step
 }

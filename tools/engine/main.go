@@ -49,7 +49,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "Usage:")
 	fmt.Fprintln(os.Stderr, "  engine validate <file.art>                           Validate a script")
 	fmt.Fprintln(os.Stderr, "  engine devices --profiles <dir>                      List device profiles")
-	fmt.Fprintln(os.Stderr, "  engine run [--redis addr] [--station id] <file.art>  Execute a script")
+	fmt.Fprintln(os.Stderr, "  engine run [--redis addr] [--station id] [--device id] <file.art>  Execute a script")
 }
 
 // ---------------------------------------------------------------------------
@@ -112,9 +112,10 @@ func cmdDevices(args []string) {
 // ---------------------------------------------------------------------------
 
 func cmdRun(args []string) {
-	// Parse flags: --redis <addr> --station <id> <file.art>
+	// Parse flags: --redis <addr> --station <id> --device <id> <file.art>
 	redisAddr := "localhost:6379"
 	station := "station-01"
+	device := ""
 	var scriptPath string
 
 	for i := 0; i < len(args); i++ {
@@ -133,6 +134,13 @@ func cmdRun(args []string) {
 			}
 			i++
 			station = args[i]
+		case "--device":
+			if i+1 >= len(args) {
+				fmt.Fprintln(os.Stderr, "--device requires an id")
+				os.Exit(1)
+			}
+			i++
+			device = args[i]
 		default:
 			scriptPath = args[i]
 		}
@@ -189,6 +197,7 @@ func cmdRun(args []string) {
 		executor.WithCollector(collector),
 		executor.WithRouter(router),
 		executor.WithLogger(os.Stderr),
+		executor.WithDeviceID(device),
 	)
 
 	if err := exec.Execute(program); err != nil {

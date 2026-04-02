@@ -91,8 +91,9 @@ func TestPressureQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected float, got %s: %v", resp, err)
 	}
-	if pressure < 1e-4 || pressure > 1e-2 {
-		t.Errorf("expected high pressure at room temp, got %e", pressure)
+	// At room temp, pressure starts at ~1.0 Torr
+	if pressure < 0.1 || pressure > 10.0 {
+		t.Errorf("expected ~1.0 Torr at room temp, got %e", pressure)
 	}
 }
 
@@ -203,11 +204,7 @@ func TestRegenCycle(t *testing.T) {
 
 	// Put pump in cold state
 	p.SetState(StateCooling)
-	p.mu.Lock()
-	p.firstStageK = 65.0
-	p.secondStageK = 15.0
-	p.state = StateCold
-	p.mu.Unlock()
+	setColdState(p)
 
 	// Start regen
 	resp, ok := p.HandleCommand("start_regen")
@@ -414,7 +411,7 @@ func TestRegenRORRetry(t *testing.T) {
 	p.AdvanceRegenStep() // -> roughing
 	p.AdvanceRegenStep() // -> ROR
 
-	// Simulate 2 minutes passing so ROR evaluates
+	// Simulate time passing so ROR evaluates
 	p.mu.Lock()
 	p.rorStartTime = time.Now().Add(-2 * time.Minute)
 	p.regenPhaseStart = time.Now().Add(-2 * time.Minute)
@@ -519,10 +516,9 @@ func TestRegenAbortWarmupTimeout(t *testing.T) {
 func TestRegenAbortRoughTimeout(t *testing.T) {
 	p := NewPump(4.0, 0.0)
 
-	// Very short rough timeout, very low target so it won't reach
+	// Very short rough timeout
 	params := DefaultRegenParams()
 	params.RoughTimeout = 1 * time.Millisecond
-	params.RoughVacuumTorr = 1e-10 // impossibly low
 	p.SetRegenParams(params)
 
 	setColdState(p)
@@ -600,7 +596,7 @@ func TestAdvanceAllPhases(t *testing.T) {
 		}
 	}
 
-	// Final advance should complete regen → StateCooling (may immediately transition to StateCold)
+	// Final advance should complete regen -> StateCooling (may immediately transition to StateCold)
 	p.AdvanceRegenStep()
 	snap := p.Snapshot()
 	if snap.State != StateCooling && snap.State != StateCold {
@@ -683,9 +679,9 @@ func TestCoolingStateTransition(t *testing.T) {
 		t.Errorf("expected StateCooling after pump_on, got %d", p.state)
 	}
 
-	// Simulate passage of time
+	// Simulate passage of time by moving phaseStartTime back
 	p.mu.Lock()
-	p.lastUpdate = time.Now().Add(-24 * time.Hour)
+	p.phaseStartTime = time.Now().Add(-24 * time.Hour)
 	p.mu.Unlock()
 
 	p.HandleCommand("pump_status")
@@ -698,29 +694,6 @@ func TestCoolingStateTransition(t *testing.T) {
 
 	if state != StateCold {
 		t.Errorf("expected StateCold after 24h, got %d (1st=%.1fK 2nd=%.1fK)", state, first, second)
-	}
-}
-
-func TestExponentialDecay(t *testing.T) {
-	result := exponentialDecay(295.0, 65.0, 3600.0, 3600.0)
-	expected := 65.0 + (295.0-65.0)*0.367879441
-	if diff := result - expected; diff > 1.0 || diff < -1.0 {
-		t.Errorf("expected ~%.1f, got %.1f", expected, result)
-	}
-}
-
-func TestDriftToward(t *testing.T) {
-	result := driftToward(100.0, 295.0, 10.0, 0.01)
-	if result <= 100.0 {
-		t.Errorf("expected drift upward, got %.1f", result)
-	}
-	if result > 295.0 {
-		t.Errorf("should not overshoot target, got %.1f", result)
-	}
-
-	result = driftToward(294.0, 295.0, 1000.0, 1.0)
-	if result != 295.0 {
-		t.Errorf("expected clamped to 295.0, got %.1f", result)
 	}
 }
 
@@ -855,20 +828,20 @@ func TestSetTemperatures(t *testing.T) {
 
 	p.SetTemperatures(1.0, 1.0)
 	snap = p.Snapshot()
-	if snap.FirstStageK < 4.0 {
-		t.Errorf("expected clamped to >= 4K, got %.1f", snap.FirstStageK)
+	if snap.FirstStageK < 10.0 {
+		t.Errorf("expected clamped to >= 10K, got %.1f", snap.FirstStageK)
 	}
-	if snap.SecondStageK < 4.0 {
-		t.Errorf("expected clamped to >= 4K, got %.1f", snap.SecondStageK)
+	if snap.SecondStageK < 10.0 {
+		t.Errorf("expected clamped to >= 10K, got %.1f", snap.SecondStageK)
 	}
 
 	p.SetTemperatures(500.0, 500.0)
 	snap = p.Snapshot()
-	if snap.FirstStageK > 320.0 {
-		t.Errorf("expected clamped to <= 320K, got %.1f", snap.FirstStageK)
+	if snap.FirstStageK > 350.0 {
+		t.Errorf("expected clamped to <= 350K, got %.1f", snap.FirstStageK)
 	}
-	if snap.SecondStageK > 320.0 {
-		t.Errorf("expected clamped to <= 320K, got %.1f", snap.SecondStageK)
+	if snap.SecondStageK > 350.0 {
+		t.Errorf("expected clamped to <= 350K, got %.1f", snap.SecondStageK)
 	}
 }
 
@@ -973,6 +946,16 @@ func setColdState(p *Pump) {
 	p.state = StateCold
 	p.firstStageK = 65.0
 	p.secondStageK = 15.0
+	p.pressure = 1.5e-6
+	p.stage1Target = 65.0
+	p.stage2Target = 15.0
+	p.pressureTarget = 1.5e-6
+	p.stage1Start = 65.0
+	p.stage2Start = 15.0
+	p.pressureStart = 1.5e-6
+	p.phaseDuration = 0 // sinusoidal steady-state
+	p.phaseStartTime = time.Now()
 	p.lastUpdate = time.Now()
+	p.lastVariationAt = time.Now()
 	p.mu.Unlock()
 }

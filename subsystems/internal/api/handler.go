@@ -549,7 +549,12 @@ func (h *Handler) startTest(w http.ResponseWriter, r *http.Request) {
 
 	deviceID := req.DeviceID
 	if deviceID == "" {
-		deviceID = "PUMP-01"
+		devices := h.Registry.DevicesForStation(stationID)
+		if len(devices) == 0 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "no devices registered for station " + stationID})
+			return
+		}
+		deviceID = devices[0]
 	}
 
 	testRunID := uuid.New().String()

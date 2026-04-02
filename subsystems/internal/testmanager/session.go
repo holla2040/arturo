@@ -269,6 +269,7 @@ func (s *TestSession) runExecutor(ctx context.Context, scriptSource string) {
 		executor.WithRouter(s.pausableRouter),
 		executor.WithCollector(s.collector),
 		executor.WithEmitter(emitter),
+		executor.WithDeviceID(s.deviceID),
 	)
 
 	execErr := exec.Execute(program)

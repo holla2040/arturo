@@ -138,6 +138,20 @@ func (r *Registry) ListDevices() []*DeviceEntry {
 	return result
 }
 
+// DevicesForStation returns the device IDs attached to a station instance.
+func (r *Registry) DevicesForStation(instance string) []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	station, ok := r.stations[instance]
+	if !ok {
+		return nil
+	}
+	out := make([]string, len(station.Devices))
+	copy(out, station.Devices)
+	return out
+}
+
 // ListStations returns copies of all station entries.
 func (r *Registry) ListStations() []*StationEntry {
 	r.mu.RLock()

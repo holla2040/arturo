@@ -23,7 +23,8 @@ var App = (function() {
         tempChartData: { timestamps: [], first: [], second: [] },
         tempWindowHours: 1,     // hours preset: 1, 2, 4, 8, or null = autorange
         userZoom: null,         // {x0, x1, y0, y1} when user drags a zoom region
-        rmaRunSelections: {}    // runID -> boolean (include in report)
+        rmaRunSelections: {},   // runID -> boolean (include in report)
+        rmaStatusFilter: 'open' // RMA filter: '', 'open', 'closed'
     };
 
     var MAX_CHART_POINTS = 17280; // 12 hours at 5s intervals, 2 stages interleaved
@@ -1137,8 +1138,21 @@ var App = (function() {
     // =================================================================
     // RMA Management
     // =================================================================
+    function setRMAFilter(filter) {
+        state.rmaStatusFilter = filter;
+        var labels = { '': 'All', 'open': 'Open', 'closed': 'Closed' };
+        document.getElementById('rma-filter-label').textContent = labels[filter];
+        // highlight active button in modal
+        var btns = document.querySelectorAll('.rma-filter-option');
+        for (var i = 0; i < btns.length; i++) {
+            btns[i].classList.toggle('active', btns[i].getAttribute('data-filter') === filter);
+        }
+        closeModal('rma-filter-modal');
+        loadRMAs();
+    }
+
     function loadRMAs() {
-        var statusFilter = document.getElementById('rma-status-filter').value;
+        var statusFilter = state.rmaStatusFilter;
         var url = '/rmas';
         if (statusFilter) url += '?status=' + statusFilter;
 
@@ -1572,6 +1586,11 @@ var App = (function() {
                 s.WifiRSSI = payload.wifi_rssi;
                 s.FirmwareVersion = payload.firmware_version;
                 if (payload.device_types) s.DeviceTypes = payload.device_types;
+                // Clear stale offline state so it doesn't override registry status
+                var ss = state.stationStates[keys[i]];
+                if (ss && ss.state === 'offline') {
+                    ss.state = 'idle';
+                }
                 break;
             }
         }
@@ -1798,6 +1817,7 @@ var App = (function() {
         toggleRegen: toggleRegen,
         sendManualCommand: sendManualCommand,
         loadRMAs: loadRMAs,
+        setRMAFilter: setRMAFilter,
         searchRMAs: searchRMAs,
         openRMA: openRMA,
         createRMA: createRMA,

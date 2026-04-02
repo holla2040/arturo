@@ -208,11 +208,9 @@
         </div>
         <div class="rma-toolbar">
             <input type="text" class="search-input" id="rma-search-input" placeholder="Search by RMA number..." oninput="App.searchRMAs()">
-            <select id="rma-status-filter" onchange="App.loadRMAs()" style="width:auto">
-                <option value="">All</option>
-                <option value="open" selected>Open</option>
-                <option value="closed">Closed</option>
-            </select>
+            <button class="btn rma-filter-btn" id="rma-filter-btn" onclick="App.openModal('rma-filter-modal')">
+                <span id="rma-filter-label">Open</span>
+            </button>
         </div>
         <div class="rma-list" id="rma-list"></div>
     </main>
@@ -282,6 +280,23 @@
             </div>
         </div>
     </main>
+</div>
+
+<!-- =====================================================================
+     RMA FILTER MODAL
+     ===================================================================== -->
+<div class="modal-overlay" id="rma-filter-modal">
+    <div class="modal">
+        <h3>Filter RMAs</h3>
+        <div class="rma-filter-grid">
+            <button class="rma-filter-option active" data-filter="open" onclick="App.setRMAFilter('open')">Open</button>
+            <button class="rma-filter-option" data-filter="closed" onclick="App.setRMAFilter('closed')">Closed</button>
+            <button class="rma-filter-option" data-filter="" onclick="App.setRMAFilter('')">All</button>
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="App.closeModal('rma-filter-modal')">Cancel</button>
+        </div>
+    </div>
 </div>
 
 <!-- =====================================================================

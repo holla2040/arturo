@@ -1168,10 +1168,45 @@ button.pid-regen:active { background: rgba(255,255,255,0.12); transform: scale(0
     font-size: 1.6rem;
     padding: 14px 20px;
 }
-.rma-toolbar select {
+.rma-filter-btn {
     font-size: 1.6rem;
-    padding: 14px 20px;
-    max-width: 250px;
+    padding: 14px 24px;
+    min-width: 120px;
+    white-space: nowrap;
+}
+.rma-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-bottom: 24px;
+}
+.rma-filter-option {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 24px;
+    min-height: 120px;
+    font-size: 2.2rem;
+    font-weight: 700;
+    background: var(--bg-card);
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+.rma-filter-option:hover {
+    background: var(--bg-secondary);
+    border-color: var(--accent-blue);
+}
+.rma-filter-option:active {
+    background: var(--accent-blue);
+    color: #fff;
+}
+.rma-filter-option.active {
+    border-color: var(--accent-blue);
+    background: var(--accent-blue);
+    color: #fff;
 }
 .rma-list {
     display: flex;

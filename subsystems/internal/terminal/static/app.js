@@ -404,7 +404,8 @@ var App = (function() {
             html += '<div class="station-info-row"><span class="info-label">Devices:</span> ' + (deviceLabels.length > 0 ? deviceLabels.join(', ') : 'none') + '</div>';
 
             if (stateStr === 'testing' || stateStr === 'paused') {
-                html += '<div class="station-info-row" style="color:var(--accent-blue)">Test in progress</div>';
+                var rmaLabel = ss.rma_number ? ' - ' + escapeHtml(ss.rma_number) : '';
+                html += '<div class="station-info-row" style="color:var(--accent-blue)">Test in progress' + rmaLabel + '</div>';
             }
             }
 

@@ -674,6 +674,7 @@ func (h *Handler) getStationState(w http.ResponseWriter, r *http.Request) {
 			result["test_run_id"] = session.TestRunID
 			result["script_name"] = session.ScriptPath
 			result["rma_id"] = session.RMAID
+			result["rma_number"] = session.RMANumber
 			result["started_at"] = session.StartedAt
 		}
 	}

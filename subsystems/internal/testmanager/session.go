@@ -34,6 +34,7 @@ type TestSession struct {
 	mu              sync.RWMutex
 	testRunID       string
 	rmaID           string
+	rmaNumber       string
 	stationInstance string
 	deviceID        string
 	scriptPath      string
@@ -59,6 +60,7 @@ type TestSession struct {
 type SessionInfo struct {
 	TestRunID       string       `json:"test_run_id"`
 	RMAID           string       `json:"rma_id"`
+	RMANumber       string       `json:"rma_number"`
 	StationInstance string       `json:"station_instance"`
 	DeviceID        string       `json:"device_id"`
 	ScriptPath      string       `json:"script_path"`
@@ -143,9 +145,16 @@ func NewSession(ctx context.Context, params StartSessionParams) (*TestSession, e
 	execCtx, execCancel := context.WithCancel(ctx)
 	tempCtx, tempCancel := context.WithCancel(ctx)
 
+	// Resolve human-readable RMA number
+	var rmaNumber string
+	if rma, err := params.Store.GetRMA(params.RMAID); err == nil && rma != nil {
+		rmaNumber = rma.RMANumber
+	}
+
 	session := &TestSession{
 		testRunID:       params.TestRunID,
 		rmaID:           params.RMAID,
+		rmaNumber:       rmaNumber,
 		stationInstance: params.StationInstance,
 		deviceID:        params.DeviceID,
 		scriptPath:      params.ScriptPath,
@@ -172,6 +181,10 @@ func NewSession(ctx context.Context, params StartSessionParams) (*TestSession, e
 			"station_instance": params.StationInstance,
 			"state":            "testing",
 			"test_run_id":      params.TestRunID,
+			"rma_id":           params.RMAID,
+			"rma_number":       rmaNumber,
+			"script_name":      params.ScriptPath,
+			"started_at":       session.startedAt.Format(time.RFC3339Nano),
 		})
 	}
 
@@ -335,6 +348,7 @@ func (s *TestSession) Info() SessionInfo {
 	return SessionInfo{
 		TestRunID:       s.testRunID,
 		RMAID:           s.rmaID,
+		RMANumber:       s.rmaNumber,
 		StationInstance: s.stationInstance,
 		DeviceID:        s.deviceID,
 		ScriptPath:      s.scriptPath,
@@ -370,6 +384,10 @@ func (s *TestSession) Pause(employeeID string) error {
 			"station_instance": s.stationInstance,
 			"state":            "paused",
 			"test_run_id":      s.testRunID,
+			"rma_id":           s.rmaID,
+			"rma_number":       s.rmaNumber,
+			"script_name":      s.scriptPath,
+			"started_at":       s.startedAt.Format(time.RFC3339Nano),
 		})
 	}
 
@@ -404,6 +422,10 @@ func (s *TestSession) Resume(employeeID string) error {
 			"station_instance": s.stationInstance,
 			"state":            "testing",
 			"test_run_id":      s.testRunID,
+			"rma_id":           s.rmaID,
+			"rma_number":       s.rmaNumber,
+			"script_name":      s.scriptPath,
+			"started_at":       s.startedAt.Format(time.RFC3339Nano),
 		})
 	}
 

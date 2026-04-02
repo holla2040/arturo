@@ -409,7 +409,7 @@ func renderPDF(w io.Writer, artifact *TestArtifact) error {
 		pdf.CellFormat(55, 7, "Test", "1", 0, "L", true, 0, "")
 		pdf.CellFormat(35, 7, "Started", "1", 0, "L", true, 0, "")
 		pdf.CellFormat(25, 7, "Status", "1", 0, "C", true, 0, "")
-		pdf.CellFormat(0, 7, "Employee", "1", 1, "L", true, 0, "")
+		pdf.CellFormat(0, 7, "Technician", "1", 1, "L", true, 0, "")
 
 		// Table rows
 		pdf.SetFont("Arial", "", 9)
@@ -438,6 +438,9 @@ func renderPDF(w io.Writer, artifact *TestArtifact) error {
 		}
 		if run.FinishedAt != nil {
 			runInfo = append(runInfo, struct{ label, value string }{"Finished:", run.FinishedAt.In(denverTZ).Format("2006-01-02 15:04:05 MST")})
+		}
+		if run.EmployeeName != "" {
+			runInfo = append(runInfo, struct{ label, value string }{"Technician:", run.EmployeeName})
 		}
 		for _, item := range runInfo {
 			pdf.SetFont("Arial", "B", 10)

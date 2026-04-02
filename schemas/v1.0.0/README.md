@@ -11,6 +11,7 @@ JSON Schema definitions for the Arturo messaging protocol. These schemas are the
 | `service.heartbeat` | Redis Pub/Sub | Station -> Controller | Periodic health report |
 | `system.emergency_stop` | Redis Pub/Sub | Any -> All | Emergency stop broadcast |
 | `system.ota.request` | Redis Stream | Controller -> Station | Firmware update request |
+| `test.state.update` | Redis Pub/Sub | Controller -> Station | Notify station of test state changes |
 
 ## Shared Definitions
 
@@ -48,11 +49,15 @@ v1.0.0/
 │   └── examples/
 │       ├── button_press.json          # Physical button press
 │       └── operator_command.json      # Operator-initiated stop
-└── system-ota-request/
-    ├── schema-definition.md           # OTA update schema
+├── system-ota-request/
+│   ├── schema-definition.md           # OTA update schema
+│   └── examples/
+│       ├── standard_update.json       # Normal version upgrade
+│       └── forced_update.json         # Forced rollback/update
+└── test-state-update/
+    ├── schema-definition.md           # Test state update schema
     └── examples/
-        ├── standard_update.json       # Normal version upgrade
-        └── forced_update.json         # Forced rollback/update
+        └── test_running.json          # Test running notification
 ```
 
 ## Validation
@@ -63,5 +68,5 @@ All messages must validate against their respective JSON Schema before being sen
 
 ### v1.0.0 (Current)
 - Initial schema release
-- Five message types: command request/response, heartbeat, emergency stop, OTA
+- Six message types: command request/response, heartbeat, emergency stop, OTA, test state update
 - Common envelope with UUIDv4 IDs, epoch second timestamps, correlation tracking

@@ -529,7 +529,7 @@ func (s *TestSession) notifyStation(state string) {
 		"elapsed_seconds": elapsed,
 	}
 
-	msg, err := protocol.NewMessage(s.source, "test.state.update", payload)
+	msg, err := protocol.NewMessage(s.source, protocol.TypeTestStateUpdate, payload)
 	if err != nil {
 		log.Printf("testmanager: build test.state.update: %v", err)
 		return

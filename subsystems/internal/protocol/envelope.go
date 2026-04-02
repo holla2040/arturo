@@ -15,6 +15,11 @@ const (
 	TypeServiceHeartbeat      = "service.heartbeat"
 	TypeSystemEmergencyStop   = "system.emergency_stop"
 	TypeSystemOTARequest      = "system.ota.request"
+
+	// TypeTestStateUpdate is an operational message type used by the test manager
+	// to notify stations about test state changes (display updates, control lockout).
+	// Not part of the 5 formal schema-validated types.
+	TypeTestStateUpdate = "test.state.update"
 )
 
 // ValidMessageTypes lists all valid message types.
@@ -112,6 +117,14 @@ type OTARequestPayload struct {
 	Force       *bool  `json:"force,omitempty"`
 }
 
+// TestStateUpdatePayload contains fields from the test.state.update payload.
+type TestStateUpdatePayload struct {
+	State          string `json:"state"`
+	TestID         string `json:"test_id"`
+	TestName       string `json:"test_name"`
+	ElapsedSeconds uint32 `json:"elapsed_seconds"`
+}
+
 // NewEnvelope creates a new envelope with a generated UUIDv4 and current UTC timestamp.
 func NewEnvelope(source Source, msgType string) Envelope {
 	return Envelope{
@@ -188,6 +201,15 @@ func ParseOTARequest(msg *Message) (*OTARequestPayload, error) {
 	var p OTARequestPayload
 	if err := json.Unmarshal(msg.Payload, &p); err != nil {
 		return nil, fmt.Errorf("parse OTA request payload: %w", err)
+	}
+	return &p, nil
+}
+
+// ParseTestStateUpdate extracts a TestStateUpdatePayload from a Message.
+func ParseTestStateUpdate(msg *Message) (*TestStateUpdatePayload, error) {
+	var p TestStateUpdatePayload
+	if err := json.Unmarshal(msg.Payload, &p); err != nil {
+		return nil, fmt.Errorf("parse test state update payload: %w", err)
 	}
 	return &p, nil
 }

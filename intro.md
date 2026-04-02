@@ -284,7 +284,7 @@ Key fields:
 - `correlation_id` — links request to response (required for command request/response and OTA)
 - `reply_to` — Redis Stream for the response (required for requests)
 
-### Five Message Types
+### Six Message Types
 
 | Type | Transport | Direction | Purpose |
 |------|-----------|-----------|---------|
@@ -293,6 +293,7 @@ Key fields:
 | `service.heartbeat` | Redis Pub/Sub | Station → Controller | Periodic health report (every 30s) |
 | `system.emergency_stop` | Redis Pub/Sub | Any → All | Emergency stop broadcast |
 | `system.ota.request` | Redis Stream | Controller → Station | Firmware update request |
+| `test.state.update` | Redis Pub/Sub | Controller → Station | Notify station of test state changes (display update) |
 
 ### Redis Channels
 

@@ -1,0 +1,19 @@
+{
+  "envelope": {
+    "id": "c4d5e6f7-a8b9-4c0d-1e2f-3a4b5c6d7e8f",
+    "timestamp": 1771336800,
+    "source": {
+      "service": "controller",
+      "instance": "ctrl-01",
+      "version": "1.0.0"
+    },
+    "schema_version": "v1.0.0",
+    "type": "test.state.update"
+  },
+  "payload": {
+    "state": "running",
+    "test_id": "run-20260401-001",
+    "test_name": "pump_cooldown_verification",
+    "elapsed_seconds": 42
+  }
+}

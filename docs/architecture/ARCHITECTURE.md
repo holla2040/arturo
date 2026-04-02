@@ -122,7 +122,7 @@ Nothing else until these four work end-to-end:
 
 | Channel | Redis Type | Direction | Purpose |
 |---------|-----------|-----------|---------|
-| `commands:{device-instance}` | **Stream** | Controller -> Station | Reliable command delivery |
+| `commands:{device-instance}` | **Stream** | Controller -> Station | Reliable command delivery + test state updates |
 | `responses:{requester-instance}` | **Stream** | Station -> Controller | Reliable response delivery |
 | `events:heartbeat` | Pub/Sub | Station -> Controller | Heartbeat telemetry |
 | `events:emergency_stop` | **Both** | Any -> All | E-stop (Pub/Sub for speed + Stream for audit) |

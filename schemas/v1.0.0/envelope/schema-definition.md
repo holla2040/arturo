@@ -143,6 +143,7 @@ The `correlation_id` field links request-response pairs across Redis Streams.
 | `service.heartbeat` | Not used | Not used |
 | `system.emergency_stop` | Not used | Not used |
 | `system.ota.request` | Required | Required |
+| `test.state.update` | Not used | Not used |
 
 ## Service Names
 

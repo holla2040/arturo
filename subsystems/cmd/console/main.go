@@ -307,6 +307,19 @@ func (s *mockStation) handleCommand(ctx context.Context, msgJSON string) {
 		return
 	}
 
+	switch parsed.Envelope.Type {
+	case protocol.TypeDeviceCommandRequest:
+		s.handleDeviceCommandRequest(ctx, parsed)
+	case protocol.TypeTestStateUpdate:
+		s.handleTestStateUpdate(parsed)
+	case protocol.TypeSystemOTARequest:
+		log.Printf("[%s] OTA request received (not supported in mock station, ignoring)", s.instance)
+	default:
+		log.Printf("[%s] unknown message type: %q", s.instance, parsed.Envelope.Type)
+	}
+}
+
+func (s *mockStation) handleDeviceCommandRequest(ctx context.Context, parsed *protocol.Message) {
 	cmdPayload, err := protocol.ParseCommandRequest(parsed)
 	if err != nil {
 		log.Printf("[%s] command parse error: %v", s.instance, err)
@@ -331,6 +344,17 @@ func (s *mockStation) handleCommand(ctx context.Context, msgJSON string) {
 		respErr := &protocol.Error{Code: "COMMAND_FAILED", Message: response}
 		s.sendResponse(ctx, parsed, cmdPayload, false, nil, respErr, duration)
 	}
+}
+
+func (s *mockStation) handleTestStateUpdate(parsed *protocol.Message) {
+	tsu, err := protocol.ParseTestStateUpdate(parsed)
+	if err != nil {
+		log.Printf("[%s] test state update parse error: %v", s.instance, err)
+		return
+	}
+
+	log.Printf("[%s] test state: %s (id=%s name=%q elapsed=%ds)",
+		s.instance, tsu.State, tsu.TestID, tsu.TestName, tsu.ElapsedSeconds)
 }
 
 func (s *mockStation) sendResponse(ctx context.Context, req *protocol.Message, cmdPayload *protocol.CommandRequestPayload, success bool, response *string, respErr *protocol.Error, duration time.Duration) {

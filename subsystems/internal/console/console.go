@@ -371,6 +371,11 @@ func buildMonitorMessage(msg *protocol.Message, channel, direction, category str
 		if err == nil {
 			summary = fmt.Sprintf("reason=%s initiator=%s", es.Reason, es.Initiator)
 		}
+	case protocol.TypeTestStateUpdate:
+		tsu, err := protocol.ParseTestStateUpdate(msg)
+		if err == nil {
+			summary = fmt.Sprintf("state=%s test=%q elapsed=%ds", tsu.State, tsu.TestName, tsu.ElapsedSeconds)
+		}
 	default:
 		summary = msg.Envelope.Type
 	}

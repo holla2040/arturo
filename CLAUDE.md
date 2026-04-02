@@ -18,7 +18,7 @@ Arturo is an industrial test automation system with ESP32 stations and a central
 - Up to 6 stations connect directly to Redis over WiFi/Ethernet
 - One Ubuntu machine runs the controller (Go processes) + Redis + terminal (operator UI)
 - All messages use Protocol v1.0.0 envelope format (see docs/architecture/ARCHITECTURE.md section 2.1)
-- 5 message types: `device.command.request`, `device.command.response`, `service.heartbeat`, `system.emergency_stop`, `system.ota.request`
+- 6 message types: `device.command.request`, `device.command.response`, `service.heartbeat`, `system.emergency_stop`, `system.ota.request`, `test.state.update`
 - Test definitions are `.art` script files — the single unit of orchestration (see ARCHITECTURE.md section 2.8)
 - Scripts are authorable by humans and LLMs; the engine provides parse-only validation and structured JSON errors
 - Scripts are **station-scoped** — they run on one station, never address stations or devices by name

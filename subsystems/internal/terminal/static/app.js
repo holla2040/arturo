@@ -436,6 +436,11 @@ var App = (function() {
     }
 
     function openStation(instance) {
+        var s = state.stations[instance] || {};
+        var ss = getStationState(instance);
+        var stateStr = ss.state || (s.Status === 'online' ? 'idle' : s.Status) || 'offline';
+        if (stateStr === 'offline') return;
+
         state.detailStation = instance;
         state.tempChartData = { timestamps: [], first: [], second: [] };
         state.tempWindowHours = 1;

@@ -194,6 +194,18 @@ func (r *Registry) RunHealthCheck(now time.Time) {
 	}
 }
 
+// GetStationStatus returns the current status of a station (online, stale,
+// offline) or empty string if the station is unknown.
+func (r *Registry) GetStationStatus(instance string) string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	if station, ok := r.stations[instance]; ok {
+		return station.Status
+	}
+	return ""
+}
+
 // SetStationLastHeartbeat is a test helper that overrides a station's
 // LastHeartbeat so health check thresholds can be exercised.
 func (r *Registry) SetStationLastHeartbeat(instance string, t time.Time) {

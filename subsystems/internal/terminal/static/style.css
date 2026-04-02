@@ -575,7 +575,7 @@ textarea { resize: vertical; min-height: 60px; }
 .station-card.state-testing { border-left: 3px solid var(--status-testing); }
 .station-card.state-paused { border-left: 3px solid var(--status-paused); }
 .station-card.state-idle { border-left: 3px solid var(--status-online); }
-.station-card.state-offline { border-left: 3px solid var(--status-offline); opacity: 0.7; }
+.station-card.state-offline { border-left: 3px solid var(--status-offline); opacity: 0.7; cursor: default; pointer-events: none; }
 
 .station-top-row {
     display: flex;

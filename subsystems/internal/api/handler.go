@@ -663,6 +663,12 @@ func (h *Handler) getStationState(w http.ResponseWriter, r *http.Request) {
 		state = h.TestMgr.GetStationState(stationID)
 	}
 
+	// Registry is the source of truth for online/offline. If the station
+	// is offline in the registry, override the test manager's "idle".
+	if state == "idle" && h.Registry.GetStationStatus(stationID) == "offline" {
+		state = "offline"
+	}
+
 	result := map[string]interface{}{
 		"station_instance": stationID,
 		"state":            state,

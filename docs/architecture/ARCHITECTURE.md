@@ -247,6 +247,8 @@ user controller on >serverpass
 
 This prevents a compromised ESP32 from reading other devices' commands or writing to arbitrary keys.
 
+Redis listens on all interfaces so LAN stations can connect — `/etc/redis/redis.conf` uses `bind 0.0.0.0 -::1` and `protected-mode no`. The security boundary is the ACL above, not the bind address.
+
 ---
 
 ## 4. ESP32 Firmware Architecture

@@ -5,6 +5,7 @@ The dev desktop (192.168.0.3) currently runs the controller, terminal, and Redis
 ## Setup Checklist
 
 - [ ] Install and configure Redis (with ACL from `redis/redis-acl.conf`)
+  - In `/etc/redis/redis.conf`: `bind 0.0.0.0 -::1` and `protected-mode no` so LAN stations can connect. Security is enforced via ACL, not bind-address.
 - [ ] Enable chrony as LAN NTP server (`allow 192.168.0.0/24` in `/etc/chrony/chrony.conf`, then `sudo systemctl restart chrony`)
 - [ ] Build and deploy controller binary (`cd subsystems && go build -o controller ./cmd/controller`)
 - [ ] Build and deploy terminal binary (`cd subsystems && go build -o terminal ./cmd/terminal`)

@@ -66,6 +66,11 @@ bool WifiManager::connect() {
 
     _state = WifiState::CONNECTING;
     WiFi.mode(WIFI_STA);
+    if (_hasBegun) {
+        WiFi.disconnect(false, true);
+        delay(100);
+    }
+    _hasBegun = true;
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
     int attempts = 0;

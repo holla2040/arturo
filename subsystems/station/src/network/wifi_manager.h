@@ -32,6 +32,7 @@ private:
     unsigned long _lastAttempt = 0;
     int _backoffMs = 1000;       // Doubles on each failure, max 30s
     WifiState _state = WifiState::DISCONNECTED;
+    bool _hasBegun = false;
 
     // Outage tracking
     unsigned long _lastConnectedMs = 0;

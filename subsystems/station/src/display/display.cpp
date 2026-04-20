@@ -165,6 +165,7 @@ void Display::loop() {
     if (!_ready) return;
     if (!display_lock(100)) return;
 
+    updateSwitchLocks();
     updateBanner();
 
     // Sample chart data regardless of active tab (avoid gaps in history)
@@ -818,6 +819,26 @@ void Display::enqueueCommand(const char* commandName) {
     _lastOptimisticMs = millis();
 }
 
+// Disable a switch's CLICKABLE flag for SWITCH_DEBOUNCE_MS. Touches during the
+// lock window are dropped by LVGL's hit-test — no toggle, no event, no flicker.
+// updateSwitchLocks() restores CLICKABLE when the window elapses.
+void Display::lockSwitch(lv_obj_t* sw, int idx) {
+    if (!sw) return;
+    lv_obj_clear_flag(sw, LV_OBJ_FLAG_CLICKABLE);
+    _swLockUntilMs[idx] = millis() + SWITCH_DEBOUNCE_MS;
+}
+
+void Display::updateSwitchLocks() {
+    uint32_t now = millis();
+    lv_obj_t* sws[3] = {_swPump, _swRough, _swPurge};
+    for (int i = 0; i < 3; i++) {
+        if (_swLockUntilMs[i] && (int32_t)(now - _swLockUntilMs[i]) >= 0) {
+            if (sws[i]) lv_obj_add_flag(sws[i], LV_OBJ_FLAG_CLICKABLE);
+            _swLockUntilMs[i] = 0;
+        }
+    }
+}
+
 void Display::onPumpSwitch(lv_event_t* e) {
     if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) return;
     Display* self = static_cast<Display*>(lv_event_get_user_data(e));
@@ -827,6 +848,7 @@ void Display::onPumpSwitch(lv_event_t* e) {
     // Optimistic update
     self->_pump.pumpOn = is_on;
     self->enqueueCommand(is_on ? "pump_on" : "pump_off");
+    self->lockSwitch(sw, SW_PUMP);
 }
 
 void Display::onRoughSwitch(lv_event_t* e) {
@@ -837,6 +859,7 @@ void Display::onRoughSwitch(lv_event_t* e) {
 
     self->_pump.roughValveOpen = is_on;
     self->enqueueCommand(is_on ? "open_rough_valve" : "close_rough_valve");
+    self->lockSwitch(sw, SW_ROUGH);
 }
 
 void Display::onPurgeSwitch(lv_event_t* e) {
@@ -847,6 +870,7 @@ void Display::onPurgeSwitch(lv_event_t* e) {
 
     self->_pump.purgeValveOpen = is_on;
     self->enqueueCommand(is_on ? "open_purge_valve" : "close_purge_valve");
+    self->lockSwitch(sw, SW_PURGE);
 }
 
 void Display::onRegenButton(lv_event_t* e) {

@@ -132,6 +132,14 @@ private:
     // Optimistic update tracking
     uint32_t _lastOptimisticMs = 0;
 
+    // Touch debounce for controls tab switches — lock CLICKABLE for a window
+    // after a valid tap so bounce touches never reach the widget (no flicker).
+    static constexpr uint32_t SWITCH_DEBOUNCE_MS = 400;
+    static constexpr int SW_PUMP = 0;
+    static constexpr int SW_ROUGH = 1;
+    static constexpr int SW_PURGE = 2;
+    uint32_t _swLockUntilMs[3] = {0, 0, 0};
+
     // Chart tab
     static const int CHART_VISIBLE_POINTS = 200;
     static const int CHART_SAMPLE_INTERVAL_MS = 30000;  // 30s
@@ -193,6 +201,8 @@ private:
 
     // Controls tab helpers
     void enqueueCommand(const char* commandName);
+    void lockSwitch(lv_obj_t* sw, int idx);
+    void updateSwitchLocks();
     static void onPumpSwitch(lv_event_t* e);
     static void onRoughSwitch(lv_event_t* e);
     static void onPurgeSwitch(lv_event_t* e);

@@ -1674,6 +1674,17 @@ var App = (function() {
 
     function handlePumpStatus(payload) {
         if (!payload || !payload.station_instance) return;
+        var raw = payload.status_1_raw || '';
+        var hex = '';
+        for (var i = 0; i < raw.length; i++) {
+            hex += (i ? ' ' : '') + ('00' + raw.charCodeAt(i).toString(16)).slice(-2);
+        }
+        console.log('[pump_status] ' + payload.station_instance +
+            ' S1 asc=' + JSON.stringify(raw) +
+            ' hex=[' + hex + ']' +
+            ' parsed=0x' + (payload.status_1 || 0).toString(16).padStart(2, '0') +
+            ' bit0=' + ((payload.status_1 || 0) & 1) +
+            ' pump_on=' + payload.pump_on);
         state.stationPumpStatus[payload.station_instance] = payload;
         if (state.currentView === 'stations') renderStationGrid();
         if (state.currentView === 'station-detail' && state.detailStation === payload.station_instance) {

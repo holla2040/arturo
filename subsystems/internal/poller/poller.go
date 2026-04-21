@@ -87,6 +87,9 @@ func (p *StationPoller) pollDevice(ctx context.Context, stationInstance, deviceI
 	s3 := p.queryCommand(ctx, deviceID, "get_status_3", commandStream)
 
 	if s1 != nil {
+		// CTI On-Board S1/S2/S3 return a single raw byte whose bits ARE the
+		// status flags (e.g. 0x61 == 'a' == bits 0,5,6). Docs saying "2-char
+		// hex" don't match the actual wire format on this pump.
 		status1 := 0
 		if len(*s1) > 0 {
 			status1 = int((*s1)[0])
@@ -99,6 +102,12 @@ func (p *StationPoller) pollDevice(ctx context.Context, stationInstance, deviceI
 		if s3 != nil && len(*s3) > 0 {
 			status3 = int((*s3)[0])
 		}
+
+		pumpOn := status1&1 != 0
+		s1Raw := *s1
+		log.Printf("poller: %s/%s S1 asc=%q hex=% X parsed=0x%02X bit0=%d pump=%s",
+			stationInstance, deviceID, s1Raw, []byte(s1Raw), status1, status1&1,
+			map[bool]string{true: "ON", false: "OFF"}[pumpOn])
 
 		// Poll valve states
 		roughValveOpen := false
@@ -124,7 +133,8 @@ func (p *StationPoller) pollDevice(ctx context.Context, stationInstance, deviceI
 			"status_1":         status1,
 			"status_2":         status2,
 			"status_3":         status3,
-			"pump_on":          status1&1 != 0,
+			"status_1_raw":     *s1,
+			"pump_on":          pumpOn,
 			"at_temp":          false, // TODO: derive from temperatures, not status byte
 			"regen":            regenActive,
 			"regen_status":     regenStatus,
@@ -221,3 +231,4 @@ func isPumpDevice(deviceID string) bool {
 	id := strings.ToUpper(deviceID)
 	return strings.HasPrefix(id, "PUMP-") || strings.HasPrefix(id, "CTI-")
 }
+

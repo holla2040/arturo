@@ -49,6 +49,11 @@ static const char* DEVICE_IDS[] = {"PUMP-01"};
 #define HEARTBEAT_INTERVAL_MS  3000
 #define PRESENCE_TTL_SECONDS   90
 
+// Log UDP broadcast (set LOG_UDP_PORT to 0 to disable UDP log sink)
+#ifndef LOG_UDP_PORT
+#define LOG_UDP_PORT           8888
+#endif
+
 // Redis channels (from ARCHITECTURE.md section 2.3)
 #define CHANNEL_HEARTBEAT        "events:heartbeat"
 #define CHANNEL_COMMANDS_PREFIX  "commands:"
@@ -67,7 +72,7 @@ static const char* DEVICE_IDS[] = {"PUMP-01"};
 #define DEBUG_LEVEL_TRACE  4
 
 #ifndef DEBUG_LEVEL
-#define DEBUG_LEVEL        DEBUG_LEVEL_DEBUG
+#define DEBUG_LEVEL        DEBUG_LEVEL_INFO
 #endif
 
 // Screenshot server — temporary debug feature for UI development

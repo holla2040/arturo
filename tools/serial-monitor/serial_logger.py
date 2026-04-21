@@ -65,11 +65,16 @@ def flush_log():
 
 
 def udp_broadcast(entry):
-    """Send a log line as UDP broadcast on port 8888."""
-    try:
-        udp_sock.sendto((entry + "\n").encode("utf-8", errors="replace"), ("<broadcast>", UDP_PORT))
-    except OSError:
-        pass  # network down, interface missing — don't block logging
+    """Send a log line as UDP broadcast on port 8888.
+
+    Disabled: station firmware broadcasts directly to UDP 8888. Running this
+    script alongside the socat UDP listener caused duplicates.
+    """
+    # try:
+    #     udp_sock.sendto((entry + "\n").encode("utf-8", errors="replace"), ("<broadcast>", UDP_PORT))
+    # except OSError:
+    #     pass  # network down, interface missing — don't block logging
+    return
 
 
 def log_line(text):

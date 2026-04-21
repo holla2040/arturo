@@ -47,7 +47,7 @@ public:
 
     // Execute a command locally (from UI controls, not Redis).
     // Reuses device registry lookup + protocol dispatch without JSON/Redis overhead.
-    // Caller must hold _ctiMutex.
+    // CTI serialization is handled inside CtiWorker; no external mutex required.
     bool executeLocal(const char* commandName, char* responseBuf, size_t responseBufLen);
 
     // Current test state (updated from test.state.update messages)

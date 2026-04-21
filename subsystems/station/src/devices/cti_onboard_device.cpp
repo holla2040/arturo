@@ -48,105 +48,36 @@ const char* ctiOnBoardLookupCommand(const char* commandName) {
 
 #ifdef ARDUINO
 CtiOnBoardDevice::CtiOnBoardDevice()
-    : _serial(nullptr), _transactions(0), _errors(0), _initialized(false) {
-    memset(&_lastResp, 0, sizeof(_lastResp));
-}
+    : _worker(nullptr), _initialized(false) {}
 
-bool CtiOnBoardDevice::init(SerialDevice& serial) {
-    if (!serial.isReady()) {
-        LOG_ERROR("CTI", "Serial device not ready");
+bool CtiOnBoardDevice::init(CtiWorker& worker) {
+    if (!worker.isInitialized()) {
+        LOG_ERROR("CTI", "CtiWorker not initialized");
         return false;
     }
-
-    _serial = &serial;
+    _worker = &worker;
     _initialized = true;
-
-    LOG_INFO("CTI", "CtiOnBoardDevice initialized");
+    LOG_INFO("CTI", "CtiOnBoardDevice attached to worker");
     return true;
 }
 
 bool CtiOnBoardDevice::executeCommand(const char* ctiCmd, char* responseBuf, size_t responseBufLen) {
-    if (!_initialized || _serial == nullptr) {
+    if (!_initialized || _worker == nullptr) {
         LOG_ERROR("CTI", "Not initialized");
         return false;
     }
     if (ctiCmd == nullptr || responseBuf == nullptr || responseBufLen == 0) {
         return false;
     }
+    return _worker->executeCommand(ctiCmd, responseBuf, responseBufLen);
+}
 
-    // Build the CTI frame: $<cmd><checksum>\r
-    char frame[64];
-    int frameLen = ctiBuildFrame(ctiCmd, frame, sizeof(frame));
-    if (frameLen < 0) {
-        LOG_ERROR("CTI", "Failed to build frame for '%s'", ctiCmd);
-        _errors++;
-        return false;
-    }
+int CtiOnBoardDevice::transactionCount() const {
+    return _worker ? _worker->transactionCount() : 0;
+}
 
-    // Drain stale data
-    _serial->drain();
-
-    // Send frame
-    int sent = _serial->sendString(frame);
-    if (sent < 0 || sent != frameLen) {
-        LOG_ERROR("CTI", "TX failed: sent %d/%d bytes", sent, frameLen);
-        _errors++;
-        return false;
-    }
-    _serial->flush();
-
-    LOG_DEBUG("CTI", "TX: %s (%d bytes)", ctiCmd, frameLen);
-
-    // Receive response line (terminated by \r)
-    char rxBuf[128];
-    int rxLen = _serial->receiveLine(rxBuf, sizeof(rxBuf), '\r', CTI_TIMEOUT_MS);
-    if (rxLen < 0) {
-        LOG_ERROR("CTI", "RX timeout for '%s'", ctiCmd);
-        _errors++;
-        return false;
-    }
-
-    // receiveLine strips \r, but ctiParseFrame expects it — re-append
-    if ((size_t)rxLen < sizeof(rxBuf) - 1) {
-        rxBuf[rxLen] = '\r';
-        rxLen++;
-        rxBuf[rxLen] = '\0';
-    }
-
-    LOG_DEBUG("CTI", "RX: %d bytes", rxLen);
-
-    // Parse the CTI response frame
-    if (!ctiParseFrame(rxBuf, (size_t)rxLen, _lastResp)) {
-        LOG_ERROR("CTI", "Failed to parse response frame");
-        _errors++;
-        return false;
-    }
-
-    _transactions++;
-
-    if (!_lastResp.checksumValid) {
-        LOG_ERROR("CTI", "Checksum mismatch in response");
-        _errors++;
-        return false;
-    }
-
-    if (!ctiIsSuccess(_lastResp.code)) {
-        LOG_ERROR("CTI", "Device error: %s code=%c", ctiCmd, (char)_lastResp.code);
-        // Still copy the response code info for the caller
-        snprintf(responseBuf, responseBufLen, "ERR:%c", (char)_lastResp.code);
-        return false;
-    }
-
-    // Copy response data
-    size_t copyLen = _lastResp.dataLen;
-    if (copyLen >= responseBufLen) {
-        copyLen = responseBufLen - 1;
-    }
-    memcpy(responseBuf, _lastResp.data, copyLen);
-    responseBuf[copyLen] = '\0';
-
-    LOG_DEBUG("CTI", "OK: %s -> '%s'", ctiCmd, responseBuf);
-    return true;
+int CtiOnBoardDevice::errorCount() const {
+    return _worker ? _worker->errorCount() : 0;
 }
 #endif
 

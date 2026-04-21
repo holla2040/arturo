@@ -64,6 +64,10 @@ public:
     void flush();
     void drain();
 
+    // Low-level accessors for char-at-a-time parsers (e.g. CtiWorker).
+    int available();                // bytes waiting in RX buffer, or 0
+    int readByte();                 // next byte, or -1 if none available
+
     // Accessors
     const SerialConfig& config() const { return _config; }
 

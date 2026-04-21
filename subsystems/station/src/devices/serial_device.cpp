@@ -234,6 +234,16 @@ void SerialDevice::drain() {
         _serial.read();
     }
 }
+
+int SerialDevice::available() {
+    if (!_ready) return 0;
+    return _serial.available();
+}
+
+int SerialDevice::readByte() {
+    if (!_ready || !_serial.available()) return -1;
+    return _serial.read();
+}
 #endif
 
 } // namespace arturo

@@ -3,7 +3,7 @@
 #include "../protocols/cti.h"
 
 #ifdef ARDUINO
-#include "serial_device.h"
+#include "cti_worker.h"
 #endif
 
 namespace arturo {
@@ -19,31 +19,30 @@ struct CtiOnBoardCommandMapping {
 const char* ctiOnBoardLookupCommand(const char* commandName);
 
 #ifdef ARDUINO
+// Thin wrapper around CtiWorker. Keeps a command-name lookup table for
+// external callers that ask by abstract name; all I/O is delegated to the
+// worker, which owns the UART. Synchronous executeCommand() blocks on the
+// worker's reply queue.
 class CtiOnBoardDevice {
 public:
     CtiOnBoardDevice();
 
-    // Initialize with a serial device (must already be begin()'d)
-    bool init(SerialDevice& serial);
+    // Attach to a running worker. begin() must have been called on the worker.
+    bool init(CtiWorker& worker);
 
     bool isInitialized() const { return _initialized; }
 
-    // Execute a CTI command and store response data in responseBuf.
-    // ctiCmd is the raw CTI command string (e.g., "A?").
-    // Returns true if a valid response was received.
+    // Execute a CTI command via the worker. ctiCmd is the raw protocol
+    // string (e.g., "A?"). Returns true on success.
     bool executeCommand(const char* ctiCmd, char* responseBuf, size_t responseBufLen);
 
-    // Diagnostics
-    int transactionCount() const { return _transactions; }
-    int errorCount() const { return _errors; }
-    const CtiResponse& lastResponse() const { return _lastResp; }
+    // Diagnostics (forwarded from worker).
+    int transactionCount() const;
+    int errorCount() const;
 
 private:
-    SerialDevice* _serial;
-    CtiResponse _lastResp;
-    int _transactions;
-    int _errors;
-    bool _initialized;
+    CtiWorker* _worker;
+    bool       _initialized;
 };
 #endif
 

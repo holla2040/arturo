@@ -8,6 +8,7 @@
 #include "commands/command_handler.h"
 #include "commands/device_registry.h"
 #include "devices/serial_device.h"
+#include "devices/cti_worker.h"
 #include "devices/cti_onboard_device.h"
 #include "safety/watchdog.h"
 #include "safety/ota_update.h"
@@ -38,15 +39,13 @@ private:
     Watchdog _watchdog;
     Display _display;
     SerialDevice _ctiSerial;
+    CtiWorker _ctiWorker;
     CtiOnBoardDevice _ctiDevice;
     OTAUpdateHandler _otaHandler;
 
     // Pump telemetry (read by displayTask, written by pumpPollTask)
     PumpTelemetry _pumpTelemetry;
     SemaphoreHandle_t _pumpTelemetryMutex = nullptr;
-
-    // CTI device mutex — guards _ctiDevice access between commTask and pumpPollTask
-    SemaphoreHandle_t _ctiMutex = nullptr;
 
     // Local command queue — Display enqueues, commTask drains
     QueueHandle_t _localCmdQueue = nullptr;

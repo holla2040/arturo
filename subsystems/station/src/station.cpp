@@ -21,6 +21,11 @@ Station::Station()
 {}
 
 bool Station::begin() {
+    // 0. Install log mutex + route esp_log through it. Must happen before any
+    //    subsystem init so ESP-IDF internal logs (display, WiFi, etc.) serialize
+    //    cleanly with our LOG_* calls.
+    initLogging();
+
     Serial.println();
     Serial.println("============================");
     Serial.println("  Arturo Station v" FIRMWARE_VERSION);
@@ -105,22 +110,26 @@ bool Station::begin() {
     // 5a. Register OTA update handler
     handler.setOTAHandler(&_otaHandler);
 
-    // 5b. Initialize CTI OnBoard serial port
+    // 5b. Initialize CTI OnBoard serial port + worker
     if (_ctiSerial.begin(SERIAL_CONFIG_CTI)) {
         LOG_INFO("MAIN", "CTI serial ready: UART%d (default pins)", CTI_UART_NUM);
 
-        if (_ctiDevice.init(_ctiSerial)) {
-            handler.setCtiOnBoardDevice(&_ctiDevice);
-            LOG_INFO("MAIN", "CTI OnBoard device registered with command handler");
+        if (_ctiWorker.begin(_ctiSerial)) {
+            if (_ctiDevice.init(_ctiWorker)) {
+                handler.setCtiOnBoardDevice(&_ctiDevice);
+                LOG_INFO("MAIN", "CTI OnBoard device registered with command handler");
+            } else {
+                LOG_ERROR("MAIN", "CTI OnBoard device init failed");
+            }
         } else {
-            LOG_ERROR("MAIN", "CTI OnBoard device init failed");
+            LOG_ERROR("MAIN", "CTI worker init failed");
         }
     } else {
         LOG_ERROR("MAIN", "CTI serial init failed on UART%d", CTI_UART_NUM);
     }
 
-    // 5c. Create mutexes for shared CTI device and pump telemetry
-    _ctiMutex = xSemaphoreCreateMutex();
+    // 5c. Create mutexes for pump telemetry and test state
+    //     (CTI serialization now handled by CtiWorker request queue.)
     _pumpTelemetryMutex = xSemaphoreCreateMutex();
     _testStateMutex = xSemaphoreCreateMutex();
 
@@ -240,16 +249,13 @@ void Station::commTask() {
             connectRedisSub();
         }
 
-        // Poll for incoming commands — only take mutex when data is waiting
-        // Non-blocking socket check prevents starving pumpPollTask
+        // Poll for incoming commands. CtiWorker serializes CTI access, so no
+        // mutex is needed here — the worker's request queue is the ordering.
         if (_cmdHandler && _redisSub.available()) {
-            if (xSemaphoreTake(_ctiMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
-                if (_cmdHandler->poll(100)) {
-                    while (_cmdHandler->poll(1)) {
-                        _watchdog.feed();
-                    }
+            if (_cmdHandler->poll(100)) {
+                while (_cmdHandler->poll(1)) {
+                    _watchdog.feed();
                 }
-                xSemaphoreGive(_ctiMutex);
             }
         }
 
@@ -261,17 +267,16 @@ void Station::commTask() {
             }
         }
 
-        // Drain local command queue (from Display UI controls)
+        // Drain local command queue (from Display UI controls). CtiWorker
+        // serializes CTI access internally; executeLocal() blocks on the
+        // worker's reply queue.
         if (_cmdHandler && _localCmdQueue) {
             LocalCommand cmd;
             bool executed = false;
             while (xQueueReceive(_localCmdQueue, &cmd, 0) == pdTRUE) {
-                if (xSemaphoreTake(_ctiMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
-                    char resp[256];
-                    _cmdHandler->executeLocal(cmd.commandName, resp, sizeof(resp));
-                    xSemaphoreGive(_ctiMutex);
-                    executed = true;
-                }
+                char resp[256];
+                _cmdHandler->executeLocal(cmd.commandName, resp, sizeof(resp));
+                executed = true;
                 _watchdog.feed();
             }
             if (executed) _pollNow = true;  // Trigger immediate poll cycle
@@ -370,14 +375,8 @@ void Station::pumpPollTask() {
     int cmdIndex = 0;
 
     for (;;) {
-        // Try to acquire CTI mutex — yield if commTask is busy
-        if (xSemaphoreTake(_ctiMutex, pdMS_TO_TICKS(200)) != pdTRUE) {
-            vTaskDelay(pdMS_TO_TICKS(100));
-            continue;
-        }
-
+        // CtiWorker serializes access; just call through.
         bool ok = _ctiDevice.executeCommand(cmds[cmdIndex].ctiCmd, responseBuf, sizeof(responseBuf));
-        xSemaphoreGive(_ctiMutex);
 
         if (ok && xSemaphoreTake(_pumpTelemetryMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
             switch (cmds[cmdIndex].field) {

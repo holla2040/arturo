@@ -8,6 +8,7 @@ tools/engine/engine
 tools/supervisor/supervisor
 subsystems/arturo.db
 tools/supervisor/arturo.db
+arturo.db
 *.exe
 *.test
 *.out

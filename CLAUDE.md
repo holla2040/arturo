@@ -52,6 +52,13 @@ cd subsystems/station && make test                    # run unit tests on host
 cd subsystems/station && make monitor                 # serial monitor (foreground)
 ```
 
+## Collaboration Rules
+
+- **Do exactly what is asked. Nothing more.**
+- **Do not touch files, systems, or subsystems not mentioned in the request.** If the task is firmware, do not touch Go. If the task is Go, do not touch firmware. Stay in scope.
+- **Do not fix things you notice along the way.** If you spot an unrelated bug, mention it — do not fix it.
+- **Ask before expanding scope.** If you think a related change is needed, say so and wait for confirmation.
+
 ## Development Guidelines
 
 - **Always rebuild after changing Go code.** Go is compiled — edits have no effect until you build the affected binary.

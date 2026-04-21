@@ -131,6 +131,7 @@ private:
 
     // Optimistic update tracking
     uint32_t _lastOptimisticMs = 0;
+    bool _suppressSwitchEvents = false;
 
     // Touch debounce for controls tab switches — lock CLICKABLE for a window
     // after a valid tap so bounce touches never reach the widget (no flicker).

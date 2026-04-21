@@ -228,7 +228,7 @@ void Display::setRedisStatus(bool connected, const char* host, uint16_t port) {
 void Display::setPumpTelemetry(const PumpTelemetry& telemetry) {
     // During optimistic grace period, preserve user-initiated state changes
     // so they aren't overwritten by stale telemetry
-    if (millis() - _lastOptimisticMs <= 2000) {
+    if (millis() - _lastOptimisticMs <= 4000) {
         bool savedPumpOn = _pump.pumpOn;
         bool savedRough = _pump.roughValveOpen;
         bool savedPurge = _pump.purgeValveOpen;
@@ -842,6 +842,7 @@ void Display::updateSwitchLocks() {
 void Display::onPumpSwitch(lv_event_t* e) {
     if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) return;
     Display* self = static_cast<Display*>(lv_event_get_user_data(e));
+    if (self->_suppressSwitchEvents) return;
     lv_obj_t* sw = lv_event_get_target(e);
     bool is_on = lv_obj_has_state(sw, LV_STATE_CHECKED);
 
@@ -854,6 +855,7 @@ void Display::onPumpSwitch(lv_event_t* e) {
 void Display::onRoughSwitch(lv_event_t* e) {
     if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) return;
     Display* self = static_cast<Display*>(lv_event_get_user_data(e));
+    if (self->_suppressSwitchEvents) return;
     lv_obj_t* sw = lv_event_get_target(e);
     bool is_on = lv_obj_has_state(sw, LV_STATE_CHECKED);
 
@@ -865,6 +867,7 @@ void Display::onRoughSwitch(lv_event_t* e) {
 void Display::onPurgeSwitch(lv_event_t* e) {
     if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) return;
     Display* self = static_cast<Display*>(lv_event_get_user_data(e));
+    if (self->_suppressSwitchEvents) return;
     lv_obj_t* sw = lv_event_get_target(e);
     bool is_on = lv_obj_has_state(sw, LV_STATE_CHECKED);
 
@@ -1253,7 +1256,9 @@ void Display::updateControlsTab() {
         }
 
         // Sync switch states from telemetry (skip if optimistic update is recent)
-        if (millis() - _lastOptimisticMs > 2000) {
+        if (millis() - _lastOptimisticMs > 4000) {
+            _suppressSwitchEvents = true;
+
             // Pump switch
             bool swPumpOn = lv_obj_has_state(_swPump, LV_STATE_CHECKED);
             if (_pump.pumpOn != swPumpOn) {
@@ -1274,6 +1279,8 @@ void Display::updateControlsTab() {
                 if (_pump.purgeValveOpen) lv_obj_add_state(_swPurge, LV_STATE_CHECKED);
                 else lv_obj_clear_state(_swPurge, LV_STATE_CHECKED);
             }
+
+            _suppressSwitchEvents = false;
         }
 
         // Update meaning labels

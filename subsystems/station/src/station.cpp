@@ -360,14 +360,16 @@ void Station::pumpPollTask() {
         enum { TEMP1, TEMP2, PRESSURE, STATUS1, ROUGH, PURGE, REGEN } field;
     };
 
+    // Valve/pump state queries come first so they're confirmed within the
+    // 2-second optimistic grace window after a user command triggers _pollNow.
     static const PollCmd cmds[] = {
+        {"D?", PollCmd::ROUGH},
+        {"E?", PollCmd::PURGE},
+        {"S1", PollCmd::STATUS1},
+        {"O",  PollCmd::REGEN},
         {"J",  PollCmd::TEMP1},
         {"K",  PollCmd::TEMP2},
         {"L",  PollCmd::PRESSURE},
-        {"S1", PollCmd::STATUS1},
-        {"D?", PollCmd::ROUGH},
-        {"E?", PollCmd::PURGE},
-        {"O",  PollCmd::REGEN},
     };
     static const int cmdCount = sizeof(cmds) / sizeof(cmds[0]);
 

@@ -201,6 +201,19 @@ void CtiWorker::parserCharHandler(char c) {
                 // Packet complete. _replyBuf[0 .. _replyIndex-1] is
                 // <code><data><checksum>. Validate checksum over
                 // _replyBuf[0 .. _replyIndex-2], checksum is _replyBuf[_replyIndex-1].
+                // Log raw response: hex + ASCII
+                {
+                    char hexbuf[CTI_REQUEST_REPLY_LEN * 3 + 4];
+                    char ascbuf[CTI_REQUEST_REPLY_LEN + 4];
+                    size_t h = 0, a = 0;
+                    for (uint8_t i = 0; i < _replyIndex && h + 3 < sizeof(hexbuf); i++) {
+                        h += snprintf(hexbuf + h, sizeof(hexbuf) - h, "%02X ", (uint8_t)_replyBuf[i]);
+                        ascbuf[a++] = (_replyBuf[i] >= 0x20 && _replyBuf[i] < 0x7F) ? _replyBuf[i] : '.';
+                    }
+                    hexbuf[h] = '\0'; ascbuf[a] = '\0';
+                    LOG_DEBUG("CTI_WORKER", "RX '%s' hex=[%s] asc=[%s]", _current.request, hexbuf, ascbuf);
+                }
+
                 if (_replyIndex < 2) {
                     // runt frame -- at minimum need code+checksum
                     _current.reply[0] = '\0';

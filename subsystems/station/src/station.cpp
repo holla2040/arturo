@@ -390,7 +390,7 @@ void Station::pumpPollTask() {
                     _pumpTelemetry.pressureTorr = atof(responseBuf);
                     break;
                 case PollCmd::STATUS1:
-                    _pumpTelemetry.status1 = (uint8_t)strtoul(responseBuf, nullptr, 16);
+                    _pumpTelemetry.status1 = (uint8_t)responseBuf[0];
                     _pumpTelemetry.pumpOn = (_pumpTelemetry.status1 & 0x01) != 0;
                     break;
                 case PollCmd::ROUGH:

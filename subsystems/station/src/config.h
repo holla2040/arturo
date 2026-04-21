@@ -72,7 +72,7 @@ static const char* DEVICE_IDS[] = {"PUMP-01"};
 #define DEBUG_LEVEL_TRACE  4
 
 #ifndef DEBUG_LEVEL
-#define DEBUG_LEVEL        DEBUG_LEVEL_INFO
+#define DEBUG_LEVEL        DEBUG_LEVEL_DEBUG
 #endif
 
 // Screenshot server — temporary debug feature for UI development

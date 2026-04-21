@@ -87,14 +87,17 @@ func (p *StationPoller) pollDevice(ctx context.Context, stationInstance, deviceI
 	s3 := p.queryCommand(ctx, deviceID, "get_status_3", commandStream)
 
 	if s1 != nil {
-		status1, _ := strconv.Atoi(*s1)
+		status1 := 0
+		if len(*s1) > 0 {
+			status1 = int((*s1)[0])
+		}
 		status2 := 0
-		if s2 != nil {
-			status2, _ = strconv.Atoi(*s2)
+		if s2 != nil && len(*s2) > 0 {
+			status2 = int((*s2)[0])
 		}
 		status3 := 0
-		if s3 != nil {
-			status3, _ = strconv.Atoi(*s3)
+		if s3 != nil && len(*s3) > 0 {
+			status3 = int((*s3)[0])
 		}
 
 		// Poll valve states

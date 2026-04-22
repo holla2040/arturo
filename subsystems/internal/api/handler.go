@@ -118,6 +118,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 
 	// Continuous temperature log route
 	mux.HandleFunc("GET /stations/{id}/temperatures", h.getStationTemperatures)
+	mux.HandleFunc("GET /stations/{id}/regen-curve.csv", h.getStationRegenCurve)
 
 	// Test run data routes
 	mux.HandleFunc("GET /test-runs/{id}/temperatures", h.getTemperatures)
@@ -756,6 +757,41 @@ func (h *Handler) getTemperatures(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, temps)
+}
+
+func (h *Handler) getStationRegenCurve(w http.ResponseWriter, r *http.Request) {
+	stationInstance := r.PathValue("id")
+
+	since := time.Now().Add(-12 * time.Hour)
+	if s := r.URL.Query().Get("since"); s != "" {
+		parsed, err := time.Parse(time.RFC3339, s)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid since parameter, use RFC3339"})
+			return
+		}
+		since = parsed
+	}
+	until := time.Now()
+	if u := r.URL.Query().Get("until"); u != "" {
+		parsed, err := time.Parse(time.RFC3339, u)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid until parameter, use RFC3339"})
+			return
+		}
+		until = parsed
+	}
+
+	var sess *testmanager.SessionInfo
+	if h.TestMgr != nil {
+		sess = h.TestMgr.GetSession(stationInstance)
+	}
+
+	filename := fmt.Sprintf("%s-regen-%s.csv", stationInstance, time.Now().Format("2006-01-02"))
+	w.Header().Set("Content-Type", "text/csv")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+	if err := artifact.ExportStationRegenCurve(w, h.Store, stationInstance, sess, since, until); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func (h *Handler) getStationTemperatures(w http.ResponseWriter, r *http.Request) {

@@ -97,6 +97,17 @@ type TemperatureLogEntry struct {
 	Timestamp       time.Time
 }
 
+type PumpStatusLogEntry struct {
+	ID              int64
+	StationInstance string
+	DeviceID        string
+	PumpOn          bool
+	RoughValveOpen  bool
+	PurgeValveOpen  bool
+	RegenStatus     string
+	Timestamp       time.Time
+}
+
 type Store struct {
 	db *sql.DB
 }
@@ -196,10 +207,22 @@ CREATE TABLE IF NOT EXISTS temperature_log (
     timestamp TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS pump_status_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    station_instance TEXT NOT NULL,
+    device_id TEXT NOT NULL,
+    pump_on INTEGER NOT NULL,
+    rough_valve_open INTEGER NOT NULL,
+    purge_valve_open INTEGER NOT NULL,
+    regen_status TEXT NOT NULL,
+    timestamp TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_temperature_samples_run ON temperature_samples(test_run_id);
 CREATE INDEX IF NOT EXISTS idx_temperature_samples_run_ts ON temperature_samples(test_run_id, timestamp);
 CREATE INDEX IF NOT EXISTS idx_test_events_run ON test_events(test_run_id);
-CREATE INDEX IF NOT EXISTS idx_temperature_log_station_ts ON temperature_log(station_instance, timestamp);`
+CREATE INDEX IF NOT EXISTS idx_temperature_log_station_ts ON temperature_log(station_instance, timestamp);
+CREATE INDEX IF NOT EXISTS idx_pump_status_log_station_ts ON pump_status_log(station_instance, timestamp);`
 
 	if _, err := db.Exec(schema); err != nil {
 		db.Close()
@@ -1039,6 +1062,37 @@ func (s *Store) QueryTemperatureLog(stationInstance string, since time.Time) ([]
 	return entries, rows.Err()
 }
 
+func (s *Store) QueryTemperatureLogRange(stationInstance string, since, until time.Time) ([]TemperatureLogEntry, error) {
+	rows, err := s.db.Query(
+		`SELECT id, station_instance, device_id, stage, temperature_k, timestamp
+		 FROM temperature_log
+		 WHERE station_instance = ? AND timestamp > ? AND timestamp <= ?
+		 ORDER BY timestamp ASC`,
+		stationInstance,
+		since.UTC().Format(time.RFC3339Nano),
+		until.UTC().Format(time.RFC3339Nano),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	entries := []TemperatureLogEntry{}
+	for rows.Next() {
+		var e TemperatureLogEntry
+		var timestamp string
+		if err := rows.Scan(&e.ID, &e.StationInstance, &e.DeviceID, &e.Stage, &e.TemperatureK, &timestamp); err != nil {
+			return nil, err
+		}
+		e.Timestamp, err = time.Parse(time.RFC3339Nano, timestamp)
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, e)
+	}
+	return entries, rows.Err()
+}
+
 func (s *Store) PruneTemperatureLog(olderThan time.Time) (int64, error) {
 	result, err := s.db.Exec(
 		`DELETE FROM temperature_log WHERE timestamp < ?`,
@@ -1048,4 +1102,73 @@ func (s *Store) PruneTemperatureLog(olderThan time.Time) (int64, error) {
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+// ---------------------------------------------------------------------------
+// Pump Status Log (continuous, not test-bound)
+// ---------------------------------------------------------------------------
+
+func (s *Store) RecordPumpStatusLog(stationInstance, deviceID string, pumpOn, roughValveOpen, purgeValveOpen bool, regenStatus string) error {
+	_, err := s.db.Exec(
+		`INSERT INTO pump_status_log (station_instance, device_id, pump_on, rough_valve_open, purge_valve_open, regen_status, timestamp)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		stationInstance, deviceID,
+		boolToInt(pumpOn), boolToInt(roughValveOpen), boolToInt(purgeValveOpen),
+		regenStatus,
+		time.Now().UTC().Format(time.RFC3339Nano),
+	)
+	return err
+}
+
+func (s *Store) QueryPumpStatusLog(stationInstance string, since, until time.Time) ([]PumpStatusLogEntry, error) {
+	rows, err := s.db.Query(
+		`SELECT id, station_instance, device_id, pump_on, rough_valve_open, purge_valve_open, regen_status, timestamp
+		 FROM pump_status_log
+		 WHERE station_instance = ? AND timestamp > ? AND timestamp <= ?
+		 ORDER BY timestamp ASC`,
+		stationInstance,
+		since.UTC().Format(time.RFC3339Nano),
+		until.UTC().Format(time.RFC3339Nano),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	entries := []PumpStatusLogEntry{}
+	for rows.Next() {
+		var e PumpStatusLogEntry
+		var pumpOn, rough, purge int
+		var timestamp string
+		if err := rows.Scan(&e.ID, &e.StationInstance, &e.DeviceID, &pumpOn, &rough, &purge, &e.RegenStatus, &timestamp); err != nil {
+			return nil, err
+		}
+		e.PumpOn = pumpOn != 0
+		e.RoughValveOpen = rough != 0
+		e.PurgeValveOpen = purge != 0
+		e.Timestamp, err = time.Parse(time.RFC3339Nano, timestamp)
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, e)
+	}
+	return entries, rows.Err()
+}
+
+func (s *Store) PrunePumpStatusLog(olderThan time.Time) (int64, error) {
+	result, err := s.db.Exec(
+		`DELETE FROM pump_status_log WHERE timestamp < ?`,
+		olderThan.UTC().Format(time.RFC3339Nano),
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }

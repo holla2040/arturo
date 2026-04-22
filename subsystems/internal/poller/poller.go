@@ -18,9 +18,10 @@ type Broadcaster interface {
 	BroadcastEvent(eventType string, payload interface{})
 }
 
-// TempRecorder persists temperature readings (e.g., to SQLite).
+// TempRecorder persists temperature readings and pump status (e.g., to SQLite).
 type TempRecorder interface {
 	RecordTemperatureLog(stationInstance, deviceID, stage string, temperatureK float64) error
+	RecordPumpStatusLog(stationInstance, deviceID string, pumpOn, roughValveOpen, purgeValveOpen bool, regenStatus string) error
 }
 
 // StationPoller periodically queries all online stations for pump status and temperatures.
@@ -142,6 +143,10 @@ func (p *StationPoller) pollDevice(ctx context.Context, stationInstance, deviceI
 			"purge_valve_open": purgeValveOpen,
 			"timestamp":        now,
 		})
+
+		if p.recorder != nil {
+			p.recorder.RecordPumpStatusLog(stationInstance, deviceID, pumpOn, roughValveOpen, purgeValveOpen, regenStatus)
+		}
 	}
 
 	// Poll temperatures

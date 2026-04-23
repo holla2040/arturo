@@ -583,7 +583,6 @@ func (e *Executor) execSendStmt(s *ast.SendStmt) error {
 	if e.collector != nil && e.currentTest != "" {
 		e.collector.RecordCommand(e.currentTest, e.deviceID, cmdStr, result.Success, result.Response, result.DurationMs)
 	}
-	e.emit("send", cmdStr)
 
 	return nil
 }
@@ -621,7 +620,6 @@ func (e *Executor) execQueryStmt(s *ast.QueryStmt) error {
 	if e.collector != nil && e.currentTest != "" {
 		e.collector.RecordCommand(e.currentTest, e.deviceID, cmdStr, result.Success, result.Response, result.DurationMs)
 	}
-	e.emit("query", cmdStr+" -> "+result.Response)
 
 	return e.env.Set(s.ResultVar, result.Response)
 }

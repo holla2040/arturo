@@ -196,7 +196,8 @@ func NewSession(ctx context.Context, params StartSessionParams) (*TestSession, e
 
 	// Start temperature monitor
 	tempMon := NewTempMonitor(params.RawRouter, params.Store, params.Hub,
-		params.TestRunID, params.StationInstance, params.DeviceID)
+		params.TestRunID, params.StationInstance, params.DeviceID,
+		params.EmployeeID, session.startedAt)
 	go tempMon.Run(tempCtx)
 
 	// Start executor in background

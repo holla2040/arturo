@@ -3,9 +3,11 @@ package testmanager
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"time"
 
+	"github.com/holla2040/arturo/internal/regen"
 	"github.com/holla2040/arturo/internal/script/executor"
 	"github.com/holla2040/arturo/internal/store"
 )
@@ -15,11 +17,17 @@ import (
 type tempTelemetry struct {
 	Stage1TempK float64 `json:"stage1_temp_k"`
 	Stage2TempK float64 `json:"stage2_temp_k"`
+	RegenChar   string  `json:"regen_char"`
 }
 
 // TempMonitor queries cached pump telemetry every 5 seconds and stores the
 // temperatures in SQLite. It bypasses the PausableRouter (uses raw router)
 // so temperatures keep recording during pause.
+//
+// It also tracks the regen state character and emits a single `regen_state`
+// test event on each change — that's the operator-facing signal that
+// replaces the per-query spam the script executor used to emit. See
+// docs/architecture/TEST_EVENTS.md.
 type TempMonitor struct {
 	router          executor.DeviceRouter // raw router, NOT PausableRouter
 	store           *store.Store
@@ -27,11 +35,16 @@ type TempMonitor struct {
 	testRunID       string
 	stationInstance string
 	deviceID        string
+	employeeID      string
+	startedAt       time.Time
 	interval        time.Duration
+
+	lastRegenChar string
 }
 
-// NewTempMonitor creates a temperature monitor.
-func NewTempMonitor(router executor.DeviceRouter, st *store.Store, hub Broadcaster, testRunID, stationInstance, deviceID string) *TempMonitor {
+// NewTempMonitor creates a temperature monitor. startedAt is used to format
+// the elapsed-time field in emitted regen_state events.
+func NewTempMonitor(router executor.DeviceRouter, st *store.Store, hub Broadcaster, testRunID, stationInstance, deviceID, employeeID string, startedAt time.Time) *TempMonitor {
 	return &TempMonitor{
 		router:          router,
 		store:           st,
@@ -39,6 +52,8 @@ func NewTempMonitor(router executor.DeviceRouter, st *store.Store, hub Broadcast
 		testRunID:       testRunID,
 		stationInstance: stationInstance,
 		deviceID:        deviceID,
+		employeeID:      employeeID,
+		startedAt:       startedAt,
 		interval:        5 * time.Second,
 	}
 }
@@ -86,6 +101,7 @@ func (tm *TempMonitor) sample(ctx context.Context) {
 
 	tm.recordStage("first_stage", snap.Stage1TempK)
 	tm.recordStage("second_stage", snap.Stage2TempK)
+	tm.recordRegenChange(snap)
 }
 
 func (tm *TempMonitor) recordStage(stage string, tempK float64) {
@@ -103,4 +119,55 @@ func (tm *TempMonitor) recordStage(stage string, tempK float64) {
 			"timestamp":        time.Now().UTC().Format(time.RFC3339Nano),
 		})
 	}
+}
+
+// recordRegenChange emits a `regen_state` test event when the regen character
+// changes (or on the very first sample). The reason string carries the
+// single-character code, the human-readable state name, both stage
+// temperatures, and the elapsed test-run time.
+func (tm *TempMonitor) recordRegenChange(snap tempTelemetry) {
+	if snap.RegenChar == tm.lastRegenChar {
+		return
+	}
+	tm.lastRegenChar = snap.RegenChar
+
+	reason := fmt.Sprintf("regen=%s (%s) • 1st=%.1fK • 2nd=%.1fK • elapsed=%s",
+		snap.RegenChar,
+		regen.StateName(snap.RegenChar),
+		snap.Stage1TempK,
+		snap.Stage2TempK,
+		formatElapsed(time.Since(tm.startedAt)),
+	)
+
+	if err := tm.store.RecordTestEvent(tm.testRunID, "regen_state", tm.employeeID, reason); err != nil {
+		log.Printf("temp_monitor: %s record regen_state: %v", tm.stationInstance, err)
+		return
+	}
+
+	if tm.hub != nil {
+		tm.hub.BroadcastEvent("test_event", map[string]interface{}{
+			"test_run_id":      tm.testRunID,
+			"event_type":       "regen_state",
+			"station_instance": tm.stationInstance,
+			"employee_id":      tm.employeeID,
+			"reason":           reason,
+			"timestamp":        time.Now().UTC().Format(time.RFC3339Nano),
+		})
+	}
+}
+
+// formatElapsed formats a duration the same way the terminal's detail-page
+// elapsed field does (commit 70f466c): m:ss under one hour, h:mm:ss above.
+func formatElapsed(d time.Duration) string {
+	secs := int(d.Seconds())
+	if secs < 0 {
+		secs = 0
+	}
+	h := secs / 3600
+	m := (secs % 3600) / 60
+	s := secs % 60
+	if h > 0 {
+		return fmt.Sprintf("%d:%02d:%02d", h, m, s)
+	}
+	return fmt.Sprintf("%d:%02d", m, s)
 }

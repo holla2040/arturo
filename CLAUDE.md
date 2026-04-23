@@ -75,6 +75,7 @@ cd subsystems/station && make monitor                 # serial monitor (foregrou
 ## Key Files
 
 - `docs/architecture/ARCHITECTURE.md` - Architecture decisions, protocol spec, phasing, debugging setup
+- `docs/architecture/TEST_EVENTS.md` - Scope of the operator-facing Test Events log and allowed event types
 - `docs/SCRIPTING_HAL.md` - HAL reference for script authors (abstract command vocabulary per device type)
 - `docs/reference/PROTOCOL_ORIGINAL.md` - Original protocol spec (reference)
 - `docs/reference/SCRIPTING_LANGUAGE_ORIGINAL.md` - Arturo DSL reference

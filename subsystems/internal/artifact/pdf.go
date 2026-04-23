@@ -10,60 +10,12 @@ import (
 	"time"
 
 	"github.com/go-pdf/fpdf"
+	"github.com/holla2040/arturo/internal/regen"
 	"github.com/holla2040/arturo/internal/store"
 	"gonum.org/v1/plot"
 	"gonum.org/v1/plot/plotter"
 	"gonum.org/v1/plot/vg"
 )
-
-// regenStateName maps a CTI O-command response letter to a human-readable
-// regen state description. Mirrors the mapping in onboard_regen.art.
-func regenStateName(letter string) string {
-	switch letter {
-	case "A", "\\":
-		return "Pump OFF"
-	case "B", "C", "E", "^", "]":
-		return "Warmup"
-	case "D", "F", "G", "Q", "R":
-		return "Purge gas failure"
-	case "H":
-		return "Extended purge"
-	case "S":
-		return "Repurge cycle"
-	case "I", "J", "K", "T", "a", "b", "j", "n":
-		return "Rough to base pressure"
-	case "L":
-		return "Rate of rise test"
-	case "M", "N", "c", "d", "o":
-		return "Cooldown"
-	case "P":
-		return "Regen complete"
-	case "U":
-		return "Beginning of fast regen"
-	case "V":
-		return "Regen aborted"
-	case "W":
-		return "Delay restart"
-	case "X", "Y":
-		return "Power failure"
-	case "Z":
-		return "Delay start"
-	case "O", "[":
-		return "Zeroing TC gauge"
-	case "f":
-		return "Share regen wait"
-	case "e":
-		return "Repurge during fast regen"
-	case "h":
-		return "Purge coordinate wait"
-	case "i":
-		return "Rough coordinate wait"
-	case "k":
-		return "Purge gas fail, recovering"
-	default:
-		return "Unknown (" + letter + ")"
-	}
-}
 
 // regenSample holds one grouped sample row for the regen CSV table.
 type regenSample struct {
@@ -119,7 +71,7 @@ func buildRegenSamples(events []ArtifactEvent) []regenSample {
 			cur.second = val
 		case "get_regen_status":
 			cur.regenLetter = val
-			cur.regenState = regenStateName(val)
+			cur.regenState = regen.StateName(val)
 		}
 	}
 

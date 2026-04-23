@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/holla2040/arturo/internal/regen"
 	"github.com/holla2040/arturo/internal/store"
 	"github.com/holla2040/arturo/internal/testmanager"
 )
@@ -158,7 +159,7 @@ func writeRegenCurveRows(cw *csv.Writer, temps []store.TemperatureLogEntry, pump
 		ts := time.Unix(k, 0).In(denverTZ).Format("2006-01-02 15:04:05")
 		regenState := ""
 		if rollRegen != "" {
-			regenState = regenStateName(rollRegen)
+			regenState = regen.StateName(rollRegen)
 		}
 		cw.Write([]string{
 			ts,

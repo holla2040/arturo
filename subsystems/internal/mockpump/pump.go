@@ -106,7 +106,7 @@ type RegenParams struct {
 // faster E2E tests.
 func DefaultRegenParams() RegenParams {
 	return RegenParams{
-		WarmupTempK:      295.0,
+		WarmupTempK:      310.0,
 		RoughVacuumTorr:  0.050,
 		RORLimitMTorrMin: 20.0,
 		MaxRORRetries:    3,
@@ -383,8 +383,8 @@ func (p *Pump) enterPhase(phase RegenPhase) {
 		p.heatersOn = true
 		p.purgeValveOpen = true
 		p.roughValveOpen = false
-		p.stage1Target = 120.0
-		p.stage2Target = 60.0
+		p.stage1Target = 69.0
+		p.stage2Target = 11.0
 		p.pressureTarget = 1.0
 		p.phaseDuration = p.effective(p.regenParams.Warmup1Duration).Seconds()
 
@@ -392,8 +392,8 @@ func (p *Pump) enterPhase(phase RegenPhase) {
 		p.heatersOn = true
 		p.purgeValveOpen = true
 		p.roughValveOpen = false
-		p.stage1Target = 180.0
-		p.stage2Target = 150.0
+		p.stage1Target = 78.0
+		p.stage2Target = 68.0
 		p.pressureTarget = 10.0
 		p.phaseDuration = p.effective(p.regenParams.Warmup2Duration).Seconds()
 
@@ -401,8 +401,8 @@ func (p *Pump) enterPhase(phase RegenPhase) {
 		p.heatersOn = true
 		p.purgeValveOpen = true
 		p.roughValveOpen = false
-		p.stage1Target = 250.0
-		p.stage2Target = 240.0
+		p.stage1Target = 108.0
+		p.stage2Target = 96.0
 		p.pressureTarget = 50.0
 		p.phaseDuration = p.effective(p.regenParams.Warmup3Duration).Seconds()
 
@@ -449,19 +449,19 @@ func (p *Pump) enterPhase(phase RegenPhase) {
 		p.heatersOn = false
 		p.roughValveOpen = false
 		p.purgeValveOpen = false
-		p.stage1Target = 65.0
-		p.stage2Target = 12.0
+		p.stage1Target = 87.0
+		p.stage2Target = 18.0
 		p.pressureTarget = 1.5e-6
 		p.phaseDuration = p.effective(p.regenParams.CooldownDuration).Seconds()
 
 	case RegenPhaseZeroTC:
-		// Zeroing TC gauge: hold targets constant; brief delay window
-		// before marking the cycle complete.
+		// Zeroing TC gauge: T1 stable, T2 settles lower before the cycle
+		// is marked complete. StateCooling drives the rest to base (65/12).
 		p.heatersOn = false
 		p.roughValveOpen = false
 		p.purgeValveOpen = false
-		p.stage1Target = 65.0
-		p.stage2Target = 12.0
+		p.stage1Target = 86.0
+		p.stage2Target = 14.0
 		p.pressureTarget = 1.5e-6
 		p.phaseDuration = p.effective(p.regenParams.ZeroTCDuration).Seconds()
 	}
@@ -968,8 +968,8 @@ func (p *Pump) AdvanceRegenStep() {
 	case RegenPhaseROR:
 		p.enterPhase(RegenPhaseCooldown)
 	case RegenPhaseCooldown:
-		p.firstStageK = 65.0
-		p.secondStageK = 12.0
+		p.firstStageK = 87.0
+		p.secondStageK = 18.0
 		p.enterPhase(RegenPhaseZeroTC)
 	case RegenPhaseZeroTC:
 		p.regenPhase = RegenPhaseNone

@@ -358,17 +358,19 @@ func renderPDF(w io.Writer, artifact *TestArtifact) error {
 		// Table header
 		pdf.SetFont("Arial", "B", 9)
 		pdf.SetFillColor(220, 220, 220)
-		pdf.CellFormat(55, 7, "Test", "1", 0, "L", true, 0, "")
-		pdf.CellFormat(35, 7, "Started", "1", 0, "L", true, 0, "")
-		pdf.CellFormat(25, 7, "Status", "1", 0, "C", true, 0, "")
+		pdf.CellFormat(45, 7, "Test", "1", 0, "L", true, 0, "")
+		pdf.CellFormat(40, 7, "Test ID", "1", 0, "L", true, 0, "")
+		pdf.CellFormat(30, 7, "Started", "1", 0, "L", true, 0, "")
+		pdf.CellFormat(20, 7, "Status", "1", 0, "C", true, 0, "")
 		pdf.CellFormat(0, 7, "Technician", "1", 1, "L", true, 0, "")
 
 		// Table rows
 		pdf.SetFont("Arial", "", 9)
 		for _, run := range artifact.Runs {
-			pdf.CellFormat(55, 7, truncate(run.ScriptName, 30), "1", 0, "L", false, 0, "")
-			pdf.CellFormat(35, 7, run.StartedAt.In(denverTZ).Format("2006-01-02 15:04"), "1", 0, "L", false, 0, "")
-			pdf.CellFormat(25, 7, run.Status, "1", 0, "C", false, 0, "")
+			pdf.CellFormat(45, 7, truncate(run.ScriptName, 24), "1", 0, "L", false, 0, "")
+			pdf.CellFormat(40, 7, truncate(run.RunID, 22), "1", 0, "L", false, 0, "")
+			pdf.CellFormat(30, 7, run.StartedAt.In(denverTZ).Format("2006-01-02 15:04"), "1", 0, "L", false, 0, "")
+			pdf.CellFormat(20, 7, run.Status, "1", 0, "C", false, 0, "")
 			pdf.CellFormat(0, 7, run.EmployeeName, "1", 1, "L", false, 0, "")
 		}
 	}
@@ -385,6 +387,7 @@ func renderPDF(w io.Writer, artifact *TestArtifact) error {
 
 		pdf.SetFont("Arial", "", 10)
 		runInfo := []struct{ label, value string }{
+			{"Test ID:", run.RunID},
 			{"Status:", run.Status},
 			{"Started:", run.StartedAt.In(denverTZ).Format("2006-01-02 15:04:05 MST")},
 		}
@@ -444,17 +447,20 @@ func renderPDF(w io.Writer, artifact *TestArtifact) error {
 
 				pdf.SetFont("Arial", "B", 8)
 				pdf.SetFillColor(220, 220, 220)
+				pdf.CellFormat(25, 6, "Time", "1", 0, "L", true, 0, "")
 				pdf.CellFormat(30, 6, "Type", "1", 0, "L", true, 0, "")
-				pdf.CellFormat(30, 6, "Employee", "1", 0, "L", true, 0, "")
-				pdf.CellFormat(60, 6, "Description", "1", 0, "L", true, 0, "")
-				pdf.CellFormat(0, 6, "Time", "1", 1, "L", true, 0, "")
+				pdf.CellFormat(0, 6, "Description", "1", 1, "L", true, 0, "")
 
 				pdf.SetFont("Arial", "", 8)
 				for _, e := range run.Events {
-					pdf.CellFormat(30, 6, e.Type, "1", 0, "L", false, 0, "")
-					pdf.CellFormat(30, 6, truncate(e.EmployeeID, 15), "1", 0, "L", false, 0, "")
-					pdf.CellFormat(60, 6, truncate(e.Reason, 35), "1", 0, "L", false, 0, "")
-					pdf.CellFormat(0, 6, e.Timestamp.In(denverTZ).Format("15:04:05"), "1", 1, "L", false, 0, "")
+					lines := pdf.SplitLines([]byte(e.Reason), 135)
+					if len(lines) == 0 {
+						lines = [][]byte{nil}
+					}
+					rowH := 6.0 * float64(len(lines))
+					pdf.CellFormat(25, rowH, e.Timestamp.In(denverTZ).Format("15:04:05"), "1", 0, "L", false, 0, "")
+					pdf.CellFormat(30, rowH, e.Type, "1", 0, "L", false, 0, "")
+					pdf.MultiCell(135, 6, e.Reason, "1", "L", false)
 				}
 			}
 		}

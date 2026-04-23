@@ -558,7 +558,7 @@ func (h *Handler) startTest(w http.ResponseWriter, r *http.Request) {
 		deviceID = devices[0]
 	}
 
-	testRunID := uuid.New().String()
+	testRunID := time.Now().Format("20060102-150405.000")
 
 	if err := h.TestMgr.StartTest(stationID, deviceID, req.ScriptPath, req.RMAID, testRunID, emp.ID); err != nil {
 		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})

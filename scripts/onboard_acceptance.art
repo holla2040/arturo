@@ -1,7 +1,7 @@
 # onboard_acceptance.art
-# Full CTI on-board cryopump refurb acceptance test.
+# Full CTI on-board cryopump acceptance test.
 #
-# Gates the customer-facing deliverable for a refurbished pump:
+# Gates the customer-facing deliverable for a pump:
 #   1. Pre-regen baseline    — pump is at cold base temperature and stable.
 #   2. Full regen cycle      — drives the pump through a complete regen
 #                              (which internally runs the warmup, rough,
@@ -22,6 +22,8 @@
 CONST REPORT_TYPE "acceptance"
 CONST REPORT_VERSION "1.0"
 CONST SAMPLE_INTERVAL 5000
+CONST PREREGEN_SAMPLE_INTERVAL 15000
+CONST STEADY_SAMPLE_INTERVAL 30000
 CONST QUERY_TIMEOUT 5000
 
 # Base-temperature envelope (pre-regen baseline and post-regen cooldown)
@@ -84,7 +86,7 @@ FUNCTION regen_state_name(letter)
     ENDIF
 ENDFUNCTION
 
-TEST "Onboard Cryopump Refurb Acceptance"
+TEST "Onboard Cryopump Acceptance"
     # -------------------------------------------------------------------
     # Stage 1: Pre-regen baseline
     # -------------------------------------------------------------------
@@ -97,11 +99,11 @@ TEST "Onboard Cryopump Refurb Acceptance"
     WHILE baseline_elapsed < BASELINE_STABLE_DURATION
         QUERY "get_temp_1st_stage" t1 TIMEOUT QUERY_TIMEOUT
         QUERY "get_temp_2nd_stage" t2 TIMEOUT QUERY_TIMEOUT
-        ASSERT FLOAT(t1) <= BASE_T1_MAX "Pre-regen T1 above base envelope: " + t1 + " K > " + BASE_T1_MAX + " K"
-        ASSERT FLOAT(t2) <= BASE_T2_MAX "Pre-regen T2 above base envelope: " + t2 + " K > " + BASE_T2_MAX + " K"
+        ASSERT FLOAT(t1) <= BASE_T1_MAX "Pre-regen T1 " + t1 + " K vs limit " + BASE_T1_MAX + " K"
+        ASSERT FLOAT(t2) <= BASE_T2_MAX "Pre-regen T2 " + t2 + " K vs limit " + BASE_T2_MAX + " K"
         LOG INFO "Baseline sample - T1: " + t1 + " K, T2: " + t2 + " K"
-        DELAY SAMPLE_INTERVAL
-        SET baseline_elapsed baseline_elapsed + SAMPLE_INTERVAL
+        DELAY PREREGEN_SAMPLE_INTERVAL
+        SET baseline_elapsed baseline_elapsed + PREREGEN_SAMPLE_INTERVAL
     ENDWHILE
     LOG INFO "Stage 1 PASSED: pump is at cold base and stable"
 
@@ -174,11 +176,11 @@ TEST "Onboard Cryopump Refurb Acceptance"
     WHILE hold_elapsed < STEADY_HOLD_DURATION
         QUERY "get_temp_1st_stage" t1 TIMEOUT QUERY_TIMEOUT
         QUERY "get_temp_2nd_stage" t2 TIMEOUT QUERY_TIMEOUT
-        ASSERT FLOAT(t1) <= BASE_T1_MAX "Steady-state drift: T1 " + t1 + " K > " + BASE_T1_MAX + " K"
-        ASSERT FLOAT(t2) <= BASE_T2_MAX "Steady-state drift: T2 " + t2 + " K > " + BASE_T2_MAX + " K"
+        ASSERT FLOAT(t1) <= BASE_T1_MAX "Steady-state drift: T1 " + t1 + " K vs limit " + BASE_T1_MAX + " K"
+        ASSERT FLOAT(t2) <= BASE_T2_MAX "Steady-state drift: T2 " + t2 + " K vs limit " + BASE_T2_MAX + " K"
         LOG INFO "Hold sample - T1: " + t1 + " K, T2: " + t2 + " K"
-        DELAY SAMPLE_INTERVAL
-        SET hold_elapsed hold_elapsed + SAMPLE_INTERVAL
+        DELAY STEADY_SAMPLE_INTERVAL
+        SET hold_elapsed hold_elapsed + STEADY_SAMPLE_INTERVAL
     ENDWHILE
     LOG INFO "Stage 4 PASSED: steady-state hold within envelope"
 

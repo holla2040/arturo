@@ -64,6 +64,7 @@ func ExportRunCSV(w io.Writer, st *store.Store, rmaID, runID string) error {
 	cw.Write([]string{"Customer", rma.CustomerName})
 	cw.Write([]string{"Pump Model", rma.PumpModel})
 	cw.Write([]string{"Station ID", stationInstance})
+	cw.Write([]string{"Test ID", run.ID})
 	cw.Write([]string{"Test", run.ScriptName})
 	cw.Write([]string{"Status", run.Status})
 	cw.Write([]string{"Started", run.StartedAt.In(denverTZ).Format("2006-01-02 15:04:05 MST")})

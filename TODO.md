@@ -1,5 +1,43 @@
 # TODO
 
+## Discussion: Redundant per-field queries during regen test (get_regen_status, stage temps)
+
+**Observation.** During `onboard_regen.art`, the test-event log shows a line per script-issued `QUERY` — e.g. `query emp-001 get_regen_status -> N` every ~5 s. The script actually fires three per iteration (`get_regen_status`, `get_temp_1st_stage`, `get_temp_2nd_stage`); only one was visible in the user's excerpt.
+
+**Two layers of redundancy.**
+
+1. *Station side.* All three are on the station's cache-served list (`subsystems/station/src/pump_telemetry.cpp:13-23`). They don't hit the CTI UART — they're served from the station's `_pumpTelemetry` snapshot that the firmware's background poll task maintains.
+2. *Controller side.* The station poller (`subsystems/internal/poller/poller.go:104`) is already fetching `get_telemetry` every tick and has `regen_char`, `stage1_temp_k`, `stage2_temp_k` in its own in-process snapshot (`poller.go:83-95`), broadcasting on the WS hub and writing to `pump_status_log` / `temperature_log`. The script is re-fetching data the poller next to it just fetched.
+
+The individual per-field command names exist in the HAL because they read more naturally in scripts than parsing JSON out of `get_telemetry`. But every one of them maps 1:1 to a field the controller already holds.
+
+**Design direction agreed during the discussion (before stopping):**
+
+- **Transparent dispatch, no new script syntax.** Script authors keep writing `QUERY "get_regen_status"`. The controller's script executor internally tries sources in order of latency: (1) controller poller snapshot in-process, (2) station-side RAM cache via Redis, (3) CTI over RS-232. Same return value, only latency differs. The previously-considered `CACHED` modifier was rejected — users should not know or care about caching.
+- **Staleness.** If the controller snapshot is stale (poller failing), demote to the next source rather than error. Offline detection is unchanged: the station-side cache-stale path or the heartbeat monitor still catches a dead station.
+- **Scope.** Pump (CTI on-board) only in the first cut. Other device types join when they acquire a controller-side poller.
+
+A first-draft architecture section (§5.4) and HAL note were written and then reverted during the discussion — they are recoverable from git history if the direction is confirmed (see this conversation's message thread).
+
+**Open question — not yet decided.** What the test-event log should actually show during a sampling loop. Two candidate answers, pick one before coding:
+
+1. *Script keeps its sample loop, uses the combo packet.* Replace the three per-iteration queries with one `QUERY "get_telemetry" tel` and pull fields out of the JSON. Needs a JSON-field accessor in the engine. One test-event line per iteration with the combo.
+2. *Script stops sampling entirely; poller is the sole source.* The script queries only `regen_char` for loop-exit control. The regen-curve CSV is built from `temperature_log` + `pump_status_log` over the test's time window (which the comment at `scripts/onboard_regen.art:70-72` already says is the intent). Script's `timestamps` / `temps_1st` / `temps_2nd` / `regen_letters` / `regen_states` arrays are deleted. One test-event line per iteration — the `get_regen_status` control-flow check — and no temp queries at all.
+
+Recommendation was (2) — matches the existing comment and eliminates duplicate bookkeeping — but user had not yet confirmed when the discussion was parked.
+
+**If (2) is chosen, additional consideration:** the test-event log's role during sampling. Options were: a new `SAMPLE t1 t2 regen_letter state_name` primitive that emits one combined event; reuse `LOG INFO`; or suppress cache-served `query` events and emit a composite event on a timer. Not decided.
+
+**Files touched during the discussion (for re-entry):**
+
+- `docs/SCRIPTING_HAL.md` — Pump section intro, near the existing cache paragraph
+- `docs/architecture/ARCHITECTURE.md` — §5.3/§5.4 (new section spot, after Script Executor Adaptation)
+- `subsystems/internal/poller/poller.go:83-95` — `telemetrySnapshot` struct; controller-side field set
+- `subsystems/station/src/pump_telemetry.cpp:13-23` — `kCachedCommands`; station-side cache-served set
+- `subsystems/internal/script/executor/executor.go:624` — where `emit("query", …)` records each test event
+- `scripts/onboard_regen.art:64-170` — the sampling loops (pre-regen, poll, post-regen)
+- `subsystems/internal/artifact/csv.go:15-17` — comment confirming telemetry CSV is poller-owned, not script-owned
+
 ## Discussion: Move regen state description into engine/HAL
 
 `onboard_regen.art` has a 50-line `regen_state_name()` function that maps CTI O-command letters to human-readable state names. This is device protocol knowledge that arguably belongs in the engine or HAL layer, not in user scripts.
@@ -29,52 +67,3 @@ The controller response listener logs `no waiter for correlation_id=...` when a 
 - Batch multiple queries into fewer round-trips if firmware supports it
 - Reduce the number of queries per poll cycle
 
-## Bug: `onboard_acceptance.art` terminated early with "station went offline"
-
-Running `onboard_acceptance.art` against real station-01 (CTI on-board pump at T1 ~65 K, T2 ~10 K) terminates ~18 s into Stage 1 with `Status: terminated`, `Summary: "station went offline"`. The script itself is healthy — no ASSERT fails, no script error. The controller's health checker kills the session because the station's heartbeat stops arriving for ≥ 10 s.
-
-**Reproduction (observed twice, runs `ae987a2e-…` and `3d50e6a3-…` in DB):**
-1. Start controller + terminal + Redis, station-01 online with pump at base.
-2. Create RMA, start `onboard_acceptance` script on station-01 via terminal UI.
-3. ~18 s later the test row appears as `terminated` with summary "station went offline".
-
-**Evidence from test_events (`/test-runs/{id}/events`):**
-- 03:22:21 — test started
-- 03:22:22 — `QUERY get_regen_status -> P` OK
-- 03:22:24 – 03:22:38 — three successful baseline samples (T1 ~65 K, T2 ~10 K, all asserts passed). Each T1 + T2 query pair took 0.8 s at the start, growing to **2.2 s by the third sample**.
-- 03:22:39.98 — `EventType: terminated, EmployeeID: system, Reason: "station went offline"` — emitted by the controller, not the script.
-
-**Evidence from controller stdout (around the same wall-clock window):**
-- At test start, flood of `response listener: no waiter for correlation_id=<uuid>` — responses arriving for commands the caller already timed out and deregistered. 13+ in a row over ~15 s.
-- Poller ticks visibly slow down; the combined `S1=a J=… K=…` summary line goes from cadence 5 s to 9 s during the flood.
-- Underlying "no waiter" mechanic is the already-logged bug above, but here it escalates into a session termination.
-
-**Call path that terminates the session:**
-- `subsystems/cmd/controller/main.go:386-415` — `runHealthChecker` ticks every 2 s; calls `reg.RunHealthCheck(now)`.
-- `subsystems/internal/registry/registry.go:171-195` — marks station `offline` if `now - LastHeartbeat >= OfflineThreshold` (10 s, line 20).
-- `subsystems/cmd/controller/main.go:408-412` — when a station transitions to offline, calls `testMgr.HandleOffline(s.Instance)`.
-- `subsystems/internal/testmanager/manager.go:243-255` — if the station has an active session, calls `session.Terminate("system", "station went offline")`. That is the `terminated` event above.
-
-**Root-cause hypothesis:** the poller (`internal/poller/poller.go`, 5 s tick, ~6-9 sequential CTI queries per tick) and the script (baseline loop, 2 queries per 5 s) both share the station's single CTI RS-232 bus. When their queries interleave, the station's serial round-trips queue up and the station firmware's heartbeat publisher — on the same main loop — can't emit heartbeats fast enough to beat the 10 s offline threshold. The pump is still physically alive and still responding (proven by the 2.2 s T2 response), but the control-plane heartbeat starvation looks like "offline" to the controller.
-
-This is an infrastructure issue, not a script issue. `onboard_acceptance.art` is the trigger because it's the first script that issues `QUERY` commands on top of the already-busy poller; it is not the bug.
-
-**Fix options (in order of structural soundness):**
-
-1. **Pause the poller while a test session is active on that station.** The script owns the bus during a run; poller resumes when the session ends. The "right" fix. Poller already sits next to `testmanager`; add a check in the poll loop (`internal/poller/poller.go`) that asks the TestManager whether the station has an active session, and skips that station's tick if so. Requires threading a TestManager reference (or a lightweight "is busy" callback) into the poller.
-
-2. **Station firmware: move heartbeat publish off the CTI command loop.** Put the Redis heartbeat on its own FreeRTOS task / timer so serial bus congestion cannot starve it. The most architecturally correct fix, out of scope for Go-only changes. See `subsystems/station/` (C++/Arduino).
-
-3. **Raise `OfflineThreshold`** in `subsystems/internal/registry/registry.go:20` from 10 s to ~30 s. One-line change. Masks the symptom, lets test runs survive brief bus congestion, but hides genuine disconnects for longer. Reasonable short-term mitigation if the firmware/poller fix is delayed.
-
-4. **Increase `SAMPLE_INTERVAL` in scripts.** Reduces script-side contention but doesn't fix root cause — the poller alone could still starve heartbeats on a slower station or bigger command set. Not recommended as the primary fix.
-
-**Recommendation:** option 1 (poller pause on active session) is the smallest, most surgical Go change and properly respects the single-source-of-truth rule — the script owns the serial bus during a test run, the poller takes over when idle. Option 3 is worth doing alongside it as defense in depth.
-
-**Files/paths pre-identified:**
-- `scripts/onboard_acceptance.art` — the script being run (unchanged; it is the trigger, not the bug)
-- `subsystems/internal/poller/poller.go` — where the pause logic would live for option 1
-- `subsystems/internal/testmanager/manager.go` — `HasActiveSession(stationInstance)` already exists (line ~268), so the poller can query it directly
-- `subsystems/internal/registry/registry.go:20` — `OfflineThreshold` constant for option 3
-- `subsystems/cmd/controller/main.go:386-415` — the health checker loop that triggers the termination
-- DB at `/home/cryo/arturo/arturo.db`, test runs `ae987a2e-f752-4082-b011-a0ce8c03d804` and `3d50e6a3-9eb4-4fde-9851-8d063f85e1e6` contain the failing-run events for reference.

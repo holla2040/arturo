@@ -194,8 +194,8 @@ func TestRegenFromOff(t *testing.T) {
 	if snap.State != StateRegen {
 		t.Errorf("expected StateRegen, got %d (%s)", snap.State, snap.StateName)
 	}
-	if snap.RegenStep != int(RegenPhaseWarming) {
-		t.Errorf("expected phase 1 (warming), got %d", snap.RegenStep)
+	if snap.RegenStep != int(RegenPhaseWarmup1) {
+		t.Errorf("expected phase Warmup1 (step 1), got %d", snap.RegenStep)
 	}
 }
 
@@ -231,102 +231,123 @@ func TestRegenCycle(t *testing.T) {
 	}
 }
 
-func TestRegenPhaseWarming(t *testing.T) {
+func TestRegenPhaseWarmup1(t *testing.T) {
 	p := NewPump(4.0, 0.0)
 	setColdState(p)
 
 	p.HandleCommand("start_regen")
 
-	// Verify phase
 	snap := p.Snapshot()
-	if snap.RegenStep != int(RegenPhaseWarming) {
-		t.Errorf("expected phase 1 (warming), got %d", snap.RegenStep)
+	if snap.RegenStep != int(RegenPhaseWarmup1) {
+		t.Errorf("expected phase Warmup1 (step 1), got %d", snap.RegenStep)
 	}
-	if snap.RegenPhaseName != "warming" {
-		t.Errorf("expected phase name 'warming', got %q", snap.RegenPhaseName)
+	if snap.RegenPhaseName != "warmup 1" {
+		t.Errorf("expected phase name 'warmup 1', got %q", snap.RegenPhaseName)
 	}
 
-	// O-char should be 'B'
 	resp, _ := p.HandleCommand("get_regen_status")
-	if resp != "B" {
-		t.Errorf("expected O-char 'B' for warming, got %q", resp)
+	if resp != "^" {
+		t.Errorf("expected O-char '^' for warmup 1, got %q", resp)
 	}
 
-	// Heaters on, purge open, rough closed
 	if !snap.HeatersOn {
-		t.Error("expected heaters on during warming")
+		t.Error("expected heaters on during warmup")
 	}
 	if !snap.PurgeValveOpen {
-		t.Error("expected purge valve open during warming")
+		t.Error("expected purge valve open during warmup")
 	}
 	if snap.RoughValveOpen {
-		t.Error("expected rough valve closed during warming")
+		t.Error("expected rough valve closed during warmup")
 	}
 }
 
-func TestRegenPhasePurge(t *testing.T) {
+func TestRegenPhaseWarmupSubStates(t *testing.T) {
 	p := NewPump(4.0, 0.0)
 	setColdState(p)
 	p.HandleCommand("start_regen")
 
-	// Advance to purge
-	p.AdvanceRegenStep()
-
-	snap := p.Snapshot()
-	if snap.RegenStep != int(RegenPhasePurge) {
-		t.Errorf("expected phase 2 (purge), got %d", snap.RegenStep)
-	}
-	if snap.RegenPhaseName != "extended purge" {
-		t.Errorf("expected phase name 'extended purge', got %q", snap.RegenPhaseName)
-	}
-
-	// O-char should be 'H'
-	resp, _ := p.HandleCommand("get_regen_status")
-	if resp != "H" {
-		t.Errorf("expected O-char 'H' for purge, got %q", resp)
+	// Walk the 4 warmup sub-states.
+	cases := []struct {
+		phase RegenPhase
+		letter string
+		name  string
+	}{
+		{RegenPhaseWarmup1, "^", "warmup 1"},
+		{RegenPhaseWarmup2, "C", "warmup 2"},
+		{RegenPhaseWarmup3, "]", "warmup 3"},
+		{RegenPhaseWarmup4, "E", "warmup 4"},
 	}
 
-	// Heaters on, purge open, rough closed
-	if !snap.HeatersOn {
-		t.Error("expected heaters on during purge")
-	}
-	if !snap.PurgeValveOpen {
-		t.Error("expected purge valve open during purge")
-	}
-	if snap.RoughValveOpen {
-		t.Error("expected rough valve closed during purge")
+	for i, c := range cases {
+		snap := p.Snapshot()
+		if snap.RegenStep != int(c.phase) {
+			t.Errorf("step %d: expected phase %d, got %d", i, int(c.phase), snap.RegenStep)
+		}
+		if snap.RegenPhaseName != c.name {
+			t.Errorf("step %d: expected name %q, got %q", i, c.name, snap.RegenPhaseName)
+		}
+		if resp, _ := p.HandleCommand("get_regen_status"); resp != c.letter {
+			t.Errorf("step %d: expected letter %q, got %q", i, c.letter, resp)
+		}
+		if !snap.HeatersOn || !snap.PurgeValveOpen || snap.RoughValveOpen {
+			t.Errorf("step %d: valves/heater state wrong", i)
+		}
+		if i < len(cases)-1 {
+			p.AdvanceRegenStep()
+		}
 	}
 }
 
-func TestRegenPhaseRoughing(t *testing.T) {
+func TestRegenPhaseRough1(t *testing.T) {
 	p := NewPump(4.0, 0.0)
 	setColdState(p)
 	p.HandleCommand("start_regen")
 
-	// Advance to purge, then roughing
-	p.AdvanceRegenStep()
-	p.AdvanceRegenStep()
+	// Warmup1 -> 2 -> 3 -> 4 -> Rough1 (4 advances)
+	for i := 0; i < 4; i++ {
+		p.AdvanceRegenStep()
+	}
 
 	snap := p.Snapshot()
-	if snap.RegenStep != int(RegenPhaseRoughing) {
-		t.Errorf("expected phase 3 (roughing), got %d", snap.RegenStep)
+	if snap.RegenStep != int(RegenPhaseRough1) {
+		t.Errorf("expected phase Rough1, got %d", snap.RegenStep)
 	}
-
-	// O-char should be 'I'
-	resp, _ := p.HandleCommand("get_regen_status")
-	if resp != "I" {
-		t.Errorf("expected O-char 'I' for roughing, got %q", resp)
+	if resp, _ := p.HandleCommand("get_regen_status"); resp != "J" {
+		t.Errorf("expected O-char 'J' for rough 1, got %q", resp)
 	}
-
-	// Purge closed, rough open
 	if snap.PurgeValveOpen {
-		t.Error("expected purge valve closed during roughing")
+		t.Error("expected purge valve closed during rough")
 	}
 	if !snap.RoughValveOpen {
-		t.Error("expected rough valve open during roughing")
+		t.Error("expected rough valve open during rough")
 	}
 	if !snap.HeatersOn {
-		t.Error("expected heaters on during roughing")
+		t.Error("expected heaters on during rough")
+	}
+}
+
+func TestRegenPhaseRough2(t *testing.T) {
+	p := NewPump(4.0, 0.0)
+	setColdState(p)
+	p.HandleCommand("start_regen")
+
+	// Advance to Rough2 (5 advances)
+	for i := 0; i < 5; i++ {
+		p.AdvanceRegenStep()
+	}
+
+	snap := p.Snapshot()
+	if snap.RegenStep != int(RegenPhaseRough2) {
+		t.Errorf("expected phase Rough2, got %d", snap.RegenStep)
+	}
+	if resp, _ := p.HandleCommand("get_regen_status"); resp != "T" {
+		t.Errorf("expected O-char 'T' for rough 2, got %q", resp)
+	}
+	if snap.PurgeValveOpen {
+		t.Error("expected purge valve closed during rough 2")
+	}
+	if !snap.RoughValveOpen {
+		t.Error("expected rough valve open during rough 2")
 	}
 }
 
@@ -335,23 +356,20 @@ func TestRegenPhaseROR(t *testing.T) {
 	setColdState(p)
 	p.HandleCommand("start_regen")
 
-	// Advance to ROR
-	p.AdvanceRegenStep() // -> purge
-	p.AdvanceRegenStep() // -> roughing
-	p.AdvanceRegenStep() // -> ROR
+	// Advance to ROR (6 advances from Warmup1)
+	for i := 0; i < 6; i++ {
+		p.AdvanceRegenStep()
+	}
 
 	snap := p.Snapshot()
 	if snap.RegenStep != int(RegenPhaseROR) {
-		t.Errorf("expected phase 4 (ROR), got %d", snap.RegenStep)
+		t.Errorf("expected phase ROR, got %d", snap.RegenStep)
 	}
 
-	// O-char should be 'L'
-	resp, _ := p.HandleCommand("get_regen_status")
-	if resp != "L" {
+	if resp, _ := p.HandleCommand("get_regen_status"); resp != "L" {
 		t.Errorf("expected O-char 'L' for ROR, got %q", resp)
 	}
 
-	// Both valves closed
 	if snap.RoughValveOpen {
 		t.Error("expected rough valve closed during ROR")
 	}
@@ -360,37 +378,51 @@ func TestRegenPhaseROR(t *testing.T) {
 	}
 }
 
-func TestRegenPhaseCooling(t *testing.T) {
+func TestRegenPhaseCooldown(t *testing.T) {
 	p := NewPump(4.0, 0.0)
 	setColdState(p)
 	p.HandleCommand("start_regen")
 
-	// Advance to cooling
-	p.AdvanceRegenStep() // -> purge
-	p.AdvanceRegenStep() // -> roughing
-	p.AdvanceRegenStep() // -> ROR
-	p.AdvanceRegenStep() // -> cooling
+	// Advance to Cooldown (7 advances)
+	for i := 0; i < 7; i++ {
+		p.AdvanceRegenStep()
+	}
 
 	snap := p.Snapshot()
-	if snap.RegenStep != int(RegenPhaseCooling) {
-		t.Errorf("expected phase 5 (cooling), got %d", snap.RegenStep)
+	if snap.RegenStep != int(RegenPhaseCooldown) {
+		t.Errorf("expected phase Cooldown, got %d", snap.RegenStep)
+	}
+	if resp, _ := p.HandleCommand("get_regen_status"); resp != "N" {
+		t.Errorf("expected O-char 'N' for cooldown, got %q", resp)
 	}
 
-	// O-char should be 'M'
-	resp, _ := p.HandleCommand("get_regen_status")
-	if resp != "M" {
-		t.Errorf("expected O-char 'M' for cooling, got %q", resp)
-	}
-
-	// Heaters off, all valves closed
 	if snap.HeatersOn {
-		t.Error("expected heaters off during cooling")
+		t.Error("expected heaters off during cooldown")
 	}
 	if snap.RoughValveOpen {
-		t.Error("expected rough valve closed during cooling")
+		t.Error("expected rough valve closed during cooldown")
 	}
 	if snap.PurgeValveOpen {
-		t.Error("expected purge valve closed during cooling")
+		t.Error("expected purge valve closed during cooldown")
+	}
+}
+
+func TestRegenPhaseZeroTC(t *testing.T) {
+	p := NewPump(4.0, 0.0)
+	setColdState(p)
+	p.HandleCommand("start_regen")
+
+	// Advance to ZeroTC (8 advances)
+	for i := 0; i < 8; i++ {
+		p.AdvanceRegenStep()
+	}
+
+	snap := p.Snapshot()
+	if snap.RegenStep != int(RegenPhaseZeroTC) {
+		t.Errorf("expected phase ZeroTC, got %d", snap.RegenStep)
+	}
+	if resp, _ := p.HandleCommand("get_regen_status"); resp != "[" {
+		t.Errorf("expected O-char '[' for zero tc, got %q", resp)
 	}
 }
 
@@ -406,10 +438,10 @@ func TestRegenRORRetry(t *testing.T) {
 	setColdState(p)
 	p.HandleCommand("start_regen")
 
-	// Advance to ROR
-	p.AdvanceRegenStep() // -> purge
-	p.AdvanceRegenStep() // -> roughing
-	p.AdvanceRegenStep() // -> ROR
+	// Advance to ROR (6 advances from Warmup1)
+	for i := 0; i < 6; i++ {
+		p.AdvanceRegenStep()
+	}
 
 	// Simulate time passing so ROR evaluates
 	p.mu.Lock()
@@ -422,21 +454,22 @@ func TestRegenRORRetry(t *testing.T) {
 	// Trigger update
 	p.Snapshot()
 
-	// Should have retried - back to purge
+	// Should have retried - back to Warmup4 (closest analogue to real CTI re-heat)
 	p.mu.RLock()
 	phase := p.regenPhase
 	retries := p.regenRetryCount
 	p.mu.RUnlock()
 
-	if phase != RegenPhasePurge {
-		t.Errorf("expected retry back to purge, got phase %d", phase)
+	if phase != RegenPhaseWarmup4 {
+		t.Errorf("expected retry back to Warmup4, got phase %d", phase)
 	}
 	if retries != 1 {
 		t.Errorf("expected retry count 1, got %d", retries)
 	}
 
-	// Do another failed ROR cycle
-	p.AdvanceRegenStep() // -> roughing
+	// Advance from Warmup4 back through Rough1 -> Rough2 -> ROR (3 advances)
+	p.AdvanceRegenStep() // -> Rough1
+	p.AdvanceRegenStep() // -> Rough2
 	p.AdvanceRegenStep() // -> ROR
 
 	p.mu.Lock()
@@ -524,9 +557,10 @@ func TestRegenAbortRoughTimeout(t *testing.T) {
 	setColdState(p)
 	p.HandleCommand("start_regen")
 
-	// Advance to roughing
-	p.AdvanceRegenStep() // -> purge
-	p.AdvanceRegenStep() // -> roughing
+	// Advance to Rough1 (4 advances from Warmup1)
+	for i := 0; i < 4; i++ {
+		p.AdvanceRegenStep()
+	}
 
 	// Wait for timeout
 	time.Sleep(5 * time.Millisecond)
@@ -573,14 +607,19 @@ func TestAdvanceAllPhases(t *testing.T) {
 	p.HandleCommand("start_regen")
 
 	expected := []struct {
-		phase int
-		name  string
+		phase  int
+		name   string
+		letter string
 	}{
-		{1, "warming"},
-		{2, "extended purge"},
-		{3, "roughing"},
-		{4, "rate of rise"},
-		{5, "cooling"},
+		{int(RegenPhaseWarmup1), "warmup 1", "^"},
+		{int(RegenPhaseWarmup2), "warmup 2", "C"},
+		{int(RegenPhaseWarmup3), "warmup 3", "]"},
+		{int(RegenPhaseWarmup4), "warmup 4", "E"},
+		{int(RegenPhaseRough1), "rough 1", "J"},
+		{int(RegenPhaseRough2), "rough 2", "T"},
+		{int(RegenPhaseROR), "rate of rise", "L"},
+		{int(RegenPhaseCooldown), "cooldown", "N"},
+		{int(RegenPhaseZeroTC), "zero tc", "["},
 	}
 
 	for i, exp := range expected {
@@ -590,6 +629,9 @@ func TestAdvanceAllPhases(t *testing.T) {
 		}
 		if snap.RegenPhaseName != exp.name {
 			t.Errorf("step %d: expected name %q, got %q", i, exp.name, snap.RegenPhaseName)
+		}
+		if resp, _ := p.HandleCommand("get_regen_status"); resp != exp.letter {
+			t.Errorf("step %d: expected letter %q, got %q", i, exp.letter, resp)
 		}
 		if i < len(expected)-1 {
 			p.AdvanceRegenStep()
@@ -636,30 +678,32 @@ func TestStatusByte1Valves(t *testing.T) {
 	setColdState(p)
 	p.HandleCommand("start_regen")
 
-	// Warming: purge open (bit 2), rough closed (bit 1 off)
+	// Warmup1: purge open (bit 2), rough closed (bit 1 off)
 	resp, _ := p.HandleCommand("get_status_1")
 	status, _ := strconv.Atoi(resp)
 	if status&0x04 == 0 {
-		t.Errorf("warming: expected purge valve bit (0x04) set, got 0x%02x", status)
+		t.Errorf("warmup: expected purge valve bit (0x04) set, got 0x%02x", status)
 	}
 	if status&0x02 != 0 {
-		t.Errorf("warming: expected rough valve bit (0x02) clear, got 0x%02x", status)
+		t.Errorf("warmup: expected rough valve bit (0x02) clear, got 0x%02x", status)
 	}
 
-	// Advance to roughing: rough open (bit 1), purge closed (bit 2 off)
-	p.AdvanceRegenStep() // -> purge
-	p.AdvanceRegenStep() // -> roughing
+	// Advance to Rough1: rough open (bit 1), purge closed (bit 2 off)
+	for i := 0; i < 4; i++ {
+		p.AdvanceRegenStep()
+	}
 
 	resp, _ = p.HandleCommand("get_status_1")
 	status, _ = strconv.Atoi(resp)
 	if status&0x02 == 0 {
-		t.Errorf("roughing: expected rough valve bit (0x02) set, got 0x%02x", status)
+		t.Errorf("rough: expected rough valve bit (0x02) set, got 0x%02x", status)
 	}
 	if status&0x04 != 0 {
-		t.Errorf("roughing: expected purge valve bit (0x04) clear, got 0x%02x", status)
+		t.Errorf("rough: expected purge valve bit (0x04) clear, got 0x%02x", status)
 	}
 
-	// Advance to ROR: both valves closed
+	// Advance to ROR: both valves closed (2 advances: Rough2, then ROR)
+	p.AdvanceRegenStep() // -> Rough2
 	p.AdvanceRegenStep() // -> ROR
 	resp, _ = p.HandleCommand("get_status_1")
 	status, _ = strconv.Atoi(resp)
@@ -730,11 +774,15 @@ func TestRegenPhaseString(t *testing.T) {
 		want  string
 	}{
 		{RegenPhaseNone, "none"},
-		{RegenPhaseWarming, "warming"},
-		{RegenPhasePurge, "extended purge"},
-		{RegenPhaseRoughing, "roughing"},
+		{RegenPhaseWarmup1, "warmup 1"},
+		{RegenPhaseWarmup2, "warmup 2"},
+		{RegenPhaseWarmup3, "warmup 3"},
+		{RegenPhaseWarmup4, "warmup 4"},
+		{RegenPhaseRough1, "rough 1"},
+		{RegenPhaseRough2, "rough 2"},
 		{RegenPhaseROR, "rate of rise"},
-		{RegenPhaseCooling, "cooling"},
+		{RegenPhaseCooldown, "cooldown"},
+		{RegenPhaseZeroTC, "zero tc"},
 		{RegenPhase(99), "unknown"},
 	}
 	for _, tt := range tests {
@@ -742,6 +790,48 @@ func TestRegenPhaseString(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("RegenPhase(%d).String() = %q, want %q", tt.phase, got, tt.want)
 		}
+	}
+}
+
+// TestRegenTimescale verifies the timescale mechanism shrinks a full regen
+// cycle. Tune-up: default regen (~113 min raw) runs to completion well
+// under one real second at Timescale=20000.
+func TestRegenTimescale(t *testing.T) {
+	p := NewPump(4.0, 0.0)
+
+	params := DefaultRegenParams()
+	params.Timescale = 20000.0
+	// Safety-net timeouts are kept at defaults; Timescale shrinks them
+	// uniformly with the sub-state durations.
+	p.SetRegenParams(params)
+
+	setColdState(p)
+	p.HandleCommand("start_regen")
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		p.Snapshot() // drives updateRegen
+		p.mu.RLock()
+		completed := p.regenCompleted
+		aborted := p.regenError != '@'
+		p.mu.RUnlock()
+		if completed || aborted {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	p.mu.RLock()
+	completed := p.regenCompleted
+	errCode := p.regenError
+	p.mu.RUnlock()
+
+	if !completed {
+		t.Errorf("expected completed regen under Timescale=20000, got completed=%v err=%c",
+			completed, errCode)
+	}
+	if errCode != '@' {
+		t.Errorf("expected no error, got %c", errCode)
 	}
 }
 

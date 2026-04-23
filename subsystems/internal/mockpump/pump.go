@@ -25,15 +25,21 @@ const (
 )
 
 // RegenPhase represents the current phase within a regeneration cycle.
+// Letter mappings match the CTI controller's O-command output observed on
+// real hardware (see tests/data/station-01-regen-2026-04-22.csv).
 type RegenPhase int
 
 const (
 	RegenPhaseNone     RegenPhase = iota // Not in regen
-	RegenPhaseWarming                    // Phase 1: Heating to warmup temp
-	RegenPhasePurge                      // Phase 2: Extended nitrogen purge
-	RegenPhaseRoughing                   // Phase 3: Rough pump to base vacuum
-	RegenPhaseROR                        // Phase 4: Rate-of-rise test
-	RegenPhaseCooling                    // Phase 5: Cooldown after successful ROR
+	RegenPhaseWarmup1                    // '^' Warmup sub-state 1
+	RegenPhaseWarmup2                    // 'C' Warmup sub-state 2
+	RegenPhaseWarmup3                    // ']' Warmup sub-state 3
+	RegenPhaseWarmup4                    // 'E' Warmup main (long hold at warmup temp)
+	RegenPhaseRough1                     // 'J' Rough to base pressure, sub 1
+	RegenPhaseRough2                     // 'T' Rough to base pressure, main
+	RegenPhaseROR                        // 'L' Rate-of-rise test
+	RegenPhaseCooldown                   // 'N' Cooldown
+	RegenPhaseZeroTC                     // '[' Zeroing TC gauge (post-cooldown)
 )
 
 // String returns the human-readable name for a regen phase.
@@ -41,16 +47,24 @@ func (rp RegenPhase) String() string {
 	switch rp {
 	case RegenPhaseNone:
 		return "none"
-	case RegenPhaseWarming:
-		return "warming"
-	case RegenPhasePurge:
-		return "extended purge"
-	case RegenPhaseRoughing:
-		return "roughing"
+	case RegenPhaseWarmup1:
+		return "warmup 1"
+	case RegenPhaseWarmup2:
+		return "warmup 2"
+	case RegenPhaseWarmup3:
+		return "warmup 3"
+	case RegenPhaseWarmup4:
+		return "warmup 4"
+	case RegenPhaseRough1:
+		return "rough 1"
+	case RegenPhaseRough2:
+		return "rough 2"
 	case RegenPhaseROR:
 		return "rate of rise"
-	case RegenPhaseCooling:
-		return "cooling"
+	case RegenPhaseCooldown:
+		return "cooldown"
+	case RegenPhaseZeroTC:
+		return "zero tc"
 	default:
 		return "unknown"
 	}
@@ -59,37 +73,59 @@ func (rp RegenPhase) String() string {
 // RegenParams holds configurable parameters for the regen cycle.
 type RegenParams struct {
 	WarmupTempK      float64       // Target warmup temperature (K)
-	RoughVacuumTorr  float64       // Retained for API compat
+	RoughVacuumTorr  float64       // Target base pressure for roughing (Torr)
 	RORLimitMTorrMin float64       // Max acceptable rate-of-rise (mTorr/min)
 	MaxRORRetries    int           // Max ROR retry attempts before abort
-	WarmupTimeout    time.Duration // Max time in warming phase (safety net)
-	RoughTimeout     time.Duration // Max time in roughing phase (safety net)
+	WarmupTimeout    time.Duration // Max total time across all warmup sub-states
+	RoughTimeout     time.Duration // Max total time across all roughing sub-states
 	CooldownTargetK  float64       // Retained for API compat
 
-	// Phase durations (pendant2-style fixed timing)
-	WarmupDuration   time.Duration
-	PurgeDuration    time.Duration
-	RoughDuration    time.Duration
+	// Phase durations — raw ("realistic") values from a real-pump CSV at
+	// tests/data/station-01-regen-2026-04-22.csv. Actual elapsed wall time
+	// is raw / Timescale (see effective()).
+	Warmup1Duration  time.Duration
+	Warmup2Duration  time.Duration
+	Warmup3Duration  time.Duration
+	Warmup4Duration  time.Duration
+	Rough1Duration   time.Duration
+	Rough2Duration   time.Duration
 	RORDuration      time.Duration
 	CooldownDuration time.Duration
+	ZeroTCDuration   time.Duration
+
+	// Timescale is a uniform acceleration factor for all durations and
+	// timeouts. 1.0 = realistic (~113 min end-to-end). 24.0 = ~5 min E2E.
+	// Applied at phase entry; in-flight changes take effect at the next
+	// phase boundary. Floor of 0.01 enforced by SetRegenParams.
+	Timescale float64
 }
 
-// DefaultRegenParams returns regen parameters matching pendant2 timing.
+// DefaultRegenParams returns regen parameters with CSV-matched raw durations
+// and a default Timescale of 10.0 (~11 min end-to-end) suitable for
+// interactive dev. Pass Timescale=1.0 for realistic pacing or higher for
+// faster E2E tests.
 func DefaultRegenParams() RegenParams {
 	return RegenParams{
 		WarmupTempK:      295.0,
 		RoughVacuumTorr:  0.050,
 		RORLimitMTorrMin: 20.0,
 		MaxRORRetries:    3,
-		WarmupTimeout:    2 * time.Minute,
-		RoughTimeout:     2 * time.Minute,
-		CooldownTargetK:  15.0,
+		// Safety nets cover the raw sum of sub-state durations with margin.
+		WarmupTimeout:   20 * time.Minute, // raw warmups sum to ~19m
+		RoughTimeout:    15 * time.Minute, // raw roughs sum to ~12m
+		CooldownTargetK: 15.0,
 
-		WarmupDuration:   40 * time.Second,
-		PurgeDuration:    30 * time.Second,
-		RoughDuration:    20 * time.Second,
-		RORDuration:      20 * time.Second,
-		CooldownDuration: 60 * time.Second,
+		Warmup1Duration:  31 * time.Second,
+		Warmup2Duration:  30 * time.Second,
+		Warmup3Duration:  90 * time.Second,
+		Warmup4Duration:  982 * time.Second,
+		Rough1Duration:   6 * time.Second,
+		Rough2Duration:   722 * time.Second,
+		RORDuration:      61 * time.Second,
+		CooldownDuration: 4819 * time.Second,
+		ZeroTCDuration:   58 * time.Second,
+
+		Timescale: 10.0,
 	}
 }
 
@@ -323,71 +359,111 @@ func (p *Pump) buildTelemetryJSON() string {
 	return string(b)
 }
 
-// startRegen initializes the regen cycle and enters the warming phase.
+// startRegen initializes the regen cycle and enters the first warmup sub-state.
 func (p *Pump) startRegen() {
 	p.state = StateRegen
 	p.regenError = '@'
 	p.regenRetryCount = 0
 	p.regenPressure = 0
 	p.regenCompleted = false
-	p.enterPhase(RegenPhaseWarming)
+	p.enterPhase(RegenPhaseWarmup1)
 }
 
 // enterPhase transitions to a new regen phase, capturing start values and
-// setting targets/durations for pendant2-style linear interpolation.
+// setting targets/durations for pendant2-style linear interpolation. All
+// durations are scaled by Timescale via effective(). Stage and pressure
+// targets are chosen to form a monotonic ramp across each coarse phase.
 func (p *Pump) enterPhase(phase RegenPhase) {
 	p.captureStartValues()
 	p.regenPhase = phase
 	p.regenPhaseStart = time.Now()
 
 	switch phase {
-	case RegenPhaseWarming:
+	case RegenPhaseWarmup1:
 		p.heatersOn = true
 		p.purgeValveOpen = true
 		p.roughValveOpen = false
-		p.stage1Target = 295.0
-		p.stage2Target = 295.0
-		p.pressureTarget = 100.0
-		p.phaseDuration = p.regenParams.WarmupDuration.Seconds()
+		p.stage1Target = 120.0
+		p.stage2Target = 60.0
+		p.pressureTarget = 1.0
+		p.phaseDuration = p.effective(p.regenParams.Warmup1Duration).Seconds()
 
-	case RegenPhasePurge:
+	case RegenPhaseWarmup2:
 		p.heatersOn = true
 		p.purgeValveOpen = true
 		p.roughValveOpen = false
-		p.stage1Target = 295.0
-		p.stage2Target = 295.0
+		p.stage1Target = 180.0
+		p.stage2Target = 150.0
+		p.pressureTarget = 10.0
+		p.phaseDuration = p.effective(p.regenParams.Warmup2Duration).Seconds()
+
+	case RegenPhaseWarmup3:
+		p.heatersOn = true
+		p.purgeValveOpen = true
+		p.roughValveOpen = false
+		p.stage1Target = 250.0
+		p.stage2Target = 240.0
 		p.pressureTarget = 50.0
-		p.phaseDuration = p.regenParams.PurgeDuration.Seconds()
+		p.phaseDuration = p.effective(p.regenParams.Warmup3Duration).Seconds()
 
-	case RegenPhaseRoughing:
+	case RegenPhaseWarmup4:
+		p.heatersOn = true
+		p.purgeValveOpen = true
+		p.roughValveOpen = false
+		p.stage1Target = p.regenParams.WarmupTempK
+		p.stage2Target = p.regenParams.WarmupTempK
+		p.pressureTarget = 100.0
+		p.phaseDuration = p.effective(p.regenParams.Warmup4Duration).Seconds()
+
+	case RegenPhaseRough1:
 		p.purgeValveOpen = false
 		p.roughValveOpen = true
 		p.heatersOn = true
-		p.stage1Target = 295.0
-		p.stage2Target = 295.0
-		p.pressureTarget = 25.0
-		p.phaseDuration = p.regenParams.RoughDuration.Seconds()
+		p.stage1Target = p.regenParams.WarmupTempK
+		p.stage2Target = p.regenParams.WarmupTempK
+		p.pressureTarget = 50.0
+		p.phaseDuration = p.effective(p.regenParams.Rough1Duration).Seconds()
+
+	case RegenPhaseRough2:
+		p.purgeValveOpen = false
+		p.roughValveOpen = true
+		p.heatersOn = true
+		p.stage1Target = p.regenParams.WarmupTempK
+		p.stage2Target = p.regenParams.WarmupTempK
+		p.pressureTarget = p.regenParams.RoughVacuumTorr
+		p.phaseDuration = p.effective(p.regenParams.Rough2Duration).Seconds()
 
 	case RegenPhaseROR:
 		p.roughValveOpen = false
 		p.purgeValveOpen = false
 		p.heatersOn = true
-		p.stage1Target = 295.0
-		p.stage2Target = 295.0
-		p.pressureTarget = 25.0
-		p.phaseDuration = p.regenParams.RORDuration.Seconds()
+		p.stage1Target = p.regenParams.WarmupTempK
+		p.stage2Target = p.regenParams.WarmupTempK
+		p.pressureTarget = p.regenParams.RoughVacuumTorr
+		p.phaseDuration = p.effective(p.regenParams.RORDuration).Seconds()
 		p.rorStartPressure = p.pressure
 		p.regenPressure = p.pressure
 		p.rorStartTime = time.Now()
 
-	case RegenPhaseCooling:
+	case RegenPhaseCooldown:
 		p.heatersOn = false
 		p.roughValveOpen = false
 		p.purgeValveOpen = false
 		p.stage1Target = 65.0
 		p.stage2Target = 15.0
 		p.pressureTarget = 1.5e-6
-		p.phaseDuration = p.regenParams.CooldownDuration.Seconds()
+		p.phaseDuration = p.effective(p.regenParams.CooldownDuration).Seconds()
+
+	case RegenPhaseZeroTC:
+		// Zeroing TC gauge: hold targets constant; brief delay window
+		// before marking the cycle complete.
+		p.heatersOn = false
+		p.roughValveOpen = false
+		p.purgeValveOpen = false
+		p.stage1Target = 65.0
+		p.stage2Target = 15.0
+		p.pressureTarget = 1.5e-6
+		p.phaseDuration = p.effective(p.regenParams.ZeroTCDuration).Seconds()
 	}
 }
 
@@ -515,7 +591,7 @@ func (p *Pump) updateTemperatures() {
 	}
 
 	// Track regenPressure during roughing for Snapshot
-	if p.state == StateRegen && p.regenPhase == RegenPhaseRoughing {
+	if p.state == StateRegen && (p.regenPhase == RegenPhaseRough1 || p.regenPhase == RegenPhaseRough2) {
 		p.regenPressure = p.pressure
 	}
 
@@ -526,26 +602,53 @@ func (p *Pump) updateTemperatures() {
 }
 
 // updateRegen handles regen phase transitions and ROR-specific pressure logic.
+// All phase durations and timeouts are read through effective() so the whole
+// chain scales uniformly with Timescale.
 func (p *Pump) updateRegen(now time.Time, dt float64) {
 	elapsed := now.Sub(p.regenPhaseStart)
 
 	switch p.regenPhase {
-	case RegenPhaseWarming:
-		if elapsed >= p.regenParams.WarmupDuration {
-			p.enterPhase(RegenPhasePurge)
-		} else if elapsed >= p.regenParams.WarmupTimeout {
+	case RegenPhaseWarmup1:
+		if elapsed >= p.effective(p.regenParams.Warmup1Duration) {
+			p.enterPhase(RegenPhaseWarmup2)
+		} else if elapsed >= p.effective(p.regenParams.WarmupTimeout) {
 			p.abortRegen('B')
 		}
 
-	case RegenPhasePurge:
-		if elapsed >= p.regenParams.PurgeDuration {
-			p.enterPhase(RegenPhaseRoughing)
+	case RegenPhaseWarmup2:
+		if elapsed >= p.effective(p.regenParams.Warmup2Duration) {
+			p.enterPhase(RegenPhaseWarmup3)
+		} else if elapsed >= p.effective(p.regenParams.WarmupTimeout) {
+			p.abortRegen('B')
 		}
 
-	case RegenPhaseRoughing:
-		if elapsed >= p.regenParams.RoughDuration {
+	case RegenPhaseWarmup3:
+		if elapsed >= p.effective(p.regenParams.Warmup3Duration) {
+			p.enterPhase(RegenPhaseWarmup4)
+		} else if elapsed >= p.effective(p.regenParams.WarmupTimeout) {
+			p.abortRegen('B')
+		}
+
+	case RegenPhaseWarmup4:
+		if elapsed >= p.effective(p.regenParams.Warmup4Duration) {
+			p.enterPhase(RegenPhaseRough1)
+		} else if elapsed >= p.effective(p.regenParams.WarmupTimeout) {
+			p.abortRegen('B')
+		}
+
+	case RegenPhaseRough1:
+		p.regenPressure = p.pressure
+		if elapsed >= p.effective(p.regenParams.Rough1Duration) {
+			p.enterPhase(RegenPhaseRough2)
+		} else if elapsed >= p.effective(p.regenParams.RoughTimeout) {
+			p.abortRegen('G')
+		}
+
+	case RegenPhaseRough2:
+		p.regenPressure = p.pressure
+		if elapsed >= p.effective(p.regenParams.Rough2Duration) {
 			p.enterPhase(RegenPhaseROR)
-		} else if elapsed >= p.regenParams.RoughTimeout {
+		} else if elapsed >= p.effective(p.regenParams.RoughTimeout) {
 			p.abortRegen('G')
 		}
 
@@ -555,26 +658,37 @@ func (p *Pump) updateRegen(now time.Time, dt float64) {
 		p.regenPressure += riseTorrPerSec * dt
 		p.pressure = p.regenPressure
 
-		// Evaluate after ROR duration
+		// Evaluate after ROR duration (scaled by Timescale)
 		rorElapsed := now.Sub(p.rorStartTime)
-		if rorElapsed >= p.regenParams.RORDuration {
+		if rorElapsed >= p.effective(p.regenParams.RORDuration) {
+			// Rate uses real-time minutes, not scaled time: the physical
+			// rate-of-rise threshold is defined in real mTorr/min, and
+			// the simulated pressure rise is also in real seconds.
 			minutes := rorElapsed.Minutes()
 			rateMTorrMin := (p.regenPressure - p.rorStartPressure) * 1000.0 / minutes
 
 			if rateMTorrMin < p.regenParams.RORLimitMTorrMin {
-				p.enterPhase(RegenPhaseCooling)
+				p.enterPhase(RegenPhaseCooldown)
 			} else {
 				p.regenRetryCount++
 				if p.regenRetryCount >= p.regenParams.MaxRORRetries {
 					p.abortRegen('E')
 				} else {
-					p.enterPhase(RegenPhasePurge)
+					// Retry: re-heat at warmup main (CSV 'E') before
+					// roughing again. Closest analogue to real CTI
+					// behavior on ROR failure.
+					p.enterPhase(RegenPhaseWarmup4)
 				}
 			}
 		}
 
-	case RegenPhaseCooling:
-		if elapsed >= p.regenParams.CooldownDuration {
+	case RegenPhaseCooldown:
+		if elapsed >= p.effective(p.regenParams.CooldownDuration) {
+			p.enterPhase(RegenPhaseZeroTC)
+		}
+
+	case RegenPhaseZeroTC:
+		if elapsed >= p.effective(p.regenParams.ZeroTCDuration) {
 			p.regenPhase = RegenPhaseNone
 			p.regenCompleted = true
 			p.transitionTo(StateCooling)
@@ -614,7 +728,8 @@ func (p *Pump) statusByte2() string {
 	return "0"
 }
 
-// regenStatusChar returns a CTI-style O-command character for the current regen state.
+// regenStatusChar returns a CTI-style O-command character for the current
+// regen state. Letters match real-hardware CSV output.
 func (p *Pump) regenStatusChar() byte {
 	// Error state takes precedence
 	if p.regenError != '@' {
@@ -623,16 +738,24 @@ func (p *Pump) regenStatusChar() byte {
 
 	if p.state == StateRegen {
 		switch p.regenPhase {
-		case RegenPhaseWarming:
-			return 'B'
-		case RegenPhasePurge:
-			return 'H'
-		case RegenPhaseRoughing:
-			return 'I'
+		case RegenPhaseWarmup1:
+			return '^'
+		case RegenPhaseWarmup2:
+			return 'C'
+		case RegenPhaseWarmup3:
+			return ']'
+		case RegenPhaseWarmup4:
+			return 'E'
+		case RegenPhaseRough1:
+			return 'J'
+		case RegenPhaseRough2:
+			return 'T'
 		case RegenPhaseROR:
 			return 'L'
-		case RegenPhaseCooling:
-			return 'M'
+		case RegenPhaseCooldown:
+			return 'N'
+		case RegenPhaseZeroTC:
+			return '['
 		}
 	}
 
@@ -641,7 +764,7 @@ func (p *Pump) regenStatusChar() byte {
 		if p.state == StateCold {
 			return 'P' // Regen complete, fully cold
 		}
-		return 'M' // Still cooling
+		return 'N' // Still cooling after a successful regen
 	}
 
 	return 'P' // No regen in progress
@@ -786,10 +909,24 @@ func (p *Pump) SetFailRate(rate float64) {
 }
 
 // SetRegenParams sets the regen cycle parameters (for test configurability).
+// Timescale is clamped to a minimum of 0.01 to avoid div-by-zero in effective().
 func (p *Pump) SetRegenParams(params RegenParams) {
+	if params.Timescale < 0.01 {
+		params.Timescale = 0.01
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.regenParams = params
+}
+
+// effective scales a raw duration by the current Timescale. All phase
+// durations and timeouts in the regen state machine are read through this.
+func (p *Pump) effective(d time.Duration) time.Duration {
+	ts := p.regenParams.Timescale
+	if ts < 0.01 {
+		ts = 1.0
+	}
+	return time.Duration(float64(d) / ts)
 }
 
 // AbortRegen aborts the regen cycle with a manual abort code.
@@ -802,6 +939,8 @@ func (p *Pump) AbortRegen() {
 }
 
 // AdvanceRegenStep advances to the next regen phase (for console "+" button).
+// Walks the 9-step linear sequence; the terminal advance (from ZeroTC) marks
+// the cycle complete and transitions to StateCooling.
 func (p *Pump) AdvanceRegenStep() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -809,25 +948,30 @@ func (p *Pump) AdvanceRegenStep() {
 		return
 	}
 
+	// For warmup sub-states, fast-forward temps to the current target so the
+	// next phase starts from a clean point.
 	switch p.regenPhase {
-	case RegenPhaseWarming:
-		// Set temps to warmup target for clean transition
+	case RegenPhaseWarmup1:
+		p.enterPhase(RegenPhaseWarmup2)
+	case RegenPhaseWarmup2:
+		p.enterPhase(RegenPhaseWarmup3)
+	case RegenPhaseWarmup3:
+		p.enterPhase(RegenPhaseWarmup4)
+	case RegenPhaseWarmup4:
 		p.firstStageK = p.stage1Target
 		p.secondStageK = p.stage2Target
-		p.enterPhase(RegenPhasePurge)
-
-	case RegenPhasePurge:
-		p.enterPhase(RegenPhaseRoughing)
-
-	case RegenPhaseRoughing:
+		p.enterPhase(RegenPhaseRough1)
+	case RegenPhaseRough1:
+		p.enterPhase(RegenPhaseRough2)
+	case RegenPhaseRough2:
 		p.enterPhase(RegenPhaseROR)
-
 	case RegenPhaseROR:
-		p.enterPhase(RegenPhaseCooling)
-
-	case RegenPhaseCooling:
+		p.enterPhase(RegenPhaseCooldown)
+	case RegenPhaseCooldown:
 		p.firstStageK = 65.0
 		p.secondStageK = 15.0
+		p.enterPhase(RegenPhaseZeroTC)
+	case RegenPhaseZeroTC:
 		p.regenPhase = RegenPhaseNone
 		p.regenCompleted = true
 		p.transitionTo(StateCooling)

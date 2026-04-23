@@ -29,7 +29,10 @@ func main() {
 	failRate := flag.Float64("fail-rate", 0.0, "Probability of random command failure (0.0-1.0)")
 	cooldownHours := flag.Float64("cooldown-hours", 4.0, "Simulated hours to reach base temperature")
 	httpAddr := flag.String("http", ":8001", "HTTP address for web UI")
+	regenTimescale := flag.Float64("regen-timescale", 0, "Regen acceleration factor (0 = use default/env). 1.0 = realistic (~113 min), 24.0 = ~5 min E2E. Overrides ARTURO_REGEN_TIMESCALE.")
 	flag.Parse()
+
+	timescaleOverride := resolveRegenTimescale(*regenTimescale)
 
 	stationNums, err := parseStations(*stationsFlag)
 	if err != nil {
@@ -58,6 +61,11 @@ func main() {
 		dev := fmt.Sprintf("PUMP-%02d", num)
 
 		pump := mockpump.NewPump(*cooldownHours, *failRate)
+		if timescaleOverride > 0 {
+			params := mockpump.DefaultRegenParams()
+			params.Timescale = timescaleOverride
+			pump.SetRegenParams(params)
+		}
 		online := true
 		s := &mockStation{
 			rdb:      rdb,
@@ -105,6 +113,29 @@ func main() {
 
 	wg.Wait()
 	log.Println("All mock stations stopped")
+}
+
+// resolveRegenTimescale picks the timescale override, if any.
+// Flag wins over env var. Returns 0 to mean "no override; use DefaultRegenParams".
+// Invalid values log a warning and fall through.
+func resolveRegenTimescale(flagVal float64) float64 {
+	if flagVal > 0 {
+		if flagVal < 0.01 {
+			log.Printf("regen-timescale %g too small, ignoring (min 0.01)", flagVal)
+			return 0
+		}
+		return flagVal
+	}
+	envStr := os.Getenv("ARTURO_REGEN_TIMESCALE")
+	if envStr == "" {
+		return 0
+	}
+	envVal, err := strconv.ParseFloat(envStr, 64)
+	if err != nil || envVal < 0.01 {
+		log.Printf("ARTURO_REGEN_TIMESCALE=%q invalid, ignoring", envStr)
+		return 0
+	}
+	return envVal
 }
 
 func parseStations(s string) ([]int, error) {

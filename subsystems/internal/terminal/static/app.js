@@ -511,7 +511,8 @@ var App = (function() {
             var dis = (isOffline && !isActive) ? ' disabled' : '';
             var onclick = (isOffline || isActive) ? '' : ' onclick="App.openStation(\'' + escapeHtml(inst) + '\')"';
             var temps = state.stationTemps[inst] || {};
-            var label = escapeHtml(inst) + ' ' + formatTemp(temps.first_stage) + ' ' + formatTemp(temps.second_stage);
+            var fmt = function(k) { return k == null ? '--' : k.toFixed(1); };
+            var label = escapeHtml(inst) + ' ' + fmt(temps.first_stage) + ' ' + fmt(temps.second_stage);
             html += '<button class="' + cls + '"' + dis + onclick + '>' + label + '</button>';
         }
         el.innerHTML = html;

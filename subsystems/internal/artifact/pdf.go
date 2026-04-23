@@ -101,60 +101,111 @@ func renderRegenCSV(pdf *fpdf.Fpdf, run ArtifactRun) {
 	}
 }
 
-// renderRegenPlot generates a temperature-vs-time line chart from regen
-// samples and embeds it in the PDF. Skips if fewer than 2 plottable points.
-func renderRegenPlot(pdf *fpdf.Fpdf, run ArtifactRun, runIndex int) {
-	samples := buildRegenSamples(run.Events)
-
-	// Parse temperature strings to floats, build XY series.
-	var firstPts, secondPts plotter.XYs
-	for _, s := range samples {
-		x := float64(s.timestamp.Unix())
-		if v, err := strconv.ParseFloat(s.first, 64); err == nil {
-			firstPts = append(firstPts, plotter.XY{X: x, Y: v})
-		}
-		if v, err := strconv.ParseFloat(s.second, 64); err == nil {
-			secondPts = append(secondPts, plotter.XY{X: x, Y: v})
+// buildTempSeries extracts 1st- and 2nd-stage temperature points from run
+// events. Handles both the regen-report format (query events with reason
+// "get_temp_Nth_stage -> VALUE") and the acceptance-report format
+// (regen_state events with reason "regen=X (...) • 1st=65.5K • 2nd=12.4K ...").
+func buildTempSeries(events []ArtifactEvent) (firstPts, secondPts plotter.XYs) {
+	for _, e := range events {
+		x := float64(e.Timestamp.Unix())
+		switch e.Type {
+		case "query":
+			parts := strings.SplitN(e.Reason, " -> ", 2)
+			if len(parts) != 2 {
+				continue
+			}
+			v, err := strconv.ParseFloat(parts[1], 64)
+			if err != nil {
+				continue
+			}
+			switch parts[0] {
+			case "get_temp_1st_stage":
+				firstPts = append(firstPts, plotter.XY{X: x, Y: v})
+			case "get_temp_2nd_stage":
+				secondPts = append(secondPts, plotter.XY{X: x, Y: v})
+			}
+		case "regen_state":
+			if v, ok := parseTempField(e.Reason, "1st="); ok {
+				firstPts = append(firstPts, plotter.XY{X: x, Y: v})
+			}
+			if v, ok := parseTempField(e.Reason, "2nd="); ok {
+				secondPts = append(secondPts, plotter.XY{X: x, Y: v})
+			}
 		}
 	}
+	return
+}
+
+// parseTempField extracts the float after `prefix` up to the next "K" in s.
+func parseTempField(s, prefix string) (float64, bool) {
+	i := strings.Index(s, prefix)
+	if i < 0 {
+		return 0, false
+	}
+	rest := s[i+len(prefix):]
+	end := strings.IndexByte(rest, 'K')
+	if end < 0 {
+		return 0, false
+	}
+	v, err := strconv.ParseFloat(strings.TrimSpace(rest[:end]), 64)
+	if err != nil {
+		return 0, false
+	}
+	return v, true
+}
+
+// renderRegenPlotRotated generates a temperature-vs-time line chart from
+// regen samples and places it on the page rotated 90° clockwise, filling
+// all space below the current Y position down to the bottom margin.
+func renderRegenPlotRotated(pdf *fpdf.Fpdf, run ArtifactRun, runIndex int) {
+	firstPts, secondPts := buildTempSeries(run.Events)
 
 	if len(firstPts)+len(secondPts) < 2 {
 		return
 	}
+
+	pageW, pageH := pdf.GetPageSize()
+	ml, _, mr, mb := pdf.GetMargins()
+	x1 := ml
+	y1 := pdf.GetY()
+	targetW := pageW - ml - mr
+	targetH := pageH - y1 - mb
 
 	p := plot.New()
 	p.Title.Text = "Temperature vs Time"
 	p.X.Label.Text = "Time (MST)"
 	p.Y.Label.Text = "Temperature (K)"
 
-	// Fixed Y-axis range 0-320 with grid lines every 20 degrees.
 	p.Y.Min = 0
 	p.Y.Max = 320
 	p.Y.Tick.Marker = fixedStepTicks{min: 0, max: 320, step: 40}
-
-	// Custom X-axis tick formatter: Unix seconds -> MST time strings.
 	p.X.Tick.Marker = mstTimeTicks{}
 
-	// Grid lines on both axes.
 	p.Add(plotter.NewGrid())
 
-	// Border around the plot area.
 	gridColor := color.RGBA{R: 200, G: 200, B: 200, A: 255}
 	p.X.Color = gridColor
 	p.Y.Color = gridColor
 
-	// Horizontal dashed reference line at 20K.
-	refPts := plotter.XYs{plotter.XY{X: firstPts[0].X, Y: 20}, plotter.XY{X: firstPts[len(firstPts)-1].X, Y: 20}}
+	// Establish X-range covering both series for the 20K reference line.
+	var xMin, xMax float64
+	if len(firstPts) > 0 {
+		xMin = firstPts[0].X
+		xMax = firstPts[len(firstPts)-1].X
+	} else {
+		xMin = secondPts[0].X
+		xMax = secondPts[len(secondPts)-1].X
+	}
 	if len(secondPts) > 0 {
-		if secondPts[0].X < refPts[0].X {
-			refPts[0].X = secondPts[0].X
+		if secondPts[0].X < xMin {
+			xMin = secondPts[0].X
 		}
-		if secondPts[len(secondPts)-1].X > refPts[1].X {
-			refPts[1].X = secondPts[len(secondPts)-1].X
+		if secondPts[len(secondPts)-1].X > xMax {
+			xMax = secondPts[len(secondPts)-1].X
 		}
 	}
-	refLine, err := plotter.NewLine(refPts)
-	if err == nil {
+	refPts := plotter.XYs{{X: xMin, Y: 20}, {X: xMax, Y: 20}}
+	if refLine, err := plotter.NewLine(refPts); err == nil {
 		refLine.Color = color.RGBA{R: 239, G: 68, B: 68, A: 255}
 		refLine.Width = vg.Points(1)
 		refLine.Dashes = []vg.Length{vg.Points(5), vg.Points(3)}
@@ -166,9 +217,9 @@ func renderRegenPlot(pdf *fpdf.Fpdf, run ArtifactRun, runIndex int) {
 		line, err := plotter.NewLine(firstPts)
 		if err == nil {
 			line.Color = color.RGBA{R: 34, G: 197, B: 94, A: 255}
-			line.Width = vg.Points(1)
+			line.Width = vg.Points(1.5)
 			p.Add(line)
-			p.Legend.Add("1st Stage (K)", line)
+			p.Legend.Add("1st Stage", line)
 		}
 	}
 
@@ -176,28 +227,35 @@ func renderRegenPlot(pdf *fpdf.Fpdf, run ArtifactRun, runIndex int) {
 		line, err := plotter.NewLine(secondPts)
 		if err == nil {
 			line.Color = color.RGBA{R: 74, G: 158, B: 255, A: 255}
-			line.Width = vg.Points(1)
+			line.Width = vg.Points(1.5)
 			p.Add(line)
-			p.Legend.Add("2nd Stage (K)", line)
+			p.Legend.Add("2nd Stage", line)
 		}
 	}
 
 	p.Legend.Top = true
 
-	// Render to PNG in memory.
-	w, err := p.WriterTo(8*vg.Inch, 8*vg.Inch, "png")
+	// Render at pre-rotation dimensions: width=targetH, height=targetW so
+	// that after 90° CW rotation the image fills (targetW × targetH) mm.
+	writer, err := p.WriterTo(vg.Length(targetH)*vg.Millimeter, vg.Length(targetW)*vg.Millimeter, "png")
 	if err != nil {
 		return
 	}
 	var buf bytes.Buffer
-	if _, err := w.WriteTo(&buf); err != nil {
+	if _, err := writer.WriteTo(&buf); err != nil {
 		return
 	}
 
-	imgName := fmt.Sprintf("regen_plot_%d", runIndex)
+	imgName := fmt.Sprintf("regen_plot_rot_%d", runIndex)
 	pdf.RegisterImageOptionsReader(imgName, fpdf.ImageOptions{ImageType: "PNG"}, &buf)
-	pdf.ImageOptions(imgName, 10, pdf.GetY(), 190, 0, true, fpdf.ImageOptions{ImageType: "PNG"}, 0, "")
-	pdf.Ln(4)
+
+	// Rotate -90° (CW visually) around target top-right, then draw image
+	// anchored at that same point with pre-rotation size (targetH × targetW);
+	// the rotation remaps it to fill (x1, y1) .. (x1+targetW, y1+targetH).
+	pdf.TransformBegin()
+	pdf.TransformRotate(-90, x1+targetW, y1)
+	pdf.ImageOptions(imgName, x1+targetW, y1, targetH, targetW, false, fpdf.ImageOptions{ImageType: "PNG"}, 0, "")
+	pdf.TransformEnd()
 }
 
 // fixedStepTicks generates ticks at a fixed interval between min and max.
@@ -230,17 +288,11 @@ func (mstTimeTicks) Ticks(min, max float64) []plot.Tick {
 		}
 	}
 
-	// Use longer format if span > 24 hours.
-	format := "15:04"
-	if span > 86400 {
-		format = "01/02 15:04"
-	}
-
 	start := float64(int64(min/interval) * int64(interval))
 	var ticks []plot.Tick
 	for v := start; v <= max; v += interval {
 		if v >= min {
-			label := time.Unix(int64(v), 0).In(denverTZ).Format(format)
+			label := time.Unix(int64(v), 0).In(denverTZ).Format("15:04")
 			ticks = append(ticks, plot.Tick{Value: v, Label: label})
 		}
 	}
@@ -383,7 +435,7 @@ func renderPDF(w io.Writer, artifact *TestArtifact) error {
 		if run.ReportVersion != "" {
 			runTitle += fmt.Sprintf("  (v%s)", run.ReportVersion)
 		}
-		pdf.CellFormat(0, 10, runTitle, "", 1, "L", false, 0, "")
+		pdf.CellFormat(0, 7, runTitle, "", 1, "L", false, 0, "")
 
 		pdf.SetFont("Arial", "", 10)
 		runInfo := []struct{ label, value string }{
@@ -399,16 +451,41 @@ func renderPDF(w io.Writer, artifact *TestArtifact) error {
 		}
 		for _, item := range runInfo {
 			pdf.SetFont("Arial", "B", 10)
-			pdf.CellFormat(25, 7, item.label, "", 0, "L", false, 0, "")
+			pdf.CellFormat(25, 4.5, item.label, "", 0, "L", false, 0, "")
 			pdf.SetFont("Arial", "", 10)
-			pdf.CellFormat(0, 7, item.value, "", 1, "L", false, 0, "")
+			pdf.CellFormat(0, 4.5, item.value, "", 1, "L", false, 0, "")
 		}
-		pdf.Ln(4)
 
 		if run.ReportType == "regen" {
-			renderRegenPlot(pdf, run, i)
+			renderRegenPlotRotated(pdf, run, i)
 			pdf.AddPage()
 			renderRegenCSV(pdf, run)
+		} else if run.ReportType == "acceptance" {
+			renderRegenPlotRotated(pdf, run, i)
+			pdf.AddPage()
+
+			if len(run.Events) > 0 {
+				pdf.SetFont("Arial", "B", 11)
+				pdf.CellFormat(0, 7, "Event Log", "", 1, "L", false, 0, "")
+
+				pdf.SetFont("Arial", "B", 8)
+				pdf.SetFillColor(220, 220, 220)
+				pdf.CellFormat(25, 6, "Time", "1", 0, "L", true, 0, "")
+				pdf.CellFormat(30, 6, "Type", "1", 0, "L", true, 0, "")
+				pdf.CellFormat(0, 6, "Description", "1", 1, "L", true, 0, "")
+
+				pdf.SetFont("Arial", "", 8)
+				for _, e := range run.Events {
+					lines := pdf.SplitLines([]byte(e.Reason), 135)
+					if len(lines) == 0 {
+						lines = [][]byte{nil}
+					}
+					rowH := 6.0 * float64(len(lines))
+					pdf.CellFormat(25, rowH, e.Timestamp.In(denverTZ).Format("15:04:05"), "1", 0, "L", false, 0, "")
+					pdf.CellFormat(30, rowH, e.Type, "1", 0, "L", false, 0, "")
+					pdf.MultiCell(135, 6, e.Reason, "1", "L", false)
+				}
+			}
 		} else {
 			// Measurements
 			if len(run.Measurements) > 0 {

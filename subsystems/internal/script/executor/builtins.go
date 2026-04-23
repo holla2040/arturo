@@ -57,7 +57,10 @@ func (e *Executor) evalBuiltin(name string, args []interface{}) (interface{}, er
 		if len(args) != 0 {
 			return nil, fmt.Errorf("NOW() takes no arguments, got %d", len(args))
 		}
-		return time.Now().Format(time.RFC3339), nil
+		// Milliseconds since Unix epoch — int64. Scripts do elapsed math as
+		// NOW() - start. String concatenation still works via Add's coercion.
+		// See docs/reference/SCRIPTING_LANGUAGE_ORIGINAL.md "Built-in Functions".
+		return time.Now().UnixMilli(), nil
 
 	default:
 		return nil, fmt.Errorf("unknown builtin function %q", name)

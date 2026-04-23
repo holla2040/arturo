@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"strconv"
 	"time"
 
@@ -776,6 +777,7 @@ func (e *Executor) execTestDef(s *ast.TestDef) error {
 
 		// Record test error only if not already finished by PASS/FAIL/SKIP.
 		if e.collector != nil && !e.testFinished {
+			log.Printf("executor: TEST %q errored: %v", name, testErr)
 			e.collector.RecordTestError(name, testErr.Error())
 		}
 		e.currentTest = prevTest

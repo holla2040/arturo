@@ -226,6 +226,37 @@ SET bool_val BOOL(1)       # true
 SET bool_val BOOL("")      # false
 ```
 
+### Built-in Functions
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `FLOAT(x)` | float | Parse to floating-point number |
+| `INT(x)` | integer | Parse to integer |
+| `STRING(x)` | string | Convert to string |
+| `BOOL(x)` | boolean | Convert to boolean (non-empty/non-zero = true) |
+| `LENGTH(x)` | integer | Length of a string, array, or map |
+| `TYPE(x)` | string | Type name: `"int"`, `"float"`, `"string"`, `"bool"`, `"array"`, `"map"` |
+| `EXISTS(x)` | boolean | True if the variable or map key exists |
+| `NOW()` | integer | Current time as **milliseconds since Unix epoch** (int64) |
+
+`NOW()` returns a number so scripts can compute elapsed times:
+
+```arturo
+SET t0 NOW()
+# ... do work ...
+SET elapsed NOW() - t0         # ms elapsed, integer
+IF elapsed > 5000              # 5 seconds
+    LOG WARN "slow: " + elapsed + " ms"
+ENDIF
+```
+
+Because the `+` operator coerces to string when either side is a string,
+concatenation with NOW() as an ID suffix also works:
+
+```arturo
+SET test_id "PSU-" + NOW()     # e.g. "PSU-1776918622000"
+```
+
 ## Control Flow
 
 ### Conditional Statements

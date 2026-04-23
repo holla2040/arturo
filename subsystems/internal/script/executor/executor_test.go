@@ -979,16 +979,34 @@ SET n LENGTH(arr)`
 		}
 	})
 
-	t.Run("NOW returns non-empty string", func(t *testing.T) {
+	t.Run("NOW returns milliseconds since epoch as int64", func(t *testing.T) {
 		src := `SET ts NOW()`
 		exec, err := parseAndExec(t, src)
 		if err != nil {
 			t.Fatal(err)
 		}
 		v, _ := exec.Env().Get("ts")
-		s, ok := v.(string)
-		if !ok || s == "" {
-			t.Fatalf("expected non-empty timestamp string, got %v", v)
+		ms, ok := v.(int64)
+		if !ok {
+			t.Fatalf("expected int64 ms since epoch, got %T %v", v, v)
+		}
+		// Sanity: roughly current wall clock, not 0.
+		if ms < 1_000_000_000_000 {
+			t.Fatalf("NOW() = %d ms, expected a modern Unix-ms timestamp", ms)
+		}
+	})
+
+	t.Run("NOW supports elapsed-time arithmetic", func(t *testing.T) {
+		src := `SET t0 NOW()
+SET t1 NOW()
+SET elapsed t1 - t0`
+		exec, err := parseAndExec(t, src)
+		if err != nil {
+			t.Fatal(err)
+		}
+		v, _ := exec.Env().Get("elapsed")
+		if _, ok := v.(int64); !ok {
+			t.Fatalf("expected int64 elapsed ms, got %T %v", v, v)
 		}
 	})
 

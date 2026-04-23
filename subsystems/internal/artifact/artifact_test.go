@@ -3,7 +3,6 @@ package artifact
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -127,15 +126,12 @@ func setupRegenTestData(t *testing.T, st *store.Store) {
 	st.CreateTestRunWithRMA("run-1", "onboard_regen.art", "rma-1", "station-01", "abc123def", "TEST \"regen\"\nENDTEST", "regen", "1.0")
 	st.RecordTestEvent("run-1", "started", "emp-1", "")
 
-	// Simulate query events like the regen script produces.
+	// Temperatures feed the plot + CSV; regen_state events drive the state column.
 	baseTime := time.Now()
+	st.RecordTestEventAt("run-1", "regen_state", "", "regen=M (Cooldown) • 1st=300.0K • 2nd=80.0K • elapsed=0:00", baseTime)
 	for i := 0; i < 20; i++ {
-		offset := time.Duration(i*5) * time.Second
-		t1 := 300.0 - float64(i)*10   // 1st stage cooling from 300K
-		t2 := 80.0 - float64(i)*2.5   // 2nd stage cooling from 80K
-		st.RecordTestEventAt("run-1", "query", "", fmt.Sprintf("get_temp_1st_stage -> %.1f", t1), baseTime.Add(offset))
-		st.RecordTestEventAt("run-1", "query", "", fmt.Sprintf("get_temp_2nd_stage -> %.1f", t2), baseTime.Add(offset).Add(time.Second))
-		st.RecordTestEventAt("run-1", "query", "", "get_regen_status -> M", baseTime.Add(offset).Add(2*time.Second))
+		st.RecordTemperature("run-1", "station-01", "PUMP-01", "first_stage", 300.0-float64(i)*10)
+		st.RecordTemperature("run-1", "station-01", "PUMP-01", "second_stage", 80.0-float64(i)*2.5)
 	}
 
 	st.RecordTestEvent("run-1", "completed", "emp-1", "regen complete")

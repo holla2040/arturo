@@ -23,73 +23,54 @@ import (
 // gonum's 96 DPI default so text stays crisp when zoomed in the PDF.
 const plotDPI = 300
 
-// regenSample holds one grouped sample row for the regen CSV table.
-type regenSample struct {
-	timestamp   time.Time
-	first       string
-	second      string
-	regenLetter string
-	regenState  string
+// parseRegenLetter extracts the CTI state character X from a regen_state
+// event reason of the form "regen=X (State) • 1st=..K • 2nd=..K • elapsed=..".
+func parseRegenLetter(reason string) string {
+	const prefix = "regen="
+	i := strings.Index(reason, prefix)
+	if i < 0 {
+		return ""
+	}
+	rest := reason[i+len(prefix):]
+	if end := strings.IndexByte(rest, ' '); end >= 0 {
+		return rest[:end]
+	}
+	return rest
 }
 
-// buildRegenSamples groups query events into sample rows by parsing the
-// reason field (e.g. "get_temp_1st_stage -> 15.0") and collecting one of
-// each command name per row.
-func buildRegenSamples(events []ArtifactEvent) []regenSample {
-	var samples []regenSample
-	var cur regenSample
-	filled := map[string]bool{}
-
+// activeRegenStateAt returns the human-readable regen state name that was in
+// effect at ts, based on the most recent regen_state event at or before ts.
+// Events must be in ascending timestamp order (QueryTestEvents guarantees this).
+func activeRegenStateAt(events []ArtifactEvent, ts time.Time) string {
+	var name string
 	for _, e := range events {
-		if e.Type != "query" {
+		if e.Type != "regen_state" {
 			continue
 		}
-
-		parts := strings.SplitN(e.Reason, " -> ", 2)
-		if len(parts) != 2 {
-			continue
+		if e.Timestamp.After(ts) {
+			break
 		}
-		cmd, val := parts[0], parts[1]
-
-		switch cmd {
-		case "get_regen_status", "get_temp_1st_stage", "get_temp_2nd_stage":
-		default:
-			continue
-		}
-
-		if filled[cmd] {
-			if len(filled) > 0 {
-				samples = append(samples, cur)
-			}
-			cur = regenSample{}
-			filled = map[string]bool{}
-		}
-
-		if cur.timestamp.IsZero() {
-			cur.timestamp = e.Timestamp
-		}
-		filled[cmd] = true
-
-		switch cmd {
-		case "get_temp_1st_stage":
-			cur.first = val
-		case "get_temp_2nd_stage":
-			cur.second = val
-		case "get_regen_status":
-			cur.regenLetter = val
-			cur.regenState = regen.StateName(val)
-		}
+		name = regen.StateName(parseRegenLetter(e.Reason))
 	}
-
-	if len(filled) > 0 {
-		samples = append(samples, cur)
-	}
-	return samples
+	return name
 }
 
+// renderRegenCSV emits Timestamp, 1st Stage K, 2nd Stage K, Regen State rows
+// for the regen run. Temperatures come from the temperature_samples feed
+// (paired within ±1s like the acceptance CSV); the state column is looked
+// up from regen_state events active at each sample's time.
 func renderRegenCSV(pdf *fpdf.Fpdf, run ArtifactRun) {
-	samples := buildRegenSamples(run.Events)
-	if len(samples) == 0 {
+	var firsts, seconds []ArtifactTemp
+	for _, t := range run.Temperatures {
+		switch t.Stage {
+		case "first_stage":
+			firsts = append(firsts, t)
+		case "second_stage":
+			seconds = append(seconds, t)
+		}
+	}
+
+	if len(firsts) == 0 && len(seconds) == 0 {
 		pdf.SetFont("Arial", "I", 10)
 		pdf.CellFormat(0, 7, "No temperature data recorded.", "", 1, "L", false, 0, "")
 		return
@@ -99,11 +80,36 @@ func renderRegenCSV(pdf *fpdf.Fpdf, run ArtifactRun) {
 	pdf.CellFormat(0, 4, "Timestamp (MST), 1st Stage (K), 2nd Stage (K), Regen State", "", 1, "L", false, 0, "")
 
 	pdf.SetFont("Courier", "", 7)
-	for _, s := range samples {
+	emit := func(ts time.Time, first, second string) {
 		line := fmt.Sprintf("%s, %s, %s, %s",
-			s.timestamp.In(denverTZ).Format("2006-01-02 15:04:05"),
-			s.first, s.second, s.regenState)
+			ts.In(denverTZ).Format("2006-01-02 15:04:05"),
+			first, second, activeRegenStateAt(run.Events, ts))
 		pdf.CellFormat(0, 3.5, line, "", 1, "L", false, 0, "")
+	}
+
+	i, j := 0, 0
+	for i < len(firsts) && j < len(seconds) {
+		a, b := firsts[i], seconds[j]
+		delta := b.Timestamp.Sub(a.Timestamp)
+		withinWindow := delta >= -time.Second && delta <= time.Second
+		switch {
+		case withinWindow:
+			emit(a.Timestamp, fmt.Sprintf("%.2f", a.TemperatureK), fmt.Sprintf("%.2f", b.TemperatureK))
+			i++
+			j++
+		case delta < 0:
+			emit(b.Timestamp, "", fmt.Sprintf("%.2f", b.TemperatureK))
+			j++
+		default:
+			emit(a.Timestamp, fmt.Sprintf("%.2f", a.TemperatureK), "")
+			i++
+		}
+	}
+	for ; i < len(firsts); i++ {
+		emit(firsts[i].Timestamp, fmt.Sprintf("%.2f", firsts[i].TemperatureK), "")
+	}
+	for ; j < len(seconds); j++ {
+		emit(seconds[j].Timestamp, "", fmt.Sprintf("%.2f", seconds[j].TemperatureK))
 	}
 }
 
@@ -170,6 +176,35 @@ func parseTempField(s, prefix string) (float64, bool) {
 		return 0, false
 	}
 	return v, true
+}
+
+// renderEventLog draws the Time/Type/Description event table for a run.
+// No-op if the run has no events. Used by both regen and acceptance reports.
+func renderEventLog(pdf *fpdf.Fpdf, run ArtifactRun) {
+	if len(run.Events) == 0 {
+		return
+	}
+
+	pdf.SetFont("Arial", "B", 11)
+	pdf.CellFormat(0, 7, "Event Log", "", 1, "L", false, 0, "")
+
+	pdf.SetFont("Arial", "B", 8)
+	pdf.SetFillColor(220, 220, 220)
+	pdf.CellFormat(25, 6, "Time", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(30, 6, "Type", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(0, 6, "Description", "1", 1, "L", true, 0, "")
+
+	pdf.SetFont("Arial", "", 8)
+	for _, e := range run.Events {
+		lines := pdf.SplitLines([]byte(e.Reason), 135)
+		if len(lines) == 0 {
+			lines = [][]byte{nil}
+		}
+		rowH := 6.0 * float64(len(lines))
+		pdf.CellFormat(25, rowH, e.Timestamp.In(denverTZ).Format("15:04:05"), "1", 0, "L", false, 0, "")
+		pdf.CellFormat(30, rowH, e.Type, "1", 0, "L", false, 0, "")
+		pdf.MultiCell(135, 6, e.Reason, "1", "L", false)
+	}
 }
 
 // renderAcceptanceDataCSV emits every temperature sample recorded for the
@@ -538,34 +573,13 @@ func renderPDF(w io.Writer, artifact *TestArtifact) error {
 		if run.ReportType == "regen" {
 			renderRegenPlotRotated(pdf, run, i)
 			pdf.AddPage()
+			renderEventLog(pdf, run)
+			pdf.AddPage()
 			renderRegenCSV(pdf, run)
 		} else if run.ReportType == "acceptance" {
 			renderRegenPlotRotated(pdf, run, i)
 			pdf.AddPage()
-
-			if len(run.Events) > 0 {
-				pdf.SetFont("Arial", "B", 11)
-				pdf.CellFormat(0, 7, "Event Log", "", 1, "L", false, 0, "")
-
-				pdf.SetFont("Arial", "B", 8)
-				pdf.SetFillColor(220, 220, 220)
-				pdf.CellFormat(25, 6, "Time", "1", 0, "L", true, 0, "")
-				pdf.CellFormat(30, 6, "Type", "1", 0, "L", true, 0, "")
-				pdf.CellFormat(0, 6, "Description", "1", 1, "L", true, 0, "")
-
-				pdf.SetFont("Arial", "", 8)
-				for _, e := range run.Events {
-					lines := pdf.SplitLines([]byte(e.Reason), 135)
-					if len(lines) == 0 {
-						lines = [][]byte{nil}
-					}
-					rowH := 6.0 * float64(len(lines))
-					pdf.CellFormat(25, rowH, e.Timestamp.In(denverTZ).Format("15:04:05"), "1", 0, "L", false, 0, "")
-					pdf.CellFormat(30, rowH, e.Type, "1", 0, "L", false, 0, "")
-					pdf.MultiCell(135, 6, e.Reason, "1", "L", false)
-				}
-			}
-
+			renderEventLog(pdf, run)
 			pdf.AddPage()
 			renderAcceptanceDataCSV(pdf, run)
 		} else {

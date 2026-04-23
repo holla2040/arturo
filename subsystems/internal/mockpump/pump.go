@@ -450,7 +450,7 @@ func (p *Pump) enterPhase(phase RegenPhase) {
 		p.roughValveOpen = false
 		p.purgeValveOpen = false
 		p.stage1Target = 65.0
-		p.stage2Target = 15.0
+		p.stage2Target = 12.0
 		p.pressureTarget = 1.5e-6
 		p.phaseDuration = p.effective(p.regenParams.CooldownDuration).Seconds()
 
@@ -461,7 +461,7 @@ func (p *Pump) enterPhase(phase RegenPhase) {
 		p.roughValveOpen = false
 		p.purgeValveOpen = false
 		p.stage1Target = 65.0
-		p.stage2Target = 15.0
+		p.stage2Target = 12.0
 		p.pressureTarget = 1.5e-6
 		p.phaseDuration = p.effective(p.regenParams.ZeroTCDuration).Seconds()
 	}
@@ -499,13 +499,13 @@ func (p *Pump) transitionTo(s State) {
 
 	case StateCooling:
 		p.stage1Target = 65.0
-		p.stage2Target = 15.0
+		p.stage2Target = 12.0
 		p.pressureTarget = 1.5e-6
 		p.phaseDuration = 60.0
 
 	case StateCold:
 		p.stage1Target = 65.0
-		p.stage2Target = 15.0
+		p.stage2Target = 12.0
 		p.pressureTarget = 1.5e-6
 		p.phaseDuration = 0 // Sinusoidal steady-state
 	}
@@ -969,7 +969,7 @@ func (p *Pump) AdvanceRegenStep() {
 		p.enterPhase(RegenPhaseCooldown)
 	case RegenPhaseCooldown:
 		p.firstStageK = 65.0
-		p.secondStageK = 15.0
+		p.secondStageK = 12.0
 		p.enterPhase(RegenPhaseZeroTC)
 	case RegenPhaseZeroTC:
 		p.regenPhase = RegenPhaseNone

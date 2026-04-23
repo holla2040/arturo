@@ -318,6 +318,10 @@ func (s *TestSession) finish(status, summary string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// Stop the status ticker so it doesn't keep publishing "running" updates
+	// after the test has completed.
+	s.cancel()
+
 	if err := s.store.FinishTestRun(s.testRunID, status, summary); err != nil {
 		log.Printf("testmanager: finish test run %s: %v", s.testRunID, err)
 	}
@@ -554,7 +558,7 @@ func (s *TestSession) runStatusTicker(ctx context.Context) {
 			state := s.state
 			s.mu.RUnlock()
 
-			if state == StateRunning {
+			if state == StateRunning && ctx.Err() == nil {
 				s.notifyStation("running")
 			}
 		}

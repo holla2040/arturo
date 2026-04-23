@@ -510,7 +510,9 @@ var App = (function() {
             var cls = 'station-tab' + (isActive ? ' active' : '');
             var dis = (isOffline && !isActive) ? ' disabled' : '';
             var onclick = (isOffline || isActive) ? '' : ' onclick="App.openStation(\'' + escapeHtml(inst) + '\')"';
-            html += '<button class="' + cls + '"' + dis + onclick + '>' + escapeHtml(inst) + '</button>';
+            var temps = state.stationTemps[inst] || {};
+            var label = escapeHtml(inst) + ' ' + formatTemp(temps.first_stage) + ' ' + formatTemp(temps.second_stage);
+            html += '<button class="' + cls + '"' + dis + onclick + '>' + label + '</button>';
         }
         el.innerHTML = html;
     }
@@ -1707,6 +1709,7 @@ var App = (function() {
         }
 
         if (state.currentView === 'stations') renderStationGrid();
+        if (state.currentView === 'station-detail') renderStationTabs(state.detailStation);
     }
 
     function handlePumpStatus(payload) {

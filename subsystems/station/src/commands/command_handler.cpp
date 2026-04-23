@@ -158,7 +158,9 @@ bool CommandHandler::dispatchToDevice(const char* deviceId, const char* commandN
         // _pumpTelemetry are served from RAM, no UART round-trip. Stale cache
         // returns an error rather than falling through, so the controller's
         // offline detection still fires. See ARCHITECTURE.md §4.6.
-        if (isPumpCacheServedCommand(commandName)) {
+        bool cacheServed = isPumpCacheServedCommand(commandName);
+        LOG_INFO("CMD", "cti dispatch: cmd=%s cacheServed=%d", commandName, cacheServed ? 1 : 0);
+        if (cacheServed) {
             if (_pumpTelemetry == nullptr || _pumpTelemetryMutex == nullptr) {
                 errorCode = "cache_unavailable";
                 errorMessage = "Pump telemetry cache not wired";
@@ -322,9 +324,10 @@ void CommandHandler::handleDeviceCommand(const char* messageJson) {
 
     unsigned long startMs = millis();
 
-    // 1 KiB accommodates the get_telemetry JSON snapshot (~250 B of content
-    // plus headroom). Scalar responses fit trivially.
-    char responseBuf[1024] = {0};
+    // 512 B accommodates the get_telemetry JSON snapshot (~300 B) with
+    // headroom. Scalar responses fit trivially. Kept tight to preserve
+    // tComm task stack budget.
+    char responseBuf[512] = {0};
     const char* errorCode = nullptr;
     const char* errorMessage = nullptr;
     bool success = dispatchToDevice(req.deviceId, req.commandName,

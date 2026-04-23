@@ -103,6 +103,8 @@ func (p *StationPoller) pollDevice(ctx context.Context, stationInstance, deviceI
 	// See docs/architecture/ARCHITECTURE.md §4.6.
 	raw := p.queryCommand(ctx, deviceID, "get_telemetry", commandStream)
 	if raw == nil {
+		log.Printf("poller: %s/%s get_telemetry returned nil (timeout or error response)",
+			stationInstance, deviceID)
 		return
 	}
 
@@ -188,13 +190,28 @@ func (p *StationPoller) queryCommand(ctx context.Context, deviceID, command, str
 	select {
 	case resp := <-waiterCh:
 		payload, err := protocol.ParseCommandResponse(resp)
-		if err != nil || !payload.Success || payload.Response == nil {
+		if err != nil {
+			log.Printf("poller: %s parse response error: %v", command, err)
+			return nil
+		}
+		if !payload.Success {
+			if payload.Error != nil {
+				log.Printf("poller: %s returned error code=%q message=%q",
+					command, payload.Error.Code, payload.Error.Message)
+			} else {
+				log.Printf("poller: %s returned success=false with no error object", command)
+			}
+			return nil
+		}
+		if payload.Response == nil {
+			log.Printf("poller: %s returned success with nil response field", command)
 			return nil
 		}
 		return payload.Response
 
 	case <-time.After(5 * time.Second):
 		p.dispatcher.Deregister(msg.Envelope.CorrelationID)
+		log.Printf("poller: %s timed out after 5s", command)
 		return nil
 
 	case <-ctx.Done():

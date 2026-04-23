@@ -15,7 +15,13 @@ import (
 	"gonum.org/v1/plot"
 	"gonum.org/v1/plot/plotter"
 	"gonum.org/v1/plot/vg"
+	"gonum.org/v1/plot/vg/draw"
+	"gonum.org/v1/plot/vg/vgimg"
 )
+
+// plotDPI raises the raster resolution of the temperature plot well above
+// gonum's 96 DPI default so text stays crisp when zoomed in the PDF.
+const plotDPI = 300
 
 // regenSample holds one grouped sample row for the regen CSV table.
 type regenSample struct {
@@ -307,12 +313,15 @@ func renderRegenPlotRotated(pdf *fpdf.Fpdf, run ArtifactRun, runIndex int) {
 
 	// Render at pre-rotation dimensions: width=targetH, height=targetW so
 	// that after 90° CW rotation the image fills (targetW × targetH) mm.
-	writer, err := p.WriterTo(vg.Length(targetH)*vg.Millimeter, vg.Length(targetW)*vg.Millimeter, "png")
-	if err != nil {
-		return
-	}
+	// Use an explicit high-DPI canvas so the embedded PNG keeps its detail
+	// under zoom; displayed size in the PDF is unchanged.
+	canvas := vgimg.NewWith(
+		vgimg.UseWH(vg.Length(targetH)*vg.Millimeter, vg.Length(targetW)*vg.Millimeter),
+		vgimg.UseDPI(plotDPI),
+	)
+	p.Draw(draw.New(canvas))
 	var buf bytes.Buffer
-	if _, err := writer.WriteTo(&buf); err != nil {
+	if _, err := (vgimg.PngCanvas{Canvas: canvas}).WriteTo(&buf); err != nil {
 		return
 	}
 

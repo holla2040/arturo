@@ -188,11 +188,24 @@ var App = (function() {
         return name;
     }
 
+    function formatClock(secs) {
+        if (secs == null || secs < 0) return '--';
+        var h = Math.floor(secs / 3600);
+        var m = Math.floor((secs % 3600) / 60);
+        var s = secs % 60;
+        var ss = (s < 10 ? '0' : '') + s;
+        if (h > 0) {
+            var mm = (m < 10 ? '0' : '') + m;
+            return h + ':' + mm + ':' + ss;
+        }
+        return m + ':' + ss;
+    }
+
     function elapsed(startISO) {
         if (!startISO) return '--';
         try {
             var secs = Math.floor((Date.now() - new Date(startISO).getTime()) / 1000);
-            return secs >= 0 ? formatUptime(secs) : '--';
+            return secs >= 0 ? formatClock(secs) : '--';
         } catch(e) { return '--'; }
     }
 

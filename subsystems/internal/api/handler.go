@@ -680,6 +680,7 @@ func (h *Handler) getStationState(w http.ResponseWriter, r *http.Request) {
 			result["session"] = session
 			result["test_run_id"] = session.TestRunID
 			result["script_name"] = session.ScriptPath
+			result["test_name"] = session.TestName
 			result["rma_id"] = session.RMAID
 			result["rma_number"] = session.RMANumber
 			result["started_at"] = session.StartedAt
@@ -699,6 +700,12 @@ func (h *Handler) getStationState(w http.ResponseWriter, r *http.Request) {
 	if result["test_run_id"] == nil {
 		if latest, err := h.Store.LatestTestRunForStation(stationID); err == nil && latest != nil {
 			result["last_test_run_id"] = latest.ID
+			if latest.RMAID != nil && *latest.RMAID != "" {
+				result["rma_id"] = *latest.RMAID
+				if rma, err := h.Store.GetRMA(*latest.RMAID); err == nil && rma != nil {
+					result["rma_number"] = rma.RMANumber
+				}
+			}
 		}
 	}
 

@@ -514,6 +514,27 @@ textarea { resize: vertical; min-height: 60px; }
     align-items: center;
     gap: 8px;
 }
+.events-meta {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-family: var(--font-mono);
+    font-size: 1.6rem;
+    color: var(--text-primary);
+    flex-wrap: wrap;
+}
+.events-meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.events-meta-label {
+    color: var(--text-muted);
+    font-family: inherit;
+    font-size: 1.4rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
 .panel-badge {
     font-size: 0.7rem;
     font-weight: 600;

@@ -459,6 +459,8 @@ var App = (function() {
         state.tempWindowHours = loadTempWindowHours();
         state.userZoom = null;
         renderTestEvents([]);
+        var metaEl = document.getElementById('detail-events-meta');
+        if (metaEl) metaEl.innerHTML = '';
         populateCommandList();
         updateTempWindowButtons();
         showView('station-detail');
@@ -584,16 +586,33 @@ var App = (function() {
 
         // Test info
         var testInfoHtml = '';
-        if (ss.script_name) {
-            testInfoHtml += '<div class="station-info-row"><span class="info-label">Script:</span> ' + escapeHtml(scriptLabel(ss.script_name)) + '</div>';
+        if (ss.test_name || ss.script_name) {
+            testInfoHtml += '<div class="station-info-row"><span class="info-label">Test:</span> ' + escapeHtml(ss.test_name || scriptLabel(ss.script_name)) + '</div>';
         }
-        if (ss.rma_id) {
-            testInfoHtml += '<div class="station-info-row"><span class="info-label">RMA:</span> ' + escapeHtml(ss.rma_id) + '</div>';
-        }
+        // if (ss.rma_number) {
+        //     testInfoHtml += '<div class="station-info-row"><span class="info-label">RMA:</span> ' + escapeHtml(ss.rma_number) + '</div>';
+        // }
         if (ss.started_at) {
             testInfoHtml += '<div class="station-info-row"><span class="info-label">Started:</span> ' + formatDateTime(ss.started_at) + '</div>';
         }
         document.getElementById('detail-test-info').innerHTML = testInfoHtml || '<div style="color:var(--text-muted)">No active test</div>';
+
+        // Test Events card header meta (RMA name/ID, Test ID)
+        var metaEl = document.getElementById('detail-events-meta');
+        if (metaEl) {
+            var metaHtml = '';
+            if (ss.rma_number) {
+                metaHtml += '<span class="events-meta-item"><span class="events-meta-label">RMA</span>' + escapeHtml(ss.rma_number) + '</span>';
+            }
+            // if (ss.rma_id) {
+            //     metaHtml += '<span class="events-meta-item"><span class="events-meta-label">RMA ID</span>' + escapeHtml(ss.rma_id) + '</span>';
+            // }
+            var tid = ss.test_run_id || ss.last_test_run_id;
+            if (tid) {
+                metaHtml += '<span class="events-meta-item"><span class="events-meta-label">Test</span>' + escapeHtml(tid) + '</span>';
+            }
+            metaEl.innerHTML = metaHtml;
+        }
 
         // Controls
         var controlsHtml = '';

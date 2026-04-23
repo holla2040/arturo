@@ -64,6 +64,7 @@ type SessionInfo struct {
 	StationInstance string       `json:"station_instance"`
 	DeviceID        string       `json:"device_id"`
 	ScriptPath      string       `json:"script_path"`
+	TestName        string       `json:"test_name"`
 	State           SessionState `json:"state"`
 	StartedAt       time.Time    `json:"started_at"`
 	EmployeeID      string       `json:"employee_id"`
@@ -360,6 +361,7 @@ func (s *TestSession) Info() SessionInfo {
 		StationInstance: s.stationInstance,
 		DeviceID:        s.deviceID,
 		ScriptPath:      s.scriptPath,
+		TestName:        s.displayName,
 		State:           s.state,
 		StartedAt:       s.startedAt,
 		EmployeeID:      s.employeeID,

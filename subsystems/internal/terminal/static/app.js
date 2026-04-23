@@ -492,8 +492,28 @@ var App = (function() {
         });
     }
 
+    function renderStationTabs(currentInstance) {
+        var el = document.getElementById('station-tabs');
+        if (!el) return;
+        var keys = Object.keys(state.stations).sort();
+        var html = '';
+        for (var i = 0; i < keys.length; i++) {
+            var inst = keys[i];
+            var s = state.stations[inst] || {};
+            var ss = getStationState(inst);
+            var stateStr = ss.state || (s.Status === 'online' ? 'idle' : s.Status) || 'offline';
+            var isOffline = stateStr === 'offline';
+            var isActive = inst === currentInstance;
+            var cls = 'station-tab' + (isActive ? ' active' : '');
+            var dis = (isOffline && !isActive) ? ' disabled' : '';
+            var onclick = (isOffline || isActive) ? '' : ' onclick="App.openStation(\'' + escapeHtml(inst) + '\')"';
+            html += '<button class="' + cls + '"' + dis + onclick + '>' + escapeHtml(inst) + '</button>';
+        }
+        el.innerHTML = html;
+    }
+
     function loadStationDetail(instance) {
-        document.getElementById('detail-station-name').textContent = instance;
+        renderStationTabs(instance);
 
         // Always load continuous temperature history (12h rolling window)
         loadContinuousTemperatures(instance);

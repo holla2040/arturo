@@ -948,6 +948,40 @@ button.pid-regen:active { background: rgba(255,255,255,0.12); }
     color: var(--accent-blue);
 }
 .detail-status { margin-left: auto; }
+.station-tabs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    min-width: 0;
+}
+.station-tab {
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    padding: 8px 14px;
+    min-height: 40px;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.station-tab:hover:not(:disabled):not(.active) {
+    color: var(--text-primary);
+    background: var(--bg-card);
+}
+.station-tab.active {
+    color: var(--accent-blue);
+    border-color: var(--accent-blue);
+    font-weight: 700;
+}
+.station-tab:disabled {
+    color: var(--text-muted);
+    opacity: 0.5;
+    cursor: not-allowed;
+}
 
 .detail-grid {
     display: grid;

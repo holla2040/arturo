@@ -101,12 +101,24 @@ func renderRegenCSV(pdf *fpdf.Fpdf, run ArtifactRun) {
 	}
 }
 
-// buildTempSeries extracts 1st- and 2nd-stage temperature points from run
-// events. Handles both the regen-report format (query events with reason
-// "get_temp_Nth_stage -> VALUE") and the acceptance-report format
-// (regen_state events with reason "regen=X (...) • 1st=65.5K • 2nd=12.4K ...").
-func buildTempSeries(events []ArtifactEvent) (firstPts, secondPts plotter.XYs) {
-	for _, e := range events {
+// buildTempSeries extracts 1st- and 2nd-stage temperature points for the
+// plot. Prefers the canonical temperature_samples feed (all samples from
+// the poller). Falls back to parsing events for older runs that predate
+// the samples table or when samples are absent.
+func buildTempSeries(run ArtifactRun) (firstPts, secondPts plotter.XYs) {
+	if len(run.Temperatures) > 0 {
+		for _, t := range run.Temperatures {
+			x := float64(t.Timestamp.Unix())
+			switch t.Stage {
+			case "first_stage":
+				firstPts = append(firstPts, plotter.XY{X: x, Y: t.TemperatureK})
+			case "second_stage":
+				secondPts = append(secondPts, plotter.XY{X: x, Y: t.TemperatureK})
+			}
+		}
+		return
+	}
+	for _, e := range run.Events {
 		x := float64(e.Timestamp.Unix())
 		switch e.Type {
 		case "query":
@@ -154,11 +166,69 @@ func parseTempField(s, prefix string) (float64, bool) {
 	return v, true
 }
 
+// renderAcceptanceDataCSV emits every temperature sample recorded for the
+// run as plain comma-separated text so the reader can copy-paste it into
+// a spreadsheet. Samples are paired by timestamp (first + second stage
+// within ±1s share a row); unpaired samples keep their own row with the
+// missing column blank. No borders, just text.
+func renderAcceptanceDataCSV(pdf *fpdf.Fpdf, run ArtifactRun) {
+	var firsts, seconds []ArtifactTemp
+	for _, t := range run.Temperatures {
+		switch t.Stage {
+		case "first_stage":
+			firsts = append(firsts, t)
+		case "second_stage":
+			seconds = append(seconds, t)
+		}
+	}
+
+	pdf.SetFont("Courier", "B", 6)
+	pdf.CellFormat(0, 3, "Timestamp (MST), 1st Stage (K), 2nd Stage (K)", "", 1, "L", false, 0, "")
+	pdf.SetFont("Courier", "", 6)
+
+	if len(firsts) == 0 && len(seconds) == 0 {
+		pdf.SetFont("Arial", "I", 10)
+		pdf.CellFormat(0, 7, "No temperature samples recorded.", "", 1, "L", false, 0, "")
+		return
+	}
+
+	emit := func(ts time.Time, first, second string) {
+		line := fmt.Sprintf("%s, %s, %s",
+			ts.In(denverTZ).Format("2006-01-02 15:04:05"), first, second)
+		pdf.CellFormat(0, 2.6, line, "", 1, "L", false, 0, "")
+	}
+
+	i, j := 0, 0
+	for i < len(firsts) && j < len(seconds) {
+		a, b := firsts[i], seconds[j]
+		delta := b.Timestamp.Sub(a.Timestamp)
+		withinWindow := delta >= -time.Second && delta <= time.Second
+		switch {
+		case withinWindow:
+			emit(a.Timestamp, fmt.Sprintf("%.2f", a.TemperatureK), fmt.Sprintf("%.2f", b.TemperatureK))
+			i++
+			j++
+		case delta < 0:
+			emit(b.Timestamp, "", fmt.Sprintf("%.2f", b.TemperatureK))
+			j++
+		default:
+			emit(a.Timestamp, fmt.Sprintf("%.2f", a.TemperatureK), "")
+			i++
+		}
+	}
+	for ; i < len(firsts); i++ {
+		emit(firsts[i].Timestamp, fmt.Sprintf("%.2f", firsts[i].TemperatureK), "")
+	}
+	for ; j < len(seconds); j++ {
+		emit(seconds[j].Timestamp, "", fmt.Sprintf("%.2f", seconds[j].TemperatureK))
+	}
+}
+
 // renderRegenPlotRotated generates a temperature-vs-time line chart from
 // regen samples and places it on the page rotated 90° clockwise, filling
 // all space below the current Y position down to the bottom margin.
 func renderRegenPlotRotated(pdf *fpdf.Fpdf, run ArtifactRun, runIndex int) {
-	firstPts, secondPts := buildTempSeries(run.Events)
+	firstPts, secondPts := buildTempSeries(run)
 
 	if len(firstPts)+len(secondPts) < 2 {
 		return
@@ -486,6 +556,9 @@ func renderPDF(w io.Writer, artifact *TestArtifact) error {
 					pdf.MultiCell(135, 6, e.Reason, "1", "L", false)
 				}
 			}
+
+			pdf.AddPage()
+			renderAcceptanceDataCSV(pdf, run)
 		} else {
 			// Measurements
 			if len(run.Measurements) > 0 {

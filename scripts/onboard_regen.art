@@ -1,12 +1,18 @@
 # onboard_regen.art
-# Monitor 1st and 2nd stage temperatures during a full regeneration cycle.
-# Records temperature and regen state every 5 seconds until the regen completes.
+# Drive a full CTI on-board cryopump regen cycle. Samples stage temps and
+# the regen state letter every 5 seconds for script-level phase narration;
+# pump on/off and rough/purge valve telemetry is captured continuously by
+# the station poller (subsystems/internal/poller) and exported via the
+# regen-curve CSV endpoint, so the script does not re-query them.
+# Fails if the cycle exceeds REGEN_MAX_DURATION or if stage temps at
+# completion are outside the expected cold-baseline range.
 
 CONST REPORT_TYPE "regen"
 CONST REPORT_VERSION "1.0"
 CONST SAMPLE_INTERVAL 5000
 CONST QUERY_TIMEOUT 5000
-CONST PRE_POST_DURATION 60000
+CONST PRE_POST_DURATION 300000
+CONST REGEN_MAX_DURATION 18000000
 
 # Map CTI O-command letter to human-readable regen state
 FUNCTION regen_state_name(letter)
@@ -61,7 +67,8 @@ TEST "Onboard Regen Verification"
     SET rs_name CALL regen_state_name(rs)
     ASSERT rs == "P" || rs == "V" "Regen already in progress: " + rs + " - " + rs_name
 
-    # Data collection arrays
+    # Data collection arrays (temps + regen letter only; pump/valve telemetry
+    # is captured by the poller and appears in the regen-curve CSV export).
     SET timestamps []
     SET temps_1st []
     SET temps_2nd []
@@ -69,8 +76,8 @@ TEST "Onboard Regen Verification"
     SET regen_states []
     SET sample_count 0
 
-    # Collect 60 seconds of pre-regen baseline data
-    LOG INFO "Collecting pre-regen baseline data for 60 seconds"
+    # Collect pre-regen baseline data
+    LOG INFO "Collecting pre-regen baseline data for " + PRE_POST_DURATION + " ms"
     SET pre_elapsed 0
     WHILE pre_elapsed < PRE_POST_DURATION
         QUERY "get_regen_status" regen_letter TIMEOUT QUERY_TIMEOUT
@@ -91,14 +98,26 @@ TEST "Onboard Regen Verification"
     # Start regeneration
     SEND "start_regen"
     LOG INFO "Regen started"
+    SET regen_start_time NOW()
+    SET last_letter ""
     DELAY 2000
 
     # Poll until regen completes
     SET regen_active true
     WHILE regen_active
+        SET elapsed NOW() - regen_start_time
+        IF elapsed > REGEN_MAX_DURATION
+            FAIL "Regen exceeded max duration: " + elapsed + " ms > " + REGEN_MAX_DURATION + " ms"
+        ENDIF
+
         # Read regen status letter
         QUERY "get_regen_status" regen_letter TIMEOUT QUERY_TIMEOUT
         SET state_name CALL regen_state_name(regen_letter)
+
+        IF regen_letter != last_letter
+            LOG INFO "Phase transition " + last_letter + "->" + regen_letter + " at " + elapsed + " ms - " + state_name
+            SET last_letter regen_letter
+        ENDIF
 
         IF regen_letter == "P" || regen_letter == "V"
             # Regen finished - take one last sample and exit
@@ -112,6 +131,9 @@ TEST "Onboard Regen Verification"
             SET sample_count sample_count + 1
             LOG INFO "Regen complete - final temps - 1st: " + t1 + " K, 2nd: " + t2 + " K, state: " + regen_letter + " - " + state_name
             LOG INFO "Regen Complete - " + t1 + "," + t2 + "," + regen_letter + "," + state_name
+            # Sanity-check cryopump returned to cold baseline (reference: T1~85.6 K, T2~15.0 K)
+            ASSERT FLOAT(t1) < 120 "T1 at regen complete too high: " + t1 + " K"
+            ASSERT FLOAT(t2) < 50 "T2 at regen complete too high: " + t2 + " K"
             SET regen_active false
         ELSE
             # Record temperatures and regen state
@@ -128,8 +150,8 @@ TEST "Onboard Regen Verification"
         ENDIF
     ENDWHILE
 
-    # Collect 60 seconds of post-regen data
-    LOG INFO "Collecting post-regen data for 60 seconds"
+    # Collect post-regen data
+    LOG INFO "Collecting post-regen data for " + PRE_POST_DURATION + " ms"
     SET post_elapsed 0
     WHILE post_elapsed < PRE_POST_DURATION
         QUERY "get_regen_status" regen_letter TIMEOUT QUERY_TIMEOUT

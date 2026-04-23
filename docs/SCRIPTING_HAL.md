@@ -93,7 +93,7 @@ The HAL translates hardware-specific status codes into human-readable names:
 | `roughing` | Phase 3: Rough pumping to base vacuum |
 | `rate_of_rise` | Phase 4: Rate-of-rise leak test |
 | `cooling` | Phase 5: Cooldown after successful test |
-| `complete` | Regen finished, pump is cold |
+| `complete` | Regen finished; 2nd stage at base temperature. 1st stage may still be settling to base for several minutes (~17 min observed on reference CTI on-board pump). |
 | `aborted` | Regen was aborted (check `get_regen_error`) |
 
 #### Regen Error Values

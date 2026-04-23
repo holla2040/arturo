@@ -1,0 +1,191 @@
+# onboard_acceptance.art
+# Full CTI on-board cryopump refurb acceptance test.
+#
+# Gates the customer-facing deliverable for a refurbished pump:
+#   1. Pre-regen baseline    — pump is at cold base temperature and stable.
+#   2. Full regen cycle      — drives the pump through a complete regen
+#                              (which internally runs the warmup, rough,
+#                              and cooldown phases). Fails if it aborts or
+#                              exceeds REGEN_MAX_DURATION. At entry to P
+#                              the regen contract requires T2 <= base, so
+#                              that is asserted there.
+#   3. 1st-stage settle      — the cryopump's 2nd stage is already cold at
+#                              P-entry; T1 typically has a short tail to
+#                              reach base. Waits for T1 <= base.
+#   4. Steady-state hold     — base temperature is sustained for STEADY_HOLD_DURATION.
+#
+# Telemetry (pump, rough valve, purge valve, regen status, stage temps) is
+# captured continuously by the station poller and appears in the run CSV
+# export — this script owns orchestration and pass/fail acceptance criteria
+# only, and does not re-query those fields itself.
+
+CONST REPORT_TYPE "acceptance"
+CONST REPORT_VERSION "1.0"
+CONST SAMPLE_INTERVAL 5000
+CONST QUERY_TIMEOUT 5000
+
+# Base-temperature envelope (pre-regen baseline and post-regen cooldown)
+CONST BASE_T1_MAX 70
+CONST BASE_T2_MAX 15
+
+# Timing bounds (ms)
+CONST BASELINE_STABLE_DURATION 60000
+CONST REGEN_MAX_DURATION 18000000
+# T1 post-P settle. Reference pump took ~17 min for T1 to drop from ~85 K
+# to ~65 K after P. 1 h cap is generous headroom; not the 4 h in-regen
+# cooldown (that is inside REGEN_MAX_DURATION, not here).
+CONST SETTLE_MAX_DURATION 3600000
+CONST STEADY_HOLD_DURATION 300000
+
+# Map CTI O-command letter to human-readable regen state
+FUNCTION regen_state_name(letter)
+    IF letter == "A" || letter == "\\"
+        RETURN "Pump OFF"
+    ELSEIF letter == "B" || letter == "C" || letter == "E" || letter == "^" || letter == "]"
+        RETURN "Warmup"
+    ELSEIF letter == "D" || letter == "F" || letter == "G" || letter == "Q" || letter == "R"
+        RETURN "Purge gas failure"
+    ELSEIF letter == "H"
+        RETURN "Extended purge"
+    ELSEIF letter == "S"
+        RETURN "Repurge cycle"
+    ELSEIF letter == "I" || letter == "J" || letter == "K" || letter == "T" || letter == "a" || letter == "b" || letter == "j" || letter == "n"
+        RETURN "Rough to base pressure"
+    ELSEIF letter == "L"
+        RETURN "Rate of rise test"
+    ELSEIF letter == "M" || letter == "N" || letter == "c" || letter == "d" || letter == "o"
+        RETURN "Cooldown"
+    ELSEIF letter == "P"
+        RETURN "Regen complete"
+    ELSEIF letter == "U"
+        RETURN "Beginning of fast regen"
+    ELSEIF letter == "V"
+        RETURN "Regen aborted"
+    ELSEIF letter == "W"
+        RETURN "Delay restart"
+    ELSEIF letter == "X" || letter == "Y"
+        RETURN "Power failure"
+    ELSEIF letter == "Z"
+        RETURN "Delay start"
+    ELSEIF letter == "O" || letter == "["
+        RETURN "Zeroing TC gauge"
+    ELSEIF letter == "f"
+        RETURN "Share regen wait"
+    ELSEIF letter == "e"
+        RETURN "Repurge during fast regen"
+    ELSEIF letter == "h"
+        RETURN "Purge coordinate wait"
+    ELSEIF letter == "i"
+        RETURN "Rough coordinate wait"
+    ELSEIF letter == "k"
+        RETURN "Purge gas fail, recovering"
+    ELSE
+        RETURN "Unknown (" + letter + ")"
+    ENDIF
+ENDFUNCTION
+
+TEST "Onboard Cryopump Refurb Acceptance"
+    # -------------------------------------------------------------------
+    # Stage 1: Pre-regen baseline
+    # -------------------------------------------------------------------
+    QUERY "get_regen_status" rs TIMEOUT QUERY_TIMEOUT
+    SET rs_name CALL regen_state_name(rs)
+    ASSERT rs == "P" || rs == "V" "Pump busy before acceptance test: " + rs + " - " + rs_name
+
+    LOG INFO "Stage 1: verifying pre-regen baseline (T1<=" + BASE_T1_MAX + " K, T2<=" + BASE_T2_MAX + " K) stable for " + BASELINE_STABLE_DURATION + " ms"
+    SET baseline_elapsed 0
+    WHILE baseline_elapsed < BASELINE_STABLE_DURATION
+        QUERY "get_temp_1st_stage" t1 TIMEOUT QUERY_TIMEOUT
+        QUERY "get_temp_2nd_stage" t2 TIMEOUT QUERY_TIMEOUT
+        ASSERT FLOAT(t1) <= BASE_T1_MAX "Pre-regen T1 above base envelope: " + t1 + " K > " + BASE_T1_MAX + " K"
+        ASSERT FLOAT(t2) <= BASE_T2_MAX "Pre-regen T2 above base envelope: " + t2 + " K > " + BASE_T2_MAX + " K"
+        LOG INFO "Baseline sample - T1: " + t1 + " K, T2: " + t2 + " K"
+        DELAY SAMPLE_INTERVAL
+        SET baseline_elapsed baseline_elapsed + SAMPLE_INTERVAL
+    ENDWHILE
+    LOG INFO "Stage 1 PASSED: pump is at cold base and stable"
+
+    # -------------------------------------------------------------------
+    # Stage 2: Full regen cycle
+    # -------------------------------------------------------------------
+    LOG INFO "Stage 2: starting regen cycle (max " + REGEN_MAX_DURATION + " ms)"
+    SEND "start_regen"
+    SET regen_start_time NOW()
+    SET last_letter ""
+    DELAY 2000
+
+    SET regen_active true
+    SET final_letter ""
+    WHILE regen_active
+        SET elapsed NOW() - regen_start_time
+        IF elapsed > REGEN_MAX_DURATION
+            FAIL "Regen exceeded max duration: " + elapsed + " ms > " + REGEN_MAX_DURATION + " ms"
+        ENDIF
+
+        QUERY "get_regen_status" regen_letter TIMEOUT QUERY_TIMEOUT
+        SET state_name CALL regen_state_name(regen_letter)
+
+        IF regen_letter != last_letter
+            LOG INFO "Phase transition " + last_letter + "->" + regen_letter + " at " + elapsed + " ms - " + state_name
+            SET last_letter regen_letter
+        ENDIF
+
+        IF regen_letter == "P" || regen_letter == "V"
+            SET final_letter regen_letter
+            SET regen_duration elapsed
+            LOG INFO "Regen ended in state " + regen_letter + " - " + state_name + " after " + regen_duration + " ms"
+            SET regen_active false
+        ELSE
+            DELAY SAMPLE_INTERVAL
+        ENDIF
+    ENDWHILE
+
+    ASSERT final_letter == "P" "Regen did not complete successfully (ended in " + final_letter + ")"
+
+    # At P-entry the regen contract requires 2nd stage at base.
+    # Reference: T2 = 14.5 K at P-entry. T1 is still on its tail.
+    QUERY "get_temp_2nd_stage" t2 TIMEOUT QUERY_TIMEOUT
+    ASSERT FLOAT(t2) <= BASE_T2_MAX "T2 at regen complete above base: " + t2 + " K > " + BASE_T2_MAX + " K"
+    LOG INFO "Stage 2 PASSED: regen completed in " + regen_duration + " ms, T2=" + t2 + " K at P-entry"
+
+    # -------------------------------------------------------------------
+    # Stage 3: 1st-stage settle to base after P
+    # -------------------------------------------------------------------
+    LOG INFO "Stage 3: waiting for T1<=" + BASE_T1_MAX + " K (max " + SETTLE_MAX_DURATION + " ms)"
+    SET settle_start_time NOW()
+    SET settled false
+    WHILE settled == false
+        SET settle_elapsed NOW() - settle_start_time
+        IF settle_elapsed > SETTLE_MAX_DURATION
+            QUERY "get_temp_1st_stage" t1 TIMEOUT QUERY_TIMEOUT
+            FAIL "1st-stage settle exceeded max duration: " + settle_elapsed + " ms, T1=" + t1 + " K"
+        ENDIF
+
+        QUERY "get_temp_1st_stage" t1 TIMEOUT QUERY_TIMEOUT
+        LOG INFO "Settle sample - T1: " + t1 + " K, elapsed: " + settle_elapsed + " ms"
+        IF FLOAT(t1) <= BASE_T1_MAX
+            LOG INFO "Stage 3 PASSED: T1 reached base in " + settle_elapsed + " ms"
+            SET settled true
+        ELSE
+            DELAY SAMPLE_INTERVAL
+        ENDIF
+    ENDWHILE
+
+    # -------------------------------------------------------------------
+    # Stage 4: Steady-state hold within base envelope
+    # -------------------------------------------------------------------
+    LOG INFO "Stage 4: holding steady-state for " + STEADY_HOLD_DURATION + " ms within base envelope"
+    SET hold_elapsed 0
+    WHILE hold_elapsed < STEADY_HOLD_DURATION
+        QUERY "get_temp_1st_stage" t1 TIMEOUT QUERY_TIMEOUT
+        QUERY "get_temp_2nd_stage" t2 TIMEOUT QUERY_TIMEOUT
+        ASSERT FLOAT(t1) <= BASE_T1_MAX "Steady-state drift: T1 " + t1 + " K > " + BASE_T1_MAX + " K"
+        ASSERT FLOAT(t2) <= BASE_T2_MAX "Steady-state drift: T2 " + t2 + " K > " + BASE_T2_MAX + " K"
+        LOG INFO "Hold sample - T1: " + t1 + " K, T2: " + t2 + " K"
+        DELAY SAMPLE_INTERVAL
+        SET hold_elapsed hold_elapsed + SAMPLE_INTERVAL
+    ENDWHILE
+    LOG INFO "Stage 4 PASSED: steady-state hold within envelope"
+
+    PASS "Acceptance test complete: regen " + regen_duration + " ms, T1 settle " + settle_elapsed + " ms, hold " + hold_elapsed + " ms"
+ENDTEST

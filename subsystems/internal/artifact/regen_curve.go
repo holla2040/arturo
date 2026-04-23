@@ -65,14 +65,25 @@ func ExportStationRegenCurve(
 		"Timestamp (MST/MDT)",
 		"1st Stage (K)",
 		"2nd Stage (K)",
-		"Regen Letter",
+		"Regen Status",
 		"Regen State",
 		"Pump",
 		"Rough",
 		"Purge",
 	})
 
-	// Bucket by unix second.
+	writeRegenCurveRows(cw, temps, pumps)
+
+	cw.Flush()
+	return cw.Error()
+}
+
+// writeRegenCurveRows buckets temperature_log + pump_status_log entries by
+// unix second, forward-fills missing per-column values from the last known
+// reading, and writes one CSV row per bucket with the 8 columns defined by
+// the data header: Timestamp, 1st Stage (K), 2nd Stage (K), Regen Status,
+// Regen State, Pump, Rough, Purge.
+func writeRegenCurveRows(cw *csv.Writer, temps []store.TemperatureLogEntry, pumps []store.PumpStatusLogEntry) {
 	type bucket struct {
 		first     *float64
 		second    *float64
@@ -160,9 +171,6 @@ func ExportStationRegenCurve(
 			formatBool(rollPurge),
 		})
 	}
-
-	cw.Flush()
-	return cw.Error()
 }
 
 func formatTemp(v *float64) string {

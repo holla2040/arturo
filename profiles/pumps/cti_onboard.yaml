@@ -28,6 +28,7 @@ commands:
   start_fast_regen: "$P{addr}N2{checksum}"    # Start fast regeneration
   abort_regen: "$P{addr}N0{checksum}"         # Abort regeneration
   get_regen_step: "$P{addr}O{checksum}"       # Get current regen step
+  get_regen_status: "$P{addr}O{checksum}"     # Alias of get_regen_step (HAL name used by scripts)
   get_regen_error: "$P{addr}e{checksum}"      # Get regen error code
   
   # System info

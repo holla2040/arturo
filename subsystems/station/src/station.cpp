@@ -133,6 +133,11 @@ bool Station::begin() {
     _pumpTelemetryMutex = xSemaphoreCreateMutex();
     _testStateMutex = xSemaphoreCreateMutex();
 
+    // 5c.1 Wire the telemetry cache into the command handler so that
+    // cache-served read commands (see docs/SCRIPTING_HAL.md) are answered
+    // from RAM without a CTI UART round-trip. See ARCHITECTURE.md §4.6.
+    handler.setPumpTelemetryCache(&_pumpTelemetry, _pumpTelemetryMutex);
+
     // 5d. Create local command queue (Display → commTask) and pass to Display
     _localCmdQueue = xQueueCreate(LOCAL_CMD_QUEUE_SIZE, sizeof(LocalCommand));
     _display.setCommandQueue(_localCmdQueue);

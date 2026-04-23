@@ -22,6 +22,11 @@ commands:
   get_status_1: "$P{addr}S1{checksum}"        # Status indicators 1
   get_status_2: "$P{addr}S2{checksum}"        # Status indicators 2
   get_status_3: "$P{addr}S3{checksum}"        # Status indicators 3
+
+  # Cached telemetry snapshot — served entirely from station RAM cache.
+  # No wire command: firmware recognises "get_telemetry" directly.
+  # See docs/architecture/ARCHITECTURE.md §4.6 and docs/SCRIPTING_HAL.md.
+  get_telemetry: "__firmware__"               # Full PumpTelemetry JSON snapshot
   
   # Regeneration control
   start_regen: "$P{addr}N1{checksum}"         # Start normal regeneration

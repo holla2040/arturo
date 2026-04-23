@@ -22,12 +22,18 @@ Each command is marked with its current implementation status:
 - **Profile** — defined in the device profile YAML (available to scripts once firmware implements it)
 - **Firmware** — implemented in station firmware (can talk to real hardware)
 - **Mock** — implemented in mock pump simulator (available for development/testing)
+- **Cache** — served from the station's in-RAM cache without a bus round-trip (see `docs/architecture/ARCHITECTURE.md` §4.6). Applies to selected read commands.
 
 ---
 
 ## Pump (Cryopump)
 
 CTI/Brooks On-Board cryopump. Profile: `profiles/pumps/cti_onboard.yaml`
+
+The station firmware continuously polls the pump in the background and caches
+the readings in RAM. Read commands listed as **Cache** below are answered from
+this RAM snapshot (no CTI UART traffic). Writes and un-cached reads still go to
+the pump over RS-232. See `get_telemetry` for the consolidated snapshot.
 
 ### Control
 
@@ -41,8 +47,8 @@ CTI/Brooks On-Board cryopump. Profile: `profiles/pumps/cti_onboard.yaml`
 
 | Command | Returns | Unit | Description | Status |
 |---------|---------|------|-------------|--------|
-| `get_temp_1st_stage` | numeric | Kelvin | 1st stage temperature | Profile, Firmware, Mock |
-| `get_temp_2nd_stage` | numeric | Kelvin | 2nd stage temperature | Profile, Firmware, Mock |
+| `get_temp_1st_stage` | numeric | Kelvin | 1st stage temperature | Profile, Firmware, Cache, Mock |
+| `get_temp_2nd_stage` | numeric | Kelvin | 2nd stage temperature | Profile, Firmware, Cache, Mock |
 
 Typical values: 1st stage ~65K when cold, 2nd stage ~15K when cold, both ~295K at room temperature.
 
@@ -50,7 +56,7 @@ Typical values: 1st stage ~65K when cold, 2nd stage ~15K when cold, both ~295K a
 
 | Command | Returns | Unit | Description | Status |
 |---------|---------|------|-------------|--------|
-| `get_pump_tc_pressure` | numeric (sci notation) | Torr | Pump thermocouple gauge pressure | Profile, Firmware, Mock |
+| `get_pump_tc_pressure` | numeric (sci notation) | Torr | Pump thermocouple gauge pressure | Profile, Firmware, Cache, Mock |
 | `get_aux_tc_pressure` | numeric (sci notation) | Torr | Auxiliary thermocouple gauge pressure | Profile, Firmware |
 
 Typical values: ~1e-8 Torr when cold, ~1e-3 Torr at room temperature.
@@ -77,8 +83,8 @@ After cooling completes, the pump returns to normal cold operation. A fast regen
 
 | Command | Returns | Description | Status |
 |---------|---------|-------------|--------|
-| `get_regen_step` | integer | Current regen phase number (0=none) | Profile, Firmware, Mock |
-| `get_regen_status` | status value | Current regen state (see table below) | Profile, Firmware, Mock |
+| `get_regen_step` | integer | Current regen phase number (0=none) | Profile, Firmware, Cache, Mock |
+| `get_regen_status` | status value | Current regen state (see table below) | Profile, Firmware, Cache, Mock |
 | `get_regen_error` | error value | Last regen error code (see table below) | Profile, Mock |
 
 #### Regen Status Values
@@ -119,10 +125,10 @@ Only meaningful after regen status is `aborted`:
 |---------|---------|-------------|--------|
 | `open_rough_valve` | ack | Open rough vacuum valve | Profile, Firmware, Mock |
 | `close_rough_valve` | ack | Close rough vacuum valve | Profile, Firmware, Mock |
-| `get_rough_valve` | `"0"` or `"1"` | Rough valve state (0=closed, 1=open) | Profile, Firmware, Mock |
+| `get_rough_valve` | `"0"` or `"1"` | Rough valve state (0=closed, 1=open) | Profile, Firmware, Cache, Mock |
 | `open_purge_valve` | ack | Open nitrogen purge valve | Profile, Firmware, Mock |
 | `close_purge_valve` | ack | Close nitrogen purge valve | Profile, Firmware, Mock |
-| `get_purge_valve` | `"0"` or `"1"` | Purge valve state (0=closed, 1=open) | Profile, Firmware, Mock |
+| `get_purge_valve` | `"0"` or `"1"` | Purge valve state (0=closed, 1=open) | Profile, Firmware, Cache, Mock |
 
 ### Operating Data
 
@@ -179,13 +185,45 @@ Configurable parameters that control regeneration behavior.
 | `set_min_run_pressure` | ack | mTorr | Set rough base pressure threshold | Profile |
 | `get_min_run_temp` | integer | Kelvin | Power fail recovery temperature (0-80) | Profile |
 
+### Telemetry Snapshot
+
+Returns the full cached pump state in a single round-trip. Equivalent to
+calling all cache-served read commands above at once, but with one request
+instead of many. Served entirely from the station's RAM cache.
+
+| Command | Returns | Description | Status |
+|---------|---------|-------------|--------|
+| `get_telemetry` | JSON object (stringified) | Full cached snapshot of pump state | Profile, Firmware, Cache, Mock |
+
+The response `response` field is a stringified JSON object with these fields:
+
+| Field | Type | Unit | Description |
+|-------|------|------|-------------|
+| `stage1_temp_k` | number | Kelvin | 1st stage temperature |
+| `stage2_temp_k` | number | Kelvin | 2nd stage temperature |
+| `pressure_torr` | number | Torr | Pump thermocouple gauge pressure |
+| `pump_on` | boolean | — | Pump running |
+| `rough_valve_open` | boolean | — | Rough valve state |
+| `purge_valve_open` | boolean | — | Purge valve state |
+| `regen_char` | string (1 char) | — | Regen state character (see regen status table) |
+| `operating_hours` | integer | hours | Total pump operating hours |
+| `status_1` | integer | bitmask | S1 status byte (see Status 1 bit definitions below) |
+| `stale_count` | integer | — | Consecutive failed polls (0 = fresh, ≥ 3 = cache stale) |
+| `last_update_ms` | integer | ms since boot | Firmware timestamp of the most recent successful poll |
+
+If the firmware's background poll has failed 3 or more consecutive times, the
+command returns an error with code `pump_cache_stale` instead of a snapshot,
+and the station is likely about to be marked offline by the controller. Do
+not fall back to the individual read commands in that case — they return the
+same error.
+
 ### Status Bytes
 
 Low-level status bitmasks. Each returns an integer value where individual bits indicate system state.
 
 | Command | Returns | Description | Status |
 |---------|---------|-------------|--------|
-| `get_status_1` | integer | Primary system status | Profile, Firmware, Mock |
+| `get_status_1` | integer | Primary system status | Profile, Firmware, Cache, Mock |
 | `get_status_2` | integer | Extended status | Profile, Firmware, Mock |
 | `get_status_3` | integer | Pump phase status | Profile, Firmware, Mock |
 

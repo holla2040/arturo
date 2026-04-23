@@ -154,6 +154,41 @@ bool CommandHandler::dispatchToDevice(const char* deviceId, const char* commandN
     }
 
     if (strcmp(device->protocolType, "cti") == 0) {
+        // Cache-first dispatch: commands whose values are already polled into
+        // _pumpTelemetry are served from RAM, no UART round-trip. Stale cache
+        // returns an error rather than falling through, so the controller's
+        // offline detection still fires. See ARCHITECTURE.md §4.6.
+        if (isPumpCacheServedCommand(commandName)) {
+            if (_pumpTelemetry == nullptr || _pumpTelemetryMutex == nullptr) {
+                errorCode = "cache_unavailable";
+                errorMessage = "Pump telemetry cache not wired";
+                LOG_ERROR("CMD", "Cache requested but not registered for %s", commandName);
+                return false;
+            }
+            PumpTelemetry snap;
+            if (xSemaphoreTake(_pumpTelemetryMutex, pdMS_TO_TICKS(50)) != pdTRUE) {
+                errorCode = "cache_busy";
+                errorMessage = "Pump telemetry mutex timeout";
+                LOG_ERROR("CMD", "Cache mutex timeout for %s", commandName);
+                return false;
+            }
+            snap = *_pumpTelemetry;
+            xSemaphoreGive(_pumpTelemetryMutex);
+
+            if (snap.staleCount >= CACHE_STALE_THRESHOLD) {
+                errorCode = "pump_cache_stale";
+                errorMessage = "Pump telemetry cache stale (poll failing)";
+                return false;
+            }
+            if (!formatCachedPumpCommand(commandName, snap, responseBuf, responseBufLen)) {
+                errorCode = "cache_format_error";
+                errorMessage = "Failed to format cached pump command";
+                LOG_ERROR("CMD", "Cache format failed for %s", commandName);
+                return false;
+            }
+            return true;
+        }
+
         if (_ctiOnBoardDevice == nullptr) {
             errorCode = "device_unavailable";
             errorMessage = "CTI OnBoard device not initialized";
@@ -287,7 +322,9 @@ void CommandHandler::handleDeviceCommand(const char* messageJson) {
 
     unsigned long startMs = millis();
 
-    char responseBuf[256] = {0};
+    // 1 KiB accommodates the get_telemetry JSON snapshot (~250 B of content
+    // plus headroom). Scalar responses fit trivially.
+    char responseBuf[1024] = {0};
     const char* errorCode = nullptr;
     const char* errorMessage = nullptr;
     bool success = dispatchToDevice(req.deviceId, req.commandName,

@@ -3,8 +3,8 @@ package poller
 
 import (
 	"context"
+	"encoding/json"
 	"log"
-	"strconv"
 	"strings"
 	"time"
 
@@ -78,124 +78,96 @@ func (p *StationPoller) pollAll(ctx context.Context) {
 	}
 }
 
+// telemetrySnapshot matches the JSON object returned by the firmware's
+// get_telemetry command. See docs/SCRIPTING_HAL.md "Telemetry Snapshot".
+type telemetrySnapshot struct {
+	Stage1TempK    float64 `json:"stage1_temp_k"`
+	Stage2TempK    float64 `json:"stage2_temp_k"`
+	PressureTorr   float64 `json:"pressure_torr"`
+	PumpOn         bool    `json:"pump_on"`
+	RoughValveOpen bool    `json:"rough_valve_open"`
+	PurgeValveOpen bool    `json:"purge_valve_open"`
+	RegenChar      string  `json:"regen_char"`
+	OperatingHours int     `json:"operating_hours"`
+	Status1        int     `json:"status_1"`
+	StaleCount     int     `json:"stale_count"`
+	LastUpdateMs   uint32  `json:"last_update_ms"`
+}
+
 func (p *StationPoller) pollDevice(ctx context.Context, stationInstance, deviceID string) {
 	commandStream := "commands:" + stationInstance
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 
-	// Poll status bytes
-	s1 := p.queryCommand(ctx, deviceID, "get_status_1", commandStream)
-	s2 := p.queryCommand(ctx, deviceID, "get_status_2", commandStream)
-	s3 := p.queryCommand(ctx, deviceID, "get_status_3", commandStream)
-
-	if s1 != nil {
-		// CTI On-Board S1/S2/S3 return a single raw byte whose bits ARE the
-		// status flags (e.g. 0x61 == 'a' == bits 0,5,6). Docs saying "2-char
-		// hex" don't match the actual wire format on this pump.
-		status1 := 0
-		if len(*s1) > 0 {
-			status1 = int((*s1)[0])
-		}
-		status2 := 0
-		if s2 != nil && len(*s2) > 0 {
-			status2 = int((*s2)[0])
-		}
-		status3 := 0
-		if s3 != nil && len(*s3) > 0 {
-			status3 = int((*s3)[0])
-		}
-
-		pumpOn := status1&1 != 0
-		s1Raw := *s1
-		log.Printf("poller: %s/%s S1 asc=%q hex=% X parsed=0x%02X bit0=%d pump=%s",
-			stationInstance, deviceID, s1Raw, []byte(s1Raw), status1, status1&1,
-			map[bool]string{true: "ON", false: "OFF"}[pumpOn])
-
-		// Poll valve states
-		roughValveOpen := false
-		if rv := p.queryCommand(ctx, deviceID, "get_rough_valve", commandStream); rv != nil {
-			roughValveOpen = *rv == "1"
-		}
-		purgeValveOpen := false
-		if pv := p.queryCommand(ctx, deviceID, "get_purge_valve", commandStream); pv != nil {
-			purgeValveOpen = *pv == "1"
-		}
-
-		// Always poll regen status character — derive regen active from it
-		// (status byte 1 bit 2 is purge valve, not regen)
-		regenStatus := ""
-		if rs := p.queryCommand(ctx, deviceID, "get_regen_status", commandStream); rs != nil {
-			regenStatus = *rs
-		}
-		regenActive := regenStatus != "" && regenStatus != "A" && regenStatus != "P" && regenStatus != "V"
-
-		p.hub.BroadcastEvent("pump_status", map[string]interface{}{
-			"station_instance": stationInstance,
-			"device_id":        deviceID,
-			"status_1":         status1,
-			"status_2":         status2,
-			"status_3":         status3,
-			"status_1_raw":     *s1,
-			"pump_on":          pumpOn,
-			"at_temp":          false, // TODO: derive from temperatures, not status byte
-			"regen":            regenActive,
-			"regen_status":     regenStatus,
-			"rough_valve_open": roughValveOpen,
-			"purge_valve_open": purgeValveOpen,
-			"timestamp":        now,
-		})
-
-		if p.recorder != nil {
-			p.recorder.RecordPumpStatusLog(stationInstance, deviceID, pumpOn, roughValveOpen, purgeValveOpen, regenStatus)
-		}
+	// One cache-served round-trip replaces 8 individual CTI queries. The
+	// firmware serves this from the RAM snapshot its own poll task maintains.
+	// See docs/architecture/ARCHITECTURE.md §4.6.
+	raw := p.queryCommand(ctx, deviceID, "get_telemetry", commandStream)
+	if raw == nil {
+		return
 	}
 
-	// Poll temperatures
-	t1 := p.queryCommand(ctx, deviceID, "get_temp_1st_stage", commandStream)
-	if t1 != nil {
-		if tempK, err := strconv.ParseFloat(*t1, 64); err == nil {
-			p.hub.BroadcastEvent("temperature", map[string]interface{}{
-				"station_instance": stationInstance,
-				"device_id":        deviceID,
-				"stage":            "first_stage",
-				"temperature_k":    tempK,
-				"timestamp":        now,
-			})
-			if p.recorder != nil {
-				p.recorder.RecordTemperatureLog(stationInstance, deviceID, "first_stage", tempK)
-			}
-		}
+	var snap telemetrySnapshot
+	if err := json.Unmarshal([]byte(*raw), &snap); err != nil {
+		log.Printf("poller: %s/%s telemetry parse error: %v (raw=%q)",
+			stationInstance, deviceID, err, *raw)
+		return
 	}
 
-	t2 := p.queryCommand(ctx, deviceID, "get_temp_2nd_stage", commandStream)
-	if t2 != nil {
-		if tempK, err := strconv.ParseFloat(*t2, 64); err == nil {
-			p.hub.BroadcastEvent("temperature", map[string]interface{}{
-				"station_instance": stationInstance,
-				"device_id":        deviceID,
-				"stage":            "second_stage",
-				"temperature_k":    tempK,
-				"timestamp":        now,
-			})
-			if p.recorder != nil {
-				p.recorder.RecordTemperatureLog(stationInstance, deviceID, "second_stage", tempK)
-			}
-		}
+	// regen is active whenever the regen state character is not pump-off ('A'),
+	// regen-complete ('P'), or regen-aborted ('V'). Matches the pre-telemetry
+	// derivation at the old poller call site.
+	regenActive := snap.RegenChar != "" && snap.RegenChar != "A" &&
+		snap.RegenChar != "P" && snap.RegenChar != "V"
+
+	// status_1_raw: single byte with the same bit pattern as Status1, to
+	// preserve WS event shape for any client that inspects it.
+	status1Raw := string([]byte{byte(snap.Status1)})
+
+	p.hub.BroadcastEvent("pump_status", map[string]interface{}{
+		"station_instance": stationInstance,
+		"device_id":        deviceID,
+		"status_1":         snap.Status1,
+		"status_2":         0, // un-cached; see docs/SCRIPTING_HAL.md
+		"status_3":         0, // un-cached
+		"status_1_raw":     status1Raw,
+		"pump_on":          snap.PumpOn,
+		"at_temp":          false, // TODO: derive from temperatures, not status byte
+		"regen":            regenActive,
+		"regen_status":     snap.RegenChar,
+		"rough_valve_open": snap.RoughValveOpen,
+		"purge_valve_open": snap.PurgeValveOpen,
+		"timestamp":        now,
+	})
+
+	if p.recorder != nil {
+		p.recorder.RecordPumpStatusLog(stationInstance, deviceID,
+			snap.PumpOn, snap.RoughValveOpen, snap.PurgeValveOpen, snap.RegenChar)
 	}
 
-	if s1 != nil || t1 != nil {
-		t1Str, t2Str := "--", "--"
-		if t1 != nil {
-			t1Str = *t1 + "K"
-		}
-		if t2 != nil {
-			t2Str = *t2 + "K"
-		}
-		s1Str := "--"
-		if s1 != nil {
-			s1Str = *s1
-		}
-		log.Printf("poller: %s/%s S1=%s J=%s K=%s", stationInstance, deviceID, s1Str, t1Str, t2Str)
+	p.hub.BroadcastEvent("temperature", map[string]interface{}{
+		"station_instance": stationInstance,
+		"device_id":        deviceID,
+		"stage":            "first_stage",
+		"temperature_k":    snap.Stage1TempK,
+		"timestamp":        now,
+	})
+	if p.recorder != nil {
+		p.recorder.RecordTemperatureLog(stationInstance, deviceID, "first_stage", snap.Stage1TempK)
 	}
+
+	p.hub.BroadcastEvent("temperature", map[string]interface{}{
+		"station_instance": stationInstance,
+		"device_id":        deviceID,
+		"stage":            "second_stage",
+		"temperature_k":    snap.Stage2TempK,
+		"timestamp":        now,
+	})
+	if p.recorder != nil {
+		p.recorder.RecordTemperatureLog(stationInstance, deviceID, "second_stage", snap.Stage2TempK)
+	}
+
+	log.Printf("poller: %s/%s S1=0x%02X J=%.1fK K=%.1fK regen=%s",
+		stationInstance, deviceID, snap.Status1, snap.Stage1TempK, snap.Stage2TempK, snap.RegenChar)
 }
 
 // queryCommand sends a single command and waits for the response.

@@ -6,6 +6,7 @@
 package mockpump
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"math/rand"
@@ -275,9 +276,51 @@ func (p *Pump) HandleCommand(command string) (string, bool) {
 	case "identify":
 		return "CTI-Cryogenics,Cryo-Torr 8,SIM-001,1.0", true
 
+	case "get_telemetry":
+		return p.buildTelemetryJSON(), true
+
 	default:
 		return "?", false
 	}
+}
+
+// buildTelemetryJSON emits the cached telemetry snapshot in the shape
+// documented in docs/SCRIPTING_HAL.md "Telemetry Snapshot". Must match
+// the firmware's serializePumpTelemetryJson exactly.
+func (p *Pump) buildTelemetryJSON() string {
+	var status1 int
+	if p.state != StateOff {
+		status1 |= 0x01
+	}
+	if p.roughValveOpen {
+		status1 |= 0x02
+	}
+	if p.purgeValveOpen {
+		status1 |= 0x04
+	}
+	if p.state != StateOff {
+		status1 |= 0x08
+	}
+	status1 |= 0x20
+
+	snap := map[string]interface{}{
+		"stage1_temp_k":    p.firstStageK,
+		"stage2_temp_k":    p.secondStageK,
+		"pressure_torr":    p.simulatePressure(),
+		"pump_on":          p.state != StateOff,
+		"rough_valve_open": p.roughValveOpen,
+		"purge_valve_open": p.purgeValveOpen,
+		"regen_char":       string(p.regenStatusChar()),
+		"operating_hours":  int(p.totalOnSeconds / 3600.0),
+		"status_1":         status1,
+		"stale_count":      0,
+		"last_update_ms":   uint32(time.Now().UnixMilli()),
+	}
+	b, err := json.Marshal(snap)
+	if err != nil {
+		return "{}"
+	}
+	return string(b)
 }
 
 // startRegen initializes the regen cycle and enters the warming phase.

@@ -365,6 +365,66 @@ XADD to reply_to stream
 XACK the command (mark as processed)
 ```
 
+### 4.6 Station Firmware as State Cache (cache-first dispatch)
+
+The station firmware's job is not just to proxy wire commands. For devices whose
+state is polled on a loop, the firmware **is the cache** — inbound read commands
+whose values are already known are served from RAM without touching the device
+bus. Only writes, actions, and un-cached reads traverse the underlying protocol.
+
+This exists because:
+- Industrial buses (RS-232, RS-485) are slow and serialize through a single worker.
+- Both the controller's poller and any running script issue read commands to the
+  same station. Re-reading values that the firmware *already polls for its own
+  display* is pure contention — it can starve the heartbeat publisher and cause
+  the controller to mark the station offline mid-test.
+- The firmware's own polling task must keep running (the local display needs it),
+  so the cache exists regardless. The only question is whether remote readers
+  benefit from it.
+
+**Dispatch rule** (in `messaging/command_handler.cpp::dispatchToDevice`):
+
+```
+if device is cached (e.g. CTI on-board pump):
+    if command is in cache-served set:
+        snapshot the cached struct under its mutex
+        if cache is stale (staleCount >= CACHE_STALE_THRESHOLD):
+            respond with error "pump_cache_stale"; return
+        format the requested field (or full snapshot for get_telemetry)
+        respond; return
+    # fall through for writes / un-cached reads
+execute via device driver (UART / TCP / etc.)
+```
+
+**Staleness.** Each cached device exposes a staleness counter (e.g.
+`PumpTelemetry.staleCount`) incremented on every failed underlying poll and reset
+to 0 on success. `CACHE_STALE_THRESHOLD` (default **3**) is the point at which
+the cache is no longer trustworthy; cache-served commands return a
+`pump_cache_stale` error rather than fall through to the bus. This preserves the
+controller's offline detection — a dead instrument still looks dead.
+
+**Write invalidation.** After any successful write command (`pump_on`,
+`open_rough_valve`, etc.), the command handler sets `_pollNow = true` so the
+firmware's background polling task restarts its cycle from the first command.
+Cache-served reads after a write therefore reflect the new state within one
+poll cycle (under a second for typical instruments).
+
+**Profile annotation.** Commands handled by the firmware cache — notably
+`get_telemetry` — have no wire representation. Device profile YAMLs use the
+sentinel string `"__firmware__"` in place of a wire command template, for
+example:
+
+```yaml
+commands:
+  get_telemetry: "__firmware__"    # Cache snapshot, no wire command
+```
+
+The firmware recognises `get_telemetry` directly; the sentinel simply documents
+that the profile loader on the controller side should not expect a wire
+template. The full list of cache-served reads for a given device lives in
+`docs/SCRIPTING_HAL.md` (the HAL contract) and must match the firmware's
+`isCacheServedCommand` table.
+
 ---
 
 ## 5. Controller Architecture

@@ -2,6 +2,12 @@
 #include <ArduinoJson.h>
 #include "../messaging/envelope.h"
 #include "../operational_mode.h"
+#include "../pump_telemetry.h"
+
+#ifdef ARDUINO
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+#endif
 
 namespace arturo {
 
@@ -56,6 +62,14 @@ public:
     // Register a CTI OnBoard device for command dispatch
     void setCtiOnBoardDevice(CtiOnBoardDevice* device) { _ctiOnBoardDevice = device; }
 
+    // Register the PumpTelemetry cache. When set, cache-served read commands
+    // (see docs/SCRIPTING_HAL.md) are answered from this snapshot under the
+    // given mutex instead of going through the CTI UART. See ARCHITECTURE.md §4.6.
+    void setPumpTelemetryCache(PumpTelemetry* telemetry, SemaphoreHandle_t mutex) {
+        _pumpTelemetry = telemetry;
+        _pumpTelemetryMutex = mutex;
+    }
+
     // Register an OTA update handler
     void setOTAHandler(OTAUpdateHandler* handler) { _otaHandler = handler; }
 
@@ -68,6 +82,8 @@ private:
     char _channelName[64];
     CtiOnBoardDevice* _ctiOnBoardDevice = nullptr;
     OTAUpdateHandler* _otaHandler = nullptr;
+    PumpTelemetry* _pumpTelemetry = nullptr;
+    SemaphoreHandle_t _pumpTelemetryMutex = nullptr;
     TestState _testState;
 
     void handleMessage(const char* messageJson);

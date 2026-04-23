@@ -2,17 +2,23 @@ package testmanager
 
 import (
 	"context"
+	"encoding/json"
 	"log"
-	"strconv"
 	"time"
-
 
 	"github.com/holla2040/arturo/internal/script/executor"
 	"github.com/holla2040/arturo/internal/store"
 )
 
-// TempMonitor queries 1st and 2nd stage temperatures every 5 seconds
-// and stores them in SQLite. It bypasses the PausableRouter (uses raw router)
+// tempTelemetry is the subset of the firmware's get_telemetry response this
+// monitor needs. Matches docs/SCRIPTING_HAL.md "Telemetry Snapshot".
+type tempTelemetry struct {
+	Stage1TempK float64 `json:"stage1_temp_k"`
+	Stage2TempK float64 `json:"stage2_temp_k"`
+}
+
+// TempMonitor queries cached pump telemetry every 5 seconds and stores the
+// temperatures in SQLite. It bypasses the PausableRouter (uses raw router)
 // so temperatures keep recording during pause.
 type TempMonitor struct {
 	router          executor.DeviceRouter // raw router, NOT PausableRouter
@@ -56,39 +62,37 @@ func (tm *TempMonitor) Run(ctx context.Context) {
 }
 
 func (tm *TempMonitor) sample(ctx context.Context) {
-	// Query 1st stage temperature
-	tm.queryAndRecord(ctx, "get_temp_1st_stage", "first_stage")
-	// Query 2nd stage temperature
-	tm.queryAndRecord(ctx, "get_temp_2nd_stage", "second_stage")
-}
-
-func (tm *TempMonitor) queryAndRecord(ctx context.Context, command, stage string) {
-	result, err := tm.router.SendCommand(ctx, tm.deviceID, command, nil, 5000)
+	// One cache-served get_telemetry query replaces two individual temp
+	// queries. See docs/architecture/ARCHITECTURE.md §4.6.
+	result, err := tm.router.SendCommand(ctx, tm.deviceID, "get_telemetry", nil, 5000)
 	if err != nil {
 		if ctx.Err() != nil {
 			return // Context cancelled, shutting down
 		}
-		log.Printf("temp_monitor: %s %s query failed: %v", tm.stationInstance, stage, err)
+		log.Printf("temp_monitor: %s telemetry query failed: %v", tm.stationInstance, err)
 		return
 	}
-
 	if !result.Success {
-		log.Printf("temp_monitor: %s %s query unsuccessful", tm.stationInstance, stage)
+		log.Printf("temp_monitor: %s telemetry query unsuccessful", tm.stationInstance)
 		return
 	}
 
-	tempK, err := strconv.ParseFloat(result.Response, 64)
-	if err != nil {
-		log.Printf("temp_monitor: %s %s parse error: %v (response: %q)", tm.stationInstance, stage, err, result.Response)
+	var snap tempTelemetry
+	if err := json.Unmarshal([]byte(result.Response), &snap); err != nil {
+		log.Printf("temp_monitor: %s telemetry parse error: %v (response: %q)",
+			tm.stationInstance, err, result.Response)
 		return
 	}
 
+	tm.recordStage("first_stage", snap.Stage1TempK)
+	tm.recordStage("second_stage", snap.Stage2TempK)
+}
+
+func (tm *TempMonitor) recordStage(stage string, tempK float64) {
 	if err := tm.store.RecordTemperature(tm.testRunID, tm.stationInstance, tm.deviceID, stage, tempK); err != nil {
 		log.Printf("temp_monitor: %s store error: %v", tm.stationInstance, err)
 		return
 	}
-
-	// Broadcast temperature update via WebSocket
 	if tm.hub != nil {
 		tm.hub.BroadcastEvent("temperature", map[string]interface{}{
 			"test_run_id":      tm.testRunID,

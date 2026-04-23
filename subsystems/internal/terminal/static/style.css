@@ -474,6 +474,14 @@ textarea { resize: vertical; min-height: 60px; }
     font-size: 0.85rem;
     min-height: 44px;
 }
+#temp-time-presets .btn.active {
+    background: var(--accent-blue-dim);
+    border-color: var(--accent-blue);
+    color: #fff;
+}
+#temp-time-presets .btn.active:hover {
+    background: var(--accent-blue);
+}
 .btn-group {
     display: flex;
     gap: 8px;
@@ -973,9 +981,13 @@ button.pid-regen:active { background: rgba(255,255,255,0.12); }
     background: var(--bg-card);
 }
 .station-tab.active {
-    color: var(--accent-blue);
+    background: var(--accent-blue-dim);
     border-color: var(--accent-blue);
+    color: #fff;
     font-weight: 700;
+}
+.station-tab.active:hover:not(:disabled) {
+    background: var(--accent-blue);
 }
 .station-tab:disabled {
     color: var(--text-muted);

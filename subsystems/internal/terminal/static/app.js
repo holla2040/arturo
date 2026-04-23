@@ -21,7 +21,7 @@ var App = (function() {
         startTestStation: null,
         startTestRMAId: null,
         tempChartData: { timestamps: [], first: [], second: [] },
-        tempWindowHours: 1,     // hours preset: 1, 2, 4, 8, or null = autorange
+        tempWindowHours: loadTempWindowHours(), // hours preset: 1, 2, 4, 8, or null = autorange (persisted in localStorage)
         userZoom: null,         // {x0, x1, y0, y1} when user drags a zoom region
         rmaRunSelections: {},   // runID -> boolean (include in report)
         rmaStatusFilter: 'open' // RMA filter: '', 'open', 'closed'
@@ -456,10 +456,11 @@ var App = (function() {
 
         state.detailStation = instance;
         state.tempChartData = { timestamps: [], first: [], second: [] };
-        state.tempWindowHours = 1;
+        state.tempWindowHours = loadTempWindowHours();
         state.userZoom = null;
         renderTestEvents([]);
         populateCommandList();
+        updateTempWindowButtons();
         showView('station-detail');
     }
 
@@ -800,12 +801,39 @@ var App = (function() {
                 };
                 state.tempWindowHours = null;
             }
+            updateTempWindowButtons();
         });
+    }
+
+    function loadTempWindowHours() {
+        var raw = localStorage.getItem('tempWindowHours');
+        if (raw === null) return 1;
+        if (raw === 'full') return null;
+        var n = parseInt(raw, 10);
+        return (n === 1 || n === 2 || n === 4 || n === 8) ? n : 1;
+    }
+
+    function saveTempWindowHours(hours) {
+        localStorage.setItem('tempWindowHours', hours == null ? 'full' : String(hours));
+    }
+
+    function updateTempWindowButtons() {
+        var group = document.getElementById('temp-time-presets');
+        if (!group) return;
+        var hours = state.tempWindowHours;
+        var activeMatch = state.userZoom ? '__zoom__'
+            : (hours == null ? 'full' : String(hours));
+        var btns = group.querySelectorAll('button[data-hours]');
+        for (var i = 0; i < btns.length; i++) {
+            btns[i].classList.toggle('active', btns[i].getAttribute('data-hours') === activeMatch);
+        }
     }
 
     function setTempWindow(hours) {
         state.tempWindowHours = hours;
         state.userZoom = null;
+        saveTempWindowHours(hours);
+        updateTempWindowButtons();
         renderTempChart();
     }
 

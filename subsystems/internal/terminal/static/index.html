@@ -106,11 +106,11 @@
                 <div class="panel-header">
                     <div class="panel-title">Temperature</div>
                     <div class="btn-group" id="temp-time-presets">
-                        <button class="btn btn-sm" onclick="App.setTempWindow(1)">1h</button>
-                        <button class="btn btn-sm" onclick="App.setTempWindow(2)">2h</button>
-                        <button class="btn btn-sm" onclick="App.setTempWindow(4)">4h</button>
-                        <button class="btn btn-sm" onclick="App.setTempWindow(8)">8h</button>
-                        <button class="btn btn-sm" onclick="App.setTempWindow(null)">Full</button>
+                        <button class="btn btn-sm" data-hours="1" onclick="App.setTempWindow(1)">1h</button>
+                        <button class="btn btn-sm" data-hours="2" onclick="App.setTempWindow(2)">2h</button>
+                        <button class="btn btn-sm" data-hours="4" onclick="App.setTempWindow(4)">4h</button>
+                        <button class="btn btn-sm" data-hours="8" onclick="App.setTempWindow(8)">8h</button>
+                        <button class="btn btn-sm" data-hours="full" onclick="App.setTempWindow(null)">Full</button>
                         <button class="btn btn-sm" onclick="App.exportTempCSV()">CSV</button>
                     </div>
                 </div>

@@ -29,10 +29,10 @@ func main() {
 	failRate := flag.Float64("fail-rate", 0.0, "Probability of random command failure (0.0-1.0)")
 	cooldownHours := flag.Float64("cooldown-hours", 4.0, "Simulated hours to reach base temperature")
 	httpAddr := flag.String("http", ":8001", "HTTP address for web UI")
-	regenTimescale := flag.Float64("regen-timescale", 0, "Regen acceleration factor (0 = use default/env). 1.0 = realistic (~113 min), 24.0 = ~5 min E2E. Overrides ARTURO_REGEN_TIMESCALE.")
+	regenTime := flag.Float64("regen-time", 0, "End-to-end regen duration in minutes (0 = use default/env). Raw regen is ~113 min; e.g. -regen-time=5 for ~5 min. Overrides ARTURO_REGEN_TIME.")
 	flag.Parse()
 
-	timescaleOverride := resolveRegenTimescale(*regenTimescale)
+	timescaleOverride := resolveRegenTimescale(*regenTime)
 
 	stationNums, err := parseStations(*stationsFlag)
 	if err != nil {
@@ -115,27 +115,39 @@ func main() {
 	log.Println("All mock stations stopped")
 }
 
-// resolveRegenTimescale picks the timescale override, if any.
-// Flag wins over env var. Returns 0 to mean "no override; use DefaultRegenParams".
-// Invalid values log a warning and fall through.
-func resolveRegenTimescale(flagVal float64) float64 {
-	if flagVal > 0 {
-		if flagVal < 0.01 {
-			log.Printf("regen-timescale %g too small, ignoring (min 0.01)", flagVal)
+// resolveRegenTimescale converts a desired end-to-end regen duration (in
+// minutes) into a Timescale factor. Flag wins over env var. Returns 0 to
+// mean "no override; use DefaultRegenParams". Invalid values log a warning
+// and fall through.
+func resolveRegenTimescale(flagMinutes float64) float64 {
+	raw := rawRegenMinutes()
+	if flagMinutes > 0 {
+		if flagMinutes < 0.1 {
+			log.Printf("regen-time %g too small, ignoring (min 0.1 min)", flagMinutes)
 			return 0
 		}
-		return flagVal
+		return raw / flagMinutes
 	}
-	envStr := os.Getenv("ARTURO_REGEN_TIMESCALE")
+	envStr := os.Getenv("ARTURO_REGEN_TIME")
 	if envStr == "" {
 		return 0
 	}
 	envVal, err := strconv.ParseFloat(envStr, 64)
-	if err != nil || envVal < 0.01 {
-		log.Printf("ARTURO_REGEN_TIMESCALE=%q invalid, ignoring", envStr)
+	if err != nil || envVal < 0.1 {
+		log.Printf("ARTURO_REGEN_TIME=%q invalid, ignoring", envStr)
 		return 0
 	}
-	return envVal
+	return raw / envVal
+}
+
+// rawRegenMinutes returns the end-to-end duration of a full regen cycle at
+// Timescale=1 (sum of all sub-state durations from DefaultRegenParams).
+func rawRegenMinutes() float64 {
+	p := mockpump.DefaultRegenParams()
+	total := p.Warmup1Duration + p.Warmup2Duration + p.Warmup3Duration + p.Warmup4Duration +
+		p.Rough1Duration + p.Rough2Duration + p.RORDuration +
+		p.CooldownDuration + p.ZeroTCDuration
+	return total.Minutes()
 }
 
 func parseStations(s string) ([]int, error) {

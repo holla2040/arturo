@@ -655,7 +655,7 @@ var App = (function() {
     function renderTestEvents(events) {
         var tbody = document.getElementById('detail-events-tbody');
         if (!events || events.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4"><div class="empty-state">No events</div></td></tr>';
+            tbody.innerHTML = '<tr><td colspan="3"><div class="empty-state">No events</div></td></tr>';
             return;
         }
         var html = '';
@@ -664,7 +664,6 @@ var App = (function() {
             html += '<tr>';
             html += '<td class="timestamp">' + formatDateTime(e.Timestamp) + '</td>';
             html += '<td class="mono">' + escapeHtml(e.EventType) + '</td>';
-            html += '<td>' + escapeHtml(e.EmployeeID || '--') + '</td>';
             html += '<td>' + escapeHtml(e.Reason || e.Description || '--') + '</td>';
             html += '</tr>';
         }
@@ -1698,7 +1697,6 @@ var App = (function() {
         var tr = document.createElement('tr');
         tr.innerHTML = '<td class="timestamp">' + formatDateTime(payload.timestamp) + '</td>' +
             '<td class="mono event-' + escapeHtml(payload.event_type) + '">' + escapeHtml(payload.event_type) + '</td>' +
-            '<td>' + escapeHtml(payload.employee_id || '--') + '</td>' +
             '<td>' + escapeHtml(payload.description || payload.reason || payload.summary || '--') + '</td>';
         tbody.appendChild(tr);
 

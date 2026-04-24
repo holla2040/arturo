@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -61,6 +62,22 @@ func (e *Executor) evalBuiltin(name string, args []interface{}) (interface{}, er
 		// NOW() - start. String concatenation still works via Add's coercion.
 		// See docs/reference/SCRIPTING_LANGUAGE_ORIGINAL.md "Built-in Functions".
 		return time.Now().UnixMilli(), nil
+
+	case "JSON_GET":
+		if len(args) != 2 {
+			return nil, fmt.Errorf("JSON_GET() requires 2 arguments (json, field), got %d", len(args))
+		}
+		jsonStr := variable.ToString(args[0])
+		field := variable.ToString(args[1])
+		var m map[string]interface{}
+		if err := json.Unmarshal([]byte(jsonStr), &m); err != nil {
+			return nil, fmt.Errorf("JSON_GET: invalid JSON: %w", err)
+		}
+		v, ok := m[field]
+		if !ok {
+			return nil, fmt.Errorf("JSON_GET: field %q not found", field)
+		}
+		return v, nil
 
 	default:
 		return nil, fmt.Errorf("unknown builtin function %q", name)

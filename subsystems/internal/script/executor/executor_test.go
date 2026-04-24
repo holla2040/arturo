@@ -5,11 +5,51 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/holla2040/arturo/internal/script/lexer"
 	"github.com/holla2040/arturo/internal/script/parser"
 )
+
+// shrinkRetryForTest collapses the retry knobs to tiny durations for the
+// duration of one test. Returns a func to restore the production values.
+func shrinkRetryForTest(total, base, max time.Duration) func() {
+	origTotal, origBase, origMax := queryRetryTotalDeadline, queryRetryBackoffBase, queryRetryBackoffMax
+	queryRetryTotalDeadline = total
+	queryRetryBackoffBase = base
+	queryRetryBackoffMax = max
+	return func() {
+		queryRetryTotalDeadline = origTotal
+		queryRetryBackoffBase = origBase
+		queryRetryBackoffMax = origMax
+	}
+}
+
+// flakyRouter returns err for the first failCount calls and success after.
+type flakyRouter struct {
+	mu        sync.Mutex
+	failCount int32
+	calls     int32
+	response  *CommandResult
+	err       error
+}
+
+func (r *flakyRouter) SendCommand(_ context.Context, _, _ string, _ map[string]string, _ int) (*CommandResult, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	atomic.AddInt32(&r.calls, 1)
+	if atomic.LoadInt32(&r.failCount) > 0 {
+		atomic.AddInt32(&r.failCount, -1)
+		return nil, r.err
+	}
+	if r.response != nil {
+		return r.response, nil
+	}
+	return &CommandResult{Success: true, Response: "OK", DurationMs: 1}, nil
+}
 
 // ---------------------------------------------------------------------------
 // Mock types
@@ -754,6 +794,11 @@ SEND "pump_off"`
 	})
 
 	t.Run("router error propagates", func(t *testing.T) {
+		// QUERY/SEND now retry on router errors; shrink the deadline so this
+		// test completes quickly instead of waiting the production 240s.
+		restore := shrinkRetryForTest(50*time.Millisecond, time.Millisecond, 5*time.Millisecond)
+		defer restore()
+
 		router := &mockRouter{
 			err: errors.New("connection refused"),
 		}
@@ -764,6 +809,9 @@ SEND "pump_off"`
 		}
 		if !strings.Contains(err.Error(), "connection refused") {
 			t.Fatalf("expected 'connection refused' in error, got %v", err)
+		}
+		if len(router.commands) < 2 {
+			t.Fatalf("expected at least 2 attempts from retry loop, got %d", len(router.commands))
 		}
 	})
 
@@ -781,6 +829,129 @@ DISCONNECT dmm`
 		}
 		if !strings.Contains(out, "DISCONNECT dmm") {
 			t.Fatalf("expected DISCONNECT log, got: %s", out)
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// QUERY / SEND retry behavior
+// ---------------------------------------------------------------------------
+
+type capturingEmitter struct {
+	mu     sync.Mutex
+	events []struct{ kind, detail string }
+}
+
+func (c *capturingEmitter) EmitEvent(kind, detail string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.events = append(c.events, struct{ kind, detail string }{kind, detail})
+}
+
+func (c *capturingEmitter) logs() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	var out []string
+	for _, e := range c.events {
+		if e.kind == "log" {
+			out = append(out, e.detail)
+		}
+	}
+	return out
+}
+
+func TestRetryBehavior(t *testing.T) {
+	t.Run("QUERY recovers after transient failures", func(t *testing.T) {
+		restore := shrinkRetryForTest(2*time.Second, 2*time.Millisecond, 10*time.Millisecond)
+		defer restore()
+
+		router := &flakyRouter{
+			err:      errors.New("timeout waiting for response"),
+			response: &CommandResult{Success: true, Response: "P", DurationMs: 1},
+		}
+		atomic.StoreInt32(&router.failCount, 2)
+		emitter := &capturingEmitter{}
+
+		src := `QUERY "get_regen_status" rs`
+		exec, err := parseAndExec(t, src, WithRouter(router), WithEmitter(emitter))
+		if err != nil {
+			t.Fatalf("expected recovery, got error: %v", err)
+		}
+		v, _ := exec.Env().Get("rs")
+		if v != "P" {
+			t.Fatalf("expected rs=P after recovery, got %v", v)
+		}
+		if got := atomic.LoadInt32(&router.calls); got != 3 {
+			t.Fatalf("expected 3 router calls (2 fail + 1 success), got %d", got)
+		}
+		logs := emitter.logs()
+		var sawRetry, sawRecover bool
+		for _, l := range logs {
+			if strings.Contains(l, "[WARN]") && strings.Contains(l, "attempt") {
+				sawRetry = true
+			}
+			if strings.Contains(l, "recovered after 3 attempts") {
+				sawRecover = true
+			}
+		}
+		if !sawRetry {
+			t.Fatalf("expected at least one retry WARN log, got: %v", logs)
+		}
+		if !sawRecover {
+			t.Fatalf("expected recovery WARN log, got: %v", logs)
+		}
+	})
+
+	t.Run("QUERY fails after deadline exhausted", func(t *testing.T) {
+		restore := shrinkRetryForTest(40*time.Millisecond, time.Millisecond, 5*time.Millisecond)
+		defer restore()
+
+		router := &mockRouter{err: errors.New("timeout waiting for response")}
+		src := `QUERY "get_regen_status" rs`
+		start := time.Now()
+		_, err := parseAndExec(t, src, WithRouter(router))
+		elapsed := time.Since(start)
+
+		if err == nil {
+			t.Fatal("expected error after retry deadline")
+		}
+		if !strings.Contains(err.Error(), "timeout waiting for response") {
+			t.Fatalf("expected underlying timeout in error, got %v", err)
+		}
+		if elapsed < 40*time.Millisecond {
+			t.Fatalf("expected elapsed >= retry deadline (40ms), got %s", elapsed)
+		}
+		if len(router.commands) < 2 {
+			t.Fatalf("expected multiple retries, got %d", len(router.commands))
+		}
+	})
+
+	t.Run("context cancel exits retry loop promptly", func(t *testing.T) {
+		restore := shrinkRetryForTest(10*time.Second, 500*time.Millisecond, time.Second)
+		defer restore()
+
+		router := &mockRouter{err: errors.New("timeout waiting for response")}
+		ctx, cancel := context.WithCancel(context.Background())
+		tokens, _ := lexer.New(`QUERY "get_regen_status" rs`).Tokenize()
+		prog, _ := parser.New(tokens).Parse()
+		exec := New(ctx, WithRouter(router))
+
+		done := make(chan error, 1)
+		go func() { done <- exec.Execute(prog) }()
+
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+
+		select {
+		case err := <-done:
+			if err == nil {
+				t.Fatal("expected ctx cancel error")
+			}
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("expected context.Canceled, got %v", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("retry loop did not exit after cancel")
 		}
 	})
 }
@@ -1034,6 +1205,60 @@ SET d BOOL("")`
 		d, _ := exec.Env().Get("d")
 		if d != false {
 			t.Fatalf("expected BOOL('')=false, got %v", d)
+		}
+	})
+
+	t.Run("JSON_GET extracts fields from telemetry snapshot", func(t *testing.T) {
+		// Shape mirrors get_telemetry response (see docs/SCRIPTING_HAL.md).
+		src := `SET snap "{\"stage1_temp_k\":66.3,\"stage2_temp_k\":10.0,\"regen_char\":\"P\",\"pump_on\":true,\"operating_hours\":1234}"
+SET t1 JSON_GET(snap, "stage1_temp_k")
+SET rs JSON_GET(snap, "regen_char")
+SET pon JSON_GET(snap, "pump_on")
+SET hrs JSON_GET(snap, "operating_hours")
+SET t1_f FLOAT(t1)
+SET hrs_i INT(hrs)`
+		exec, err := parseAndExec(t, src)
+		if err != nil {
+			t.Fatalf("parse/exec: %v", err)
+		}
+		if v, _ := exec.Env().Get("t1"); v != 66.3 {
+			t.Fatalf("t1: expected 66.3, got %v (%T)", v, v)
+		}
+		if v, _ := exec.Env().Get("rs"); v != "P" {
+			t.Fatalf("rs: expected P, got %v", v)
+		}
+		if v, _ := exec.Env().Get("pon"); v != true {
+			t.Fatalf("pon: expected true, got %v", v)
+		}
+		if v, _ := exec.Env().Get("t1_f"); v != 66.3 {
+			t.Fatalf("t1_f: expected 66.3, got %v", v)
+		}
+		if v, _ := exec.Env().Get("hrs_i"); v != int64(1234) {
+			t.Fatalf("hrs_i: expected 1234, got %v (%T)", v, v)
+		}
+	})
+
+	t.Run("JSON_GET errors on missing field", func(t *testing.T) {
+		src := `SET snap "{\"a\":1}"
+SET x JSON_GET(snap, "b")`
+		_, err := parseAndExec(t, src)
+		if err == nil {
+			t.Fatal("expected error for missing field")
+		}
+		if !strings.Contains(err.Error(), "not found") {
+			t.Fatalf("expected 'not found' in error, got %v", err)
+		}
+	})
+
+	t.Run("JSON_GET errors on invalid JSON", func(t *testing.T) {
+		src := `SET snap "not json at all"
+SET x JSON_GET(snap, "a")`
+		_, err := parseAndExec(t, src)
+		if err == nil {
+			t.Fatal("expected error for invalid JSON")
+		}
+		if !strings.Contains(err.Error(), "invalid JSON") {
+			t.Fatalf("expected 'invalid JSON' in error, got %v", err)
 		}
 	})
 }

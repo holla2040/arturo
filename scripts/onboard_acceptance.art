@@ -90,15 +90,20 @@ TEST "Onboard Cryopump Acceptance"
     # -------------------------------------------------------------------
     # Stage 1: Pre-regen baseline
     # -------------------------------------------------------------------
-    QUERY "get_regen_status" rs TIMEOUT QUERY_TIMEOUT
+    # All samples read from the station's cached telemetry snapshot
+    # (get_telemetry) rather than hitting per-field cache commands; one
+    # round-trip per loop, atomic field values.
+    QUERY "get_telemetry" snap TIMEOUT QUERY_TIMEOUT
+    SET rs JSON_GET(snap, "regen_char")
     SET rs_name CALL regen_state_name(rs)
     ASSERT rs == "P" || rs == "V" "Pump busy before acceptance test: " + rs + " - " + rs_name
 
     LOG INFO "Stage 1: verifying pre-regen baseline (T1<=" + BASE_T1_MAX + " K, T2<=" + BASE_T2_MAX + " K) stable for " + BASELINE_STABLE_DURATION + " ms"
     SET baseline_elapsed 0
     WHILE baseline_elapsed < BASELINE_STABLE_DURATION
-        QUERY "get_temp_1st_stage" t1 TIMEOUT QUERY_TIMEOUT
-        QUERY "get_temp_2nd_stage" t2 TIMEOUT QUERY_TIMEOUT
+        QUERY "get_telemetry" snap TIMEOUT QUERY_TIMEOUT
+        SET t1 JSON_GET(snap, "stage1_temp_k")
+        SET t2 JSON_GET(snap, "stage2_temp_k")
         ASSERT FLOAT(t1) <= BASE_T1_MAX "Pre-regen T1 " + t1 + " K vs limit " + BASE_T1_MAX + " K"
         ASSERT FLOAT(t2) <= BASE_T2_MAX "Pre-regen T2 " + t2 + " K vs limit " + BASE_T2_MAX + " K"
         LOG INFO "Baseline sample - T1: " + t1 + " K, T2: " + t2 + " K"
@@ -124,7 +129,8 @@ TEST "Onboard Cryopump Acceptance"
             FAIL "Regen exceeded max duration: " + elapsed + " ms > " + REGEN_MAX_DURATION + " ms"
         ENDIF
 
-        QUERY "get_regen_status" regen_letter TIMEOUT QUERY_TIMEOUT
+        QUERY "get_telemetry" snap TIMEOUT QUERY_TIMEOUT
+        SET regen_letter JSON_GET(snap, "regen_char")
         SET state_name CALL regen_state_name(regen_letter)
 
         IF regen_letter != last_letter
@@ -153,12 +159,13 @@ TEST "Onboard Cryopump Acceptance"
     SET settled false
     WHILE settled == false
         SET settle_elapsed NOW() - settle_start_time
+        QUERY "get_telemetry" snap TIMEOUT QUERY_TIMEOUT
+        SET t1 JSON_GET(snap, "stage1_temp_k")
+
         IF settle_elapsed > SETTLE_MAX_DURATION
-            QUERY "get_temp_1st_stage" t1 TIMEOUT QUERY_TIMEOUT
             FAIL "1st-stage settle exceeded max duration: " + settle_elapsed + " ms, T1=" + t1 + " K"
         ENDIF
 
-        QUERY "get_temp_1st_stage" t1 TIMEOUT QUERY_TIMEOUT
         LOG INFO "Settle sample - T1: " + t1 + " K, elapsed: " + settle_elapsed + " ms"
         IF FLOAT(t1) <= BASE_T1_MAX
             LOG INFO "Stage 3 PASSED: T1 reached base in " + settle_elapsed + " ms"
@@ -174,8 +181,9 @@ TEST "Onboard Cryopump Acceptance"
     LOG INFO "Stage 4: holding steady-state for " + STEADY_HOLD_DURATION + " ms within base envelope"
     SET hold_elapsed 0
     WHILE hold_elapsed < STEADY_HOLD_DURATION
-        QUERY "get_temp_1st_stage" t1 TIMEOUT QUERY_TIMEOUT
-        QUERY "get_temp_2nd_stage" t2 TIMEOUT QUERY_TIMEOUT
+        QUERY "get_telemetry" snap TIMEOUT QUERY_TIMEOUT
+        SET t1 JSON_GET(snap, "stage1_temp_k")
+        SET t2 JSON_GET(snap, "stage2_temp_k")
         ASSERT FLOAT(t1) <= BASE_T1_MAX "Steady-state drift: T1 " + t1 + " K vs limit " + BASE_T1_MAX + " K"
         ASSERT FLOAT(t2) <= BASE_T2_MAX "Steady-state drift: T2 " + t2 + " K vs limit " + BASE_T2_MAX + " K"
         LOG INFO "Hold sample - T1: " + t1 + " K, T2: " + t2 + " K"

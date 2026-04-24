@@ -39,6 +39,24 @@ type ReturnValue struct {
 func (r *ReturnValue) Error() string { return "return" }
 
 // ---------------------------------------------------------------------------
+// Retry policy for QUERY and SEND
+// ---------------------------------------------------------------------------
+
+// Stations run on WiFi and can drop or reboot briefly. A single router
+// timeout used to abort the whole test; these knobs let QUERY/SEND survive
+// up to ~4 minutes of station unavailability before giving up. The per-
+// attempt timeout still comes from the router (from the script's TIMEOUT
+// clause or the router default).
+//
+// These are vars (not consts) so tests can dial them down to microseconds
+// without waiting minutes per case.
+var (
+	queryRetryTotalDeadline = 240 * time.Second
+	queryRetryBackoffBase   = 1 * time.Second
+	queryRetryBackoffMax    = 30 * time.Second
+)
+
+// ---------------------------------------------------------------------------
 // Interfaces
 // ---------------------------------------------------------------------------
 
@@ -563,6 +581,59 @@ func (e *Executor) execDisconnectStmt(s *ast.DisconnectStmt) error {
 	return nil
 }
 
+// sendWithRetry wraps DeviceRouter.SendCommand with a retry loop bounded by
+// queryRetryTotalDeadline. Used by QUERY and SEND so a transient station
+// outage (WiFi drop, ESP32 reboot) no longer aborts the whole test. The
+// executor's context is honored between attempts so operator Terminate/Abort
+// still exits promptly.
+//
+// SEND note: if a write command (pump_on, start_regen, open_valve, ...)
+// succeeded but the ACK was lost on the way back, a retry re-sends it. For
+// the CTI pump commands in use today that is benign (start_regen while
+// regenerating is a no-op, valve set commands are idempotent), but callers
+// adding non-idempotent SEND commands should keep this in mind.
+func (e *Executor) sendWithRetry(cmdStr string, params map[string]string, perAttemptTimeoutMs int) (*CommandResult, error) {
+	start := time.Now()
+	backoff := queryRetryBackoffBase
+	attempt := 0
+	var lastErr error
+
+	for {
+		attempt++
+		result, err := e.router.SendCommand(e.ctx, e.deviceID, cmdStr, params, perAttemptTimeoutMs)
+		if err == nil {
+			if attempt > 1 {
+				e.emit("log", fmt.Sprintf("[WARN] %s recovered after %d attempts (%s)",
+					cmdStr, attempt, time.Since(start).Round(time.Second)))
+			}
+			return result, nil
+		}
+		lastErr = err
+
+		elapsed := time.Since(start)
+		if elapsed >= queryRetryTotalDeadline {
+			return nil, lastErr
+		}
+
+		e.emit("log", fmt.Sprintf("[WARN] %s attempt %d failed: %v; retrying in %s (elapsed %s/%s)",
+			cmdStr, attempt, err, backoff,
+			elapsed.Round(time.Second), queryRetryTotalDeadline))
+
+		timer := time.NewTimer(backoff)
+		select {
+		case <-e.ctx.Done():
+			timer.Stop()
+			return nil, e.ctx.Err()
+		case <-timer.C:
+		}
+
+		backoff *= 2
+		if backoff > queryRetryBackoffMax {
+			backoff = queryRetryBackoffMax
+		}
+	}
+}
+
 func (e *Executor) execSendStmt(s *ast.SendStmt) error {
 	cmdVal, err := e.evalExpression(s.Command)
 	if err != nil {
@@ -575,7 +646,7 @@ func (e *Executor) execSendStmt(s *ast.SendStmt) error {
 		return nil
 	}
 
-	result, routeErr := e.router.SendCommand(e.ctx, e.deviceID, cmdStr, nil, 0)
+	result, routeErr := e.sendWithRetry(cmdStr, nil, 0)
 	if routeErr != nil {
 		return fmt.Errorf("SEND %s: %w", cmdStr, routeErr)
 	}
@@ -612,7 +683,7 @@ func (e *Executor) execQueryStmt(s *ast.QueryStmt) error {
 		return e.env.Set(s.ResultVar, "")
 	}
 
-	result, routeErr := e.router.SendCommand(e.ctx, e.deviceID, cmdStr, nil, timeoutMs)
+	result, routeErr := e.sendWithRetry(cmdStr, nil, timeoutMs)
 	if routeErr != nil {
 		return fmt.Errorf("QUERY %s: %w", cmdStr, routeErr)
 	}

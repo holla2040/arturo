@@ -31,7 +31,7 @@ CONST BASE_T1_MAX 70
 CONST BASE_T2_MAX 15
 
 # Timing bounds (ms)
-CONST BASELINE_STABLE_DURATION 60000
+CONST BASELINE_STABLE_DURATION 300000
 CONST REGEN_MAX_DURATION 18000000
 # T1 post-P settle. Reference pump took ~17 min for T1 to drop from ~85 K
 # to ~65 K after P. 1 h cap is generous headroom; not the 4 h in-regen

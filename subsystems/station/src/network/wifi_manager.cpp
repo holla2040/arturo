@@ -58,7 +58,7 @@ void WifiManager::onConnected() {
         _currentOutageStartMs = 0;
     }
 
-    LOG_INFO("WIFI", "Connected rssi=%d", WiFi.RSSI());
+    LOG_INFO("WIFI", "Connected rssi=%d ip=%s", WiFi.RSSI(), WiFi.localIP().toString().c_str());
 }
 
 bool WifiManager::connect() {
@@ -86,7 +86,7 @@ bool WifiManager::connect() {
         _failedAttempts = 0;
         _lastConnectedMs = millis();
 
-        LOG_INFO("WIFI", "Connected rssi=%d", WiFi.RSSI());
+        LOG_INFO("WIFI", "Connected rssi=%d ip=%s", WiFi.RSSI(), WiFi.localIP().toString().c_str());
         return true;
     }
 

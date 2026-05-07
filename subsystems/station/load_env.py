@@ -30,11 +30,19 @@ with open(env_file) as f:
             )
             env.Exit(1)
         loaded[key] = val
-        if val:
-            if val.isdigit():
-                env.Append(CPPDEFINES=[(key, val)])
-            else:
-                env.Append(CPPDEFINES=[(key, env.StringifyMacro(val))])
+
+# Process env wins over .env (lets the Makefile pass per-build values like STATION_INSTANCE)
+for key in REQUIRED_KEYS:
+    if os.environ.get(key):
+        loaded[key] = os.environ[key]
+
+for key, val in loaded.items():
+    if not val:
+        continue
+    if val.isdigit():
+        env.Append(CPPDEFINES=[(key, val)])
+    else:
+        env.Append(CPPDEFINES=[(key, env.StringifyMacro(val))])
 
 missing = [k for k in REQUIRED_KEYS if not loaded.get(k)]
 if missing:

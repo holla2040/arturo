@@ -1,4 +1,5 @@
 #include "device_registry.h"
+#include "../config.h"
 #include <cstring>
 
 namespace arturo {
@@ -6,7 +7,7 @@ namespace arturo {
 // Phase 2: Hardcoded device registry
 // In future phases, this will read from YAML profiles
 static const DeviceInfo DEVICES[] = {
-    {"PUMP-01", nullptr, 0, "cti", "onboard"},  // CTI OnBoard cryopump on UART1
+    {PUMP_ID, nullptr, 0, "cti", "onboard"},  // CTI OnBoard cryopump on UART1
 };
 
 static const int NUM_DEVICES = sizeof(DEVICES) / sizeof(DEVICES[0]);

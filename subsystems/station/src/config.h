@@ -37,9 +37,12 @@
 #define STATION_VERSION    "1.0.0"
 #define FIRMWARE_VERSION   "1.0.0"
 
-// Devices managed by this station
+// Devices managed by this station — PUMP_ID injected from .env via build flags
+#ifndef PUMP_ID
+#define PUMP_ID            "PUMP-01"
+#endif
 #define DEVICE_COUNT       1
-static const char* DEVICE_IDS[] = {"PUMP-01"};
+static const char* DEVICE_IDS[] = {PUMP_ID};
 
 // CTI OnBoard serial port (UART0 via MAX3232, default pins GPIO43 TX / GPIO44 RX)
 // Matches pendant2 Serial0 routing through MAX3232 to pump connector

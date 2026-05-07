@@ -1,3 +1,6 @@
+SHELL      := /bin/bash
+.SHELLFLAGS := -o pipefail -c
+
 PORT       ?= /dev/ttyACM0
 BAUD       ?= 115200
 FLASH_BAUD ?= 460800
@@ -8,6 +11,17 @@ BUILD_DIR  := .pio/build/$(ENV)
 ESPTOOL    := $(HOME)/.platformio/penv/bin/esptool
 BOOT_APP0  := $(HOME)/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin
 
+# Per-station override. Usage: `make flash STATION=station-02` / `make ota STATION=station-03`.
+# When set: embeds STATION_INSTANCE in the firmware via build, and
+# (for OTA) targets $(STATION).local instead of platformio.ini's hardcoded host.
+# Note: SCons usually picks up CPPDEFINES changes incrementally; if a per-station
+# rebuild seems stale, run `make clean` once manually.
+ifdef STATION
+  export STATION_INSTANCE       := $(STATION)
+  export PLATFORMIO_UPLOAD_PORT := $(STATION).local
+  STATION_PREREQS := build
+endif
+
 # Default: compile only
 bin: build
 
@@ -16,15 +30,16 @@ build:
 	pio run -e $(ENV)
 
 # Kill logger, flash prebuilt binary via esptool directly (no pio/SCons overhead — run `make build` first)
-flash:
-	@-pkill -f "python3.*serial_logger" 2>/dev/null; sleep 0.5
+flash: $(STATION_PREREQS)
+	@-pkill -f "python3.*serial_logger" 2>/dev/null; pkill -f "microcom.*$(PORT)" 2>/dev/null; sleep 0.5
 	$(ESPTOOL) --chip esp32s3 --port $(PORT) --baud $(FLASH_BAUD) \
 	  --before default-reset --after hard-reset write-flash -z \
 	  --flash-mode dio --flash-freq 80m --flash-size detect \
 	  0x0000  $(BUILD_DIR)/bootloader.bin \
 	  0x8000  $(BUILD_DIR)/partitions.bin \
 	  0xe000  $(BOOT_APP0) \
-	  0x10000 $(BUILD_DIR)/firmware.bin
+	  0x10000 $(BUILD_DIR)/firmware.bin \
+	  | grep --line-buffered -v "Writing at "
 	@sleep 2
 	@$(LOGGER) > /dev/null 2>&1 &
 	@echo "--- logger restarted on $(PORT) ---"

@@ -17,6 +17,7 @@ struct CommandRequest {
     const char* deviceId;
     const char* commandName;
     int timeoutMs;
+    bool raw;
 };
 
 // Parse a command request JSON string into a CommandRequest struct.
@@ -97,8 +98,10 @@ private:
     // Publish test control action (pause/continue/terminate/abort) to controller via Redis
     bool publishTestControl(const char* action);
 
-    // Shared dispatch logic used by both handleDeviceCommand() and executeLocal()
-    bool dispatchToDevice(const char* deviceId, const char* commandName,
+    // Shared dispatch logic used by both handleDeviceCommand() and executeLocal().
+    // When raw is true and the device speaks CTI, the lookup table and cache are
+    // bypassed and commandName is shipped to the wire transport unchanged.
+    bool dispatchToDevice(const char* deviceId, const char* commandName, bool raw,
                           char* responseBuf, size_t responseBufLen,
                           const char*& errorCode, const char*& errorMessage);
 };

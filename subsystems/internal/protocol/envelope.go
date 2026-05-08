@@ -90,6 +90,7 @@ type CommandRequestPayload struct {
 	CommandName string            `json:"command_name"`
 	Parameters  map[string]string `json:"parameters,omitempty"`
 	TimeoutMs   *int              `json:"timeout_ms,omitempty"`
+	Raw         bool              `json:"raw,omitempty"`
 }
 
 // CommandResponsePayload contains fields from the device.command.response payload.

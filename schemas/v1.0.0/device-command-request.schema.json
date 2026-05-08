@@ -92,6 +92,11 @@
           "minimum": 100,
           "maximum": 300000,
           "default": 5000
+        },
+        "raw": {
+          "type": "boolean",
+          "description": "When true, the station bypasses the HAL command-name lookup and ships command_name to the device's wire transport unchanged. Operator-only; scripts must use HAL names. CTI onboard pump only at present.",
+          "default": false
         }
       }
     }

@@ -33,6 +33,7 @@ type commandRequest struct {
 	Command    string            `json:"command"`
 	Parameters map[string]string `json:"parameters,omitempty"`
 	TimeoutMs  int               `json:"timeout_ms,omitempty"`
+	Raw        bool              `json:"raw,omitempty"`
 }
 
 // stationCommandRequest is the JSON body for POST /stations/{id}/command.
@@ -42,6 +43,7 @@ type stationCommandRequest struct {
 	Command    string            `json:"command"`
 	Parameters map[string]string `json:"parameters,omitempty"`
 	TimeoutMs  int               `json:"timeout_ms,omitempty"`
+	Raw        bool              `json:"raw,omitempty"`
 }
 
 // otaRequest is the JSON body for POST /ota.
@@ -166,11 +168,11 @@ func (h *Handler) sendCommand(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.executeCommand(w, r, deviceID, req.Command, req.Parameters, req.TimeoutMs)
+	h.executeCommand(w, r, deviceID, req.Command, req.Parameters, req.TimeoutMs, req.Raw)
 }
 
 // executeCommand is the shared core for sending a device command and waiting for a response.
-func (h *Handler) executeCommand(w http.ResponseWriter, r *http.Request, deviceID, command string, parameters map[string]string, timeoutMs int) {
+func (h *Handler) executeCommand(w http.ResponseWriter, r *http.Request, deviceID, command string, parameters map[string]string, timeoutMs int, raw bool) {
 	if !h.redisAvailable() {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "redis unavailable"})
 		return
@@ -191,7 +193,7 @@ func (h *Handler) executeCommand(w http.ResponseWriter, r *http.Request, deviceI
 		timeoutMs = 5000
 	}
 
-	msg, err := protocol.BuildCommandRequest(h.Source, deviceID, command, parameters, timeoutMs)
+	msg, err := protocol.BuildCommandRequest(h.Source, deviceID, command, parameters, timeoutMs, raw)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("failed to build command: %v", err)})
 		return
@@ -732,7 +734,7 @@ func (h *Handler) stationCommand(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.executeCommand(w, r, req.DeviceID, req.Command, req.Parameters, req.TimeoutMs)
+	h.executeCommand(w, r, req.DeviceID, req.Command, req.Parameters, req.TimeoutMs, req.Raw)
 }
 
 // ---------------------------------------------------------------------------

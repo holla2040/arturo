@@ -46,6 +46,7 @@ bool parseCommandRequest(const char* json, JsonDocument& doc, CommandRequest& re
     req.deviceId = payload["device_id"].as<const char*>();
     req.commandName = payload["command_name"].as<const char*>();
     req.timeoutMs = payload["timeout_ms"] | 5000;
+    req.raw = payload["raw"] | false;
 
     return true;
 }
@@ -129,7 +130,7 @@ void CommandHandler::handleMessage(const char* messageJson) {
     }
 }
 
-bool CommandHandler::dispatchToDevice(const char* deviceId, const char* commandName,
+bool CommandHandler::dispatchToDevice(const char* deviceId, const char* commandName, bool raw,
                                       char* responseBuf, size_t responseBufLen,
                                       const char*& errorCode, const char*& errorMessage) {
     // Look up the device in the registry.
@@ -154,6 +155,25 @@ bool CommandHandler::dispatchToDevice(const char* deviceId, const char* commandN
     }
 
     if (strcmp(device->protocolType, "cti") == 0) {
+        // Raw passthrough: skip the cache and HAL lookup, ship commandName to
+        // the CTI worker unchanged. Used by the operator's Manual Command tool
+        // for ad-hoc commands not in the HAL table. See ARCHITECTURE.md §2.2.
+        if (raw) {
+            if (_ctiOnBoardDevice == nullptr) {
+                errorCode = "device_unavailable";
+                errorMessage = "CTI OnBoard device not initialized";
+                LOG_ERROR("CMD", "CTI OnBoard device not available for raw cmd %s", commandName);
+                return false;
+            }
+            LOG_INFO("CMD", "cti raw dispatch: %s", commandName);
+            bool success = _ctiOnBoardDevice->executeCommand(commandName, responseBuf, responseBufLen);
+            if (!success) {
+                errorCode = "device_error";
+                errorMessage = "CTI OnBoard command failed";
+            }
+            return success;
+        }
+
         // Cache-first dispatch: commands whose values are already polled into
         // _pumpTelemetry are served from RAM, no UART round-trip. Stale cache
         // returns an error rather than falling through, so the controller's
@@ -229,7 +249,7 @@ bool CommandHandler::executeLocal(const char* commandName, char* responseBuf, si
     const char* errorMessage = nullptr;
 
     LOG_INFO("CMD", "Local command: %s", commandName);
-    bool success = dispatchToDevice(nullptr, commandName, responseBuf, responseBufLen,
+    bool success = dispatchToDevice(nullptr, commandName, false, responseBuf, responseBufLen,
                                     errorCode, errorMessage);
     if (success) {
         LOG_INFO("CMD", "Local command OK: %s -> '%s'", commandName, responseBuf);
@@ -330,7 +350,7 @@ void CommandHandler::handleDeviceCommand(const char* messageJson) {
     char responseBuf[512] = {0};
     const char* errorCode = nullptr;
     const char* errorMessage = nullptr;
-    bool success = dispatchToDevice(req.deviceId, req.commandName,
+    bool success = dispatchToDevice(req.deviceId, req.commandName, req.raw,
                                     responseBuf, sizeof(responseBuf),
                                     errorCode, errorMessage);
 

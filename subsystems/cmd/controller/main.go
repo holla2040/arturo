@@ -531,7 +531,7 @@ func runSendCommand() {
 		Version:  serverVersion,
 	}
 
-	msg, err := protocol.BuildCommandRequest(source, *device, *cmd, nil, *timeout)
+	msg, err := protocol.BuildCommandRequest(source, *device, *cmd, nil, *timeout, false)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error building command request: %v\n", err)
 		os.Exit(1)

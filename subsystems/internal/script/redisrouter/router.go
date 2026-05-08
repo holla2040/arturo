@@ -36,8 +36,8 @@ func (r *RedisRouter) SendCommand(ctx context.Context, deviceID, command string,
 		timeoutMs = 5000
 	}
 
-	// 1. Build protocol message.
-	msg, err := protocol.BuildCommandRequest(r.source, deviceID, command, params, timeoutMs)
+	// 1. Build protocol message. Scripts must use HAL command names; raw=false.
+	msg, err := protocol.BuildCommandRequest(r.source, deviceID, command, params, timeoutMs, false)
 	if err != nil {
 		return nil, fmt.Errorf("build command request: %w", err)
 	}

@@ -1104,6 +1104,29 @@ button.pid-regen:active { background: rgba(255,255,255,0.12); }
 .modal-cmd {
     width: 46rem;
 }
+.cmd-raw-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.cmd-raw-input {
+    flex: 1;
+    padding: 10px 12px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    min-height: 42px;
+}
+.cmd-raw-input:focus {
+    outline: none;
+    border-color: var(--border-light);
+}
+.cmd-raw-row .btn {
+    min-width: 5rem;
+}
 .modal-cmd .cmd-grid {
     max-height: 65vh;
     overflow-y: auto;

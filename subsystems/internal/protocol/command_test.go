@@ -8,7 +8,7 @@ import (
 
 func TestBuildCommandRequest(t *testing.T) {
 	src := testSource()
-	msg, err := BuildCommandRequest(src, "fluke-8846a", "measure_dc_voltage", nil, 5000)
+	msg, err := BuildCommandRequest(src, "fluke-8846a", "measure_dc_voltage", nil, 5000, false)
 	if err != nil {
 		t.Fatalf("BuildCommandRequest() error: %v", err)
 	}
@@ -35,7 +35,7 @@ func TestBuildCommandRequest(t *testing.T) {
 
 func TestBuildCommandRequestValidates(t *testing.T) {
 	src := testSource()
-	msg, err := BuildCommandRequest(src, "fluke-8846a", "measure_dc_voltage", nil, 5000)
+	msg, err := BuildCommandRequest(src, "fluke-8846a", "measure_dc_voltage", nil, 5000, false)
 	if err != nil {
 		t.Fatalf("BuildCommandRequest() error: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestBuildCommandRequestValidates(t *testing.T) {
 func TestBuildCommandRequestPayload(t *testing.T) {
 	src := testSource()
 	params := map[string]string{"range": "10V", "resolution": "0.001"}
-	msg, err := BuildCommandRequest(src, "fluke-8846a", "measure_dc_voltage", params, 3000)
+	msg, err := BuildCommandRequest(src, "fluke-8846a", "measure_dc_voltage", params, 3000, false)
 	if err != nil {
 		t.Fatalf("BuildCommandRequest() error: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestBuildCommandRequestReplyTo(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			src := Source{Service: "controller", Instance: tt.instance, Version: "1.0.0"}
-			msg, err := BuildCommandRequest(src, "dev-1", "cmd", nil, 5000)
+			msg, err := BuildCommandRequest(src, "dev-1", "cmd", nil, 5000, false)
 			if err != nil {
 				t.Fatalf("BuildCommandRequest() error: %v", err)
 			}
@@ -105,7 +105,7 @@ func TestBuildCommandRequestReplyTo(t *testing.T) {
 
 func TestBuildCommandRequestNilParams(t *testing.T) {
 	src := testSource()
-	msg, err := BuildCommandRequest(src, "fluke-8846a", "*IDN?", nil, 5000)
+	msg, err := BuildCommandRequest(src, "fluke-8846a", "*IDN?", nil, 5000, false)
 	if err != nil {
 		t.Fatalf("BuildCommandRequest() error: %v", err)
 	}
@@ -120,9 +120,67 @@ func TestBuildCommandRequestNilParams(t *testing.T) {
 	}
 }
 
+func TestBuildCommandRequestRaw(t *testing.T) {
+	src := testSource()
+	msg, err := BuildCommandRequest(src, "cti-pump-01", "@", nil, 5000, true)
+	if err != nil {
+		t.Fatalf("BuildCommandRequest() error: %v", err)
+	}
+
+	var p CommandRequestPayload
+	if err := json.Unmarshal(msg.Payload, &p); err != nil {
+		t.Fatalf("unmarshal payload: %v", err)
+	}
+
+	if !p.Raw {
+		t.Errorf("Raw = false, want true")
+	}
+	if p.CommandName != "@" {
+		t.Errorf("CommandName = %q, want %q", p.CommandName, "@")
+	}
+
+	// Round-trip through JSON to confirm the wire form carries raw=true.
+	data, err := json.Marshal(msg)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	parsed, err := Parse(data)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	pp, err := ParseCommandRequest(parsed)
+	if err != nil {
+		t.Fatalf("ParseCommandRequest: %v", err)
+	}
+	if !pp.Raw {
+		t.Errorf("round-trip Raw = false, want true")
+	}
+	if !strings.Contains(string(data), `"raw":true`) {
+		t.Errorf("wire JSON does not contain raw:true; got %s", string(data))
+	}
+}
+
+func TestBuildCommandRequestRawOmittedWhenFalse(t *testing.T) {
+	// raw=false should be omitted from the wire form (omitempty), so old
+	// stations that don't know about the field continue to receive identical
+	// JSON.
+	src := testSource()
+	msg, err := BuildCommandRequest(src, "fluke-8846a", "measure_dc_voltage", nil, 5000, false)
+	if err != nil {
+		t.Fatalf("BuildCommandRequest() error: %v", err)
+	}
+	data, err := json.Marshal(msg)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(data), `"raw"`) {
+		t.Errorf("wire JSON contains raw key when raw=false; got %s", string(data))
+	}
+}
+
 func TestBuildCommandRequestRoundTrip(t *testing.T) {
 	src := testSource()
-	msg, err := BuildCommandRequest(src, "fluke-8846a", "measure_dc_voltage", nil, 5000)
+	msg, err := BuildCommandRequest(src, "fluke-8846a", "measure_dc_voltage", nil, 5000, false)
 	if err != nil {
 		t.Fatalf("BuildCommandRequest() error: %v", err)
 	}

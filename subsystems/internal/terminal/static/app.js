@@ -1153,30 +1153,52 @@ var App = (function() {
     function sendManualCommand(command) {
         var instance = state.detailStation;
         var deviceId = document.getElementById('manual-device').value.trim();
+
+        // No-arg call comes from the raw input row (text field + Send button or
+        // Enter key). Pull the typed string and flag the request raw so the
+        // station bypasses the HAL lookup.
+        var rawInput = null;
+        var raw = false;
+        if (command === undefined || command === null) {
+            rawInput = document.getElementById('manual-command');
+            command = rawInput ? rawInput.value.trim() : '';
+            raw = true;
+        }
         if (!deviceId || !command) return;
 
-        var btn = document.querySelector('.cmd-btn[data-cmd="' + command + '"]');
+        var btn = raw ? null : document.querySelector('.cmd-btn[data-cmd="' + command + '"]');
         if (btn) btn.classList.add('cmd-sending');
 
         var pending = '<span style="color:var(--text-muted)">' + escapeHtml(command) + '...</span>';
         document.getElementById('cmd-modal-response').innerHTML = pending;
 
-        api('POST', '/stations/' + encodeURIComponent(instance) + '/command', {
-            device_id: deviceId,
-            command: command
-        }, function(err, data) {
+        var body = { device_id: deviceId, command: command };
+        if (raw) body.raw = true;
+
+        api('POST', '/stations/' + encodeURIComponent(instance) + '/command', body, function(err, data) {
             if (btn) btn.classList.remove('cmd-sending');
             var html;
+            var label = raw ? 'raw ' + escapeHtml(command) : escapeHtml(command);
             if (err) {
-                html = '<span style="color:var(--fail-red)">' + escapeHtml(command) + ': ' + escapeHtml(err.message) + '</span>';
+                html = '<span style="color:var(--fail-red)">' + label + ': ' + escapeHtml(err.message) + '</span>';
             } else if (data) {
-                var respText = data.success
-                    ? translateCmdResponse(command, data.response)
-                    : 'FAIL: ' + (data.error && data.error.message ? data.error.message : 'unknown');
+                // Raw responses are bytes from the device; don't translate.
+                var respText;
+                if (data.success) {
+                    respText = raw
+                        ? (data.response !== null && data.response !== undefined ? String(data.response) : 'OK')
+                        : translateCmdResponse(command, data.response);
+                } else {
+                    respText = 'FAIL: ' + (data.error && data.error.message ? data.error.message : 'unknown');
+                }
                 var color = data.success ? 'var(--success-green)' : 'var(--fail-red)';
-                html = '<span style="color:' + color + '">' + escapeHtml(command) + ': ' + escapeHtml(respText) + '</span>';
+                html = '<span style="color:' + color + '">' + label + ': ' + escapeHtml(respText) + '</span>';
             }
             document.getElementById('cmd-modal-response').innerHTML = html;
+
+            // Clear the raw input on success; keep it on error so the operator
+            // can edit and retry.
+            if (raw && rawInput && data && data.success) rawInput.value = '';
         });
     }
 

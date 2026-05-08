@@ -366,6 +366,11 @@
 <div class="modal-overlay" id="cmd-modal">
     <div class="modal modal-cmd">
         <h3>Manual Command</h3>
+        <div class="cmd-raw-row">
+            <input type="text" id="manual-command" class="cmd-raw-input"
+                   placeholder="Type raw CTI command (e.g. @)" autocomplete="off" spellcheck="false">
+            <button class="btn btn-primary" onclick="App.sendManualCommand()">Send</button>
+        </div>
         <div class="cmd-grid" id="cmd-grid"></div>
         <div class="cmd-modal-response" id="cmd-modal-response"></div>
         <div class="modal-actions">

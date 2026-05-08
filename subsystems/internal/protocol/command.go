@@ -9,7 +9,10 @@ import (
 
 // BuildCommandRequest creates a device.command.request message ready to send to a station.
 // It generates a correlation_id and sets reply_to to "responses:{source.Instance}".
-func BuildCommandRequest(source Source, deviceID, cmdName string, params map[string]string, timeoutMs int) (*Message, error) {
+// When raw is true, the station bypasses its HAL command-name lookup and ships
+// cmdName to the device's wire transport unchanged. Operator-only path; scripts
+// must always pass raw=false. See ARCHITECTURE.md §2.2.
+func BuildCommandRequest(source Source, deviceID, cmdName string, params map[string]string, timeoutMs int, raw bool) (*Message, error) {
 	env := NewEnvelope(source, TypeDeviceCommandRequest)
 	env.CorrelationID = uuid.New().String()
 	env.ReplyTo = "responses:" + source.Instance
@@ -19,6 +22,7 @@ func BuildCommandRequest(source Source, deviceID, cmdName string, params map[str
 		CommandName: cmdName,
 		Parameters:  params,
 		TimeoutMs:   &timeoutMs,
+		Raw:         raw,
 	}
 
 	payloadBytes, err := json.Marshal(payload)

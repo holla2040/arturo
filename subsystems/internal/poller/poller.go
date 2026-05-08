@@ -175,7 +175,7 @@ func (p *StationPoller) pollDevice(ctx context.Context, stationInstance, deviceI
 // queryCommand sends a single command and waits for the response.
 // Returns the response string on success, nil on failure.
 func (p *StationPoller) queryCommand(ctx context.Context, deviceID, command, stream string) *string {
-	msg, err := protocol.BuildCommandRequest(p.source, deviceID, command, nil, 5000)
+	msg, err := protocol.BuildCommandRequest(p.source, deviceID, command, nil, 5000, false)
 	if err != nil {
 		return nil
 	}

@@ -33,6 +33,32 @@ void test_parse_command_request_valid(void) {
     TEST_ASSERT_EQUAL_STRING("fluke-8846a", req.deviceId);
     TEST_ASSERT_EQUAL_STRING("*IDN?", req.commandName);
     TEST_ASSERT_EQUAL_INT(5000, req.timeoutMs);
+    TEST_ASSERT_FALSE(req.raw);
+}
+
+void test_parse_command_request_raw_true(void) {
+    // Payload includes "raw": true. The bare command should pass through
+    // unchanged and req.raw should be set.
+    const char* json =
+        "{\"envelope\":{\"id\":\"550e8400-e29b-41d4-a716-446655440000\","
+        "\"timestamp\":1771329600,"
+        "\"source\":{\"service\":\"controller\",\"instance\":\"ctrl-01\",\"version\":\"1.0.0\"},"
+        "\"schema_version\":\"v1.0.0\","
+        "\"type\":\"device.command.request\","
+        "\"correlation_id\":\"7c9e6679-7425-40de-944b-e07fc1f90ae7\","
+        "\"reply_to\":\"responses:server-01\"},"
+        "\"payload\":{\"device_id\":\"cti-pump-01\","
+        "\"command_name\":\"@\","
+        "\"raw\":true,"
+        "\"timeout_ms\":5000}}";
+
+    JsonDocument doc;
+    CommandRequest req;
+
+    bool result = parseCommandRequest(json, doc, req);
+    TEST_ASSERT_TRUE(result);
+    TEST_ASSERT_EQUAL_STRING("@", req.commandName);
+    TEST_ASSERT_TRUE(req.raw);
 }
 
 void test_parse_command_request_missing_fields(void) {
@@ -175,6 +201,7 @@ void test_roundtrip_response(void) {
 int main(int argc, char **argv) {
     UNITY_BEGIN();
     RUN_TEST(test_parse_command_request_valid);
+    RUN_TEST(test_parse_command_request_raw_true);
     RUN_TEST(test_parse_command_request_missing_fields);
     RUN_TEST(test_parse_command_request_wrong_type);
     RUN_TEST(test_build_command_response_success);

@@ -77,6 +77,14 @@ Nothing else until these four work end-to-end:
 }
 ```
 
+The payload also accepts an optional `raw` boolean (default `false`). When
+`true`, the station bypasses the HAL command-name lookup and passes
+`command_name` directly to the device's wire transport. This exists for the
+operator's Manual Command tool, used to issue device commands that aren't
+in the HAL table. Scripts must always use HAL names — `raw` is never set
+from the script engine. CTI onboard pump only today; SCPI/Modbus dispatchers
+return `unsupported_protocol` regardless of `raw`.
+
 **2. `device.command.response`** (Station -> Controller)
 ```json
 {

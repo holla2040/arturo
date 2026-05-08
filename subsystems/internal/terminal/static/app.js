@@ -1069,12 +1069,7 @@ var App = (function() {
             { cmd: 'start_regen', label: 'Start', style: 'action' },
             { cmd: 'start_fast_regen', label: 'Fast', style: 'warn' },
             { cmd: 'abort_regen', label: 'Abort', style: 'danger' }
-        ], break_after: 1},
-        { label: 'STATUS BYTES', commands: [
-            { cmd: 'get_status_1', label: 'Status 1' },
-            { cmd: 'get_status_2', label: 'Status 2' },
-            { cmd: 'get_status_3', label: 'Status 3' }
-        ]}
+        ], break_after: 1}
     ];
 
     function populateCommandList() {

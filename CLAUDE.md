@@ -59,6 +59,24 @@ cd subsystems/station && make monitor                 # serial monitor (foregrou
 - **Do not fix things you notice along the way.** If you spot an unrelated bug, mention it — do not fix it.
 - **Ask before expanding scope.** If you think a related change is needed, say so and wait for confirmation.
 
+## Two-Machine Workflow
+
+This repo is checked out on two machines that share work via `origin`. Detect which one you are on from the working directory.
+
+- **Dev box** — working dir `/home/holla/arturo`. Owns station firmware (`subsystems/station/`). PlatformIO builds and ESP32 flashing happen here.
+- **arturo-01** — working dir `/home/cryo/arturo`. Owns the Go controller and other Go subsystems (`subsystems/cmd/`, `subsystems/internal/`). Go builds and the running controller live here. Redis runs here.
+
+**Session start checklist** (whenever changes are likely):
+1. Run `git fetch && git status` — confirm the other machine hasn't pushed work this checkout hasn't pulled.
+2. If behind, `git pull --ff-only` (or rebase WIP) before editing. Stop and ask if the pull won't fast-forward.
+
+**Scope by machine.**
+- On the **dev box**, do not modify Go subsystem source under `subsystems/cmd/`, `subsystems/internal/`, or `subsystems/pkg/` without explicit confirmation. Flag any controller-side change you think is needed and let the user run that work on arturo-01.
+- On **arturo-01**, do not modify station firmware under `subsystems/station/` without explicit confirmation. Flag any firmware-side change you think is needed and let the user run that work on the dev box.
+- Shared paths (`profiles/`, `schemas/`, `scripts/`, `docs/`, top-level `tools/`, `CLAUDE.md`) can be edited from either side. Commit + push promptly so the other side can pull.
+
+**Never scp source between checkouts.** Always go through git: commit, push, pull. Scp bypasses git and produces drift that requires manual reconciliation. If you need to try a change on the other machine without a "real" commit, push a `wip` branch and pull it there.
+
 ## Development Guidelines
 
 - **Always rebuild after changing Go code.** Go is compiled — edits have no effect until you build the affected binary.

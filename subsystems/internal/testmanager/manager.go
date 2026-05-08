@@ -240,20 +240,11 @@ func (m *TestManager) HandleHeartbeat(stationInstance string) {
 	}
 }
 
-// HandleOffline marks a station as offline when its heartbeat times out.
+// HandleOffline marks a station as offline in the store and broadcasts the
+// state change. It does NOT terminate active sessions — the caller invokes
+// TerminateOfflineSession after a longer grace period so transient station
+// outages (WiFi drop, ESP32 reboot) don't kill long-running tests.
 func (m *TestManager) HandleOffline(stationInstance string) {
-	m.mu.RLock()
-	session, hasSession := m.sessions[stationInstance]
-	m.mu.RUnlock()
-
-	// If there's an active session, terminate it
-	if hasSession {
-		info := session.Info()
-		if err := session.Terminate("system", "station went offline"); err != nil {
-			log.Printf("testmanager: offline terminate %s: %v", info.StationInstance, err)
-		}
-	}
-
 	m.store.SetStationState(stationInstance, "offline", nil)
 
 	if m.hub != nil {
@@ -262,6 +253,24 @@ func (m *TestManager) HandleOffline(stationInstance string) {
 			"state":            "offline",
 			"test_run_id":      nil,
 		})
+	}
+}
+
+// TerminateOfflineSession terminates the active test session for a station
+// whose offline duration has exceeded the grace period. No-op if the
+// station has no active session.
+func (m *TestManager) TerminateOfflineSession(stationInstance string) {
+	m.mu.RLock()
+	session, hasSession := m.sessions[stationInstance]
+	m.mu.RUnlock()
+
+	if !hasSession {
+		return
+	}
+
+	info := session.Info()
+	if err := session.Terminate("system", "station offline beyond grace period"); err != nil {
+		log.Printf("testmanager: offline terminate %s: %v", info.StationInstance, err)
 	}
 }
 

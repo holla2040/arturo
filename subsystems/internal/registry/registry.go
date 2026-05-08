@@ -18,6 +18,12 @@ const (
 const (
 	StaleThreshold   = 5 * time.Second
 	OfflineThreshold = 10 * time.Second
+	// SessionTerminateAfter is the grace period a station may stay offline
+	// before its active test session is force-terminated. Set well above
+	// the executor's QUERY/SEND retry deadline (240s) so a transient
+	// outage — WiFi drop, ESP32 reboot — doesn't kill a long test that
+	// could otherwise resume once the station comes back.
+	SessionTerminateAfter = 5 * time.Minute
 )
 
 // DeviceEntry tracks a single device attached to a station.

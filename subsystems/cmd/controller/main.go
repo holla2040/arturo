@@ -403,11 +403,19 @@ func runHealthChecker(ctx context.Context, reg *registry.Registry, hub *api.Hub,
 
 			reg.RunHealthCheck(now)
 
-			// Check which stations went offline
+			// UI status flip happens at OfflineThreshold (10s); session
+			// termination waits for SessionTerminateAfter so transient
+			// station outages don't kill long-running tests.
 			stationsAfter := reg.ListStations()
 			for _, s := range stationsAfter {
-				if s.Status == "offline" && onlineBefore[s.Instance] {
+				if s.Status != registry.StatusOffline {
+					continue
+				}
+				if onlineBefore[s.Instance] {
 					testMgr.HandleOffline(s.Instance)
+				}
+				if now.Sub(s.LastHeartbeat) >= registry.SessionTerminateAfter {
+					testMgr.TerminateOfflineSession(s.Instance)
 				}
 			}
 		}

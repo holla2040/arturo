@@ -11,16 +11,16 @@ BUILD_DIR  := .pio/build/$(ENV)
 ESPTOOL    := $(HOME)/.platformio/penv/bin/esptool
 BOOT_APP0  := $(HOME)/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin
 
-# Per-station override. Usage: `make flash STATION=station-02` / `make ota STATION=station-03`.
-# When set: embeds STATION_INSTANCE in the firmware via build, and
-# (for OTA) targets $(STATION).local instead of platformio.ini's hardcoded host.
+# Per-station identity. Defaults to station-05 (this dev box's wired pump).
+# Override with `make flash STATION=station-02` / `make ota STATION=station-03`.
+# Embeds STATION_INSTANCE into the firmware via build, and (for OTA) targets
+# $(STATION).local instead of platformio.ini's hardcoded host.
 # Note: SCons usually picks up CPPDEFINES changes incrementally; if a per-station
 # rebuild seems stale, run `make clean` once manually.
-ifdef STATION
-  export STATION_INSTANCE       := $(STATION)
-  export PLATFORMIO_UPLOAD_PORT := $(STATION).local
-  STATION_PREREQS := build
-endif
+STATION ?= station-05
+export STATION_INSTANCE       := $(STATION)
+export PLATFORMIO_UPLOAD_PORT := $(STATION).local
+STATION_PREREQS := build
 
 # Default: compile only
 bin: build

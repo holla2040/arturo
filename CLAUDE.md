@@ -61,21 +61,31 @@ cd subsystems/station && make monitor                 # serial monitor (foregrou
 
 ## Two-Machine Workflow
 
-This repo is checked out on two machines that share work via `origin`. Detect which one you are on from the working directory.
+This repo is checked out on two machines that share work via `origin`. Detect which one you are on with `hostname` (or check the working directory):
 
-- **Dev box** — working dir `/home/holla/arturo`. Owns station firmware (`subsystems/station/`). PlatformIO builds and ESP32 flashing happen here.
-- **arturo-01** — working dir `/home/cryo/arturo`. Owns the Go controller and other Go subsystems (`subsystems/cmd/`, `subsystems/internal/`). Go builds and the running controller live here. Redis runs here.
+- **Dev box** — hostname `cryo`, working dir `/home/holla/arturo`. The **only** place where source is edited — firmware, Go, schemas, docs, terminal HTML/JS/CSS. PlatformIO/Arduino builds and ESP32 flashing happen here. Has Go 1.18, which can't build the controller; that's expected — do not try to `go build` here.
+- **arturo-01** — hostname `arturo-01`, working dir `/home/cryo/arturo`. The build and runtime host for Go (controller, terminal, engine, console) and for Redis. Treat as a build/run target, **not an editing host**. SSH as `cryo` for builds and tests; SSH as `root` for systemd service restarts (`cryo` has no passwordless sudo).
 
-**Session start checklist** (whenever changes are likely):
-1. Run `git fetch && git status` — confirm the other machine hasn't pushed work this checkout hasn't pulled.
-2. If behind, `git pull --ff-only` (or rebase WIP) before editing. Stop and ask if the pull won't fast-forward.
+**Editing rule — single direction.** Always edit on the dev box, **including** Go source under `subsystems/cmd/`, `subsystems/internal/`, `subsystems/pkg/`. **Never edit anything on arturo-01** — that checkout is pull-only. One editing direction is what keeps the two checkouts in sync; bidirectional edits are how repos drift.
 
-**Scope by machine.**
-- On the **dev box**, do not modify Go subsystem source under `subsystems/cmd/`, `subsystems/internal/`, or `subsystems/pkg/` without explicit confirmation. Flag any controller-side change you think is needed and let the user run that work on arturo-01.
-- On **arturo-01**, do not modify station firmware under `subsystems/station/` without explicit confirmation. Flag any firmware-side change you think is needed and let the user run that work on the dev box.
-- Shared paths (`profiles/`, `schemas/`, `scripts/`, `docs/`, top-level `tools/`, `CLAUDE.md`) can be edited from either side. Commit + push promptly so the other side can pull.
+**Sync rule — git only.** Source flows through `origin`. **Never** `scp`/`rsync` source between checkouts; that bypasses history and produces drift that needs manual reconciliation. WIP that needs to be tried on arturo-01 without a "real" commit goes through a `wip` or feature branch pushed to origin and pulled on the other side.
 
-**Never scp source between checkouts.** Always go through git: commit, push, pull. Scp bypasses git and produces drift that requires manual reconciliation. If you need to try a change on the other machine without a "real" commit, push a `wip` branch and pull it there.
+**Session start checklist (every session that may touch source):**
+1. `hostname` — confirm which machine you're on.
+2. `git fetch && git status` — confirm working tree state and branch position.
+3. If behind, `git pull --ff-only`. Stop and ask if the pull won't fast-forward — never resolve the divergence by force.
+
+**Driving arturo-01 from a dev-box Claude session.** This is the canonical pattern for changes that span both machines. Mechanical builds, tests, and service restarts run via SSH from the same Claude session — do not spawn a separate Claude on arturo-01 unless arturo-01 needs to *make decisions* (debugging runtime state you can't reproduce locally, iterating on a design where its test output drives the next edit).
+
+```bash
+# After editing, committing, and pushing on dev box:
+ssh cryo@arturo-01 'cd /home/cryo/arturo && git pull --ff-only'
+ssh cryo@arturo-01 'export PATH=/usr/local/go/bin:$PATH && cd /home/cryo/arturo/subsystems && go build -o controller ./cmd/controller && go build -o terminal ./cmd/terminal'
+ssh cryo@arturo-01 'export PATH=/usr/local/go/bin:$PATH && cd /home/cryo/arturo/subsystems && go test ./...'
+ssh root@arturo-01 'systemctl restart arturo-controller arturo-terminal'
+```
+
+Flash station firmware from dev box: `cd subsystems/station && make flash` (default `STATION=station-05`, the dev box's wired pump; override with `make flash STATION=station-NN`).
 
 ## Development Guidelines
 

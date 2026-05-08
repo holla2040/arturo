@@ -1107,7 +1107,7 @@ button.pid-regen:active { background: rgba(255,255,255,0.12); }
 .cmd-raw-row {
     display: flex;
     gap: 8px;
-    margin-bottom: 12px;
+    margin-top: 12px;
 }
 .cmd-raw-input {
     flex: 1;

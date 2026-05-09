@@ -94,6 +94,7 @@ Flash station firmware from dev box: `cd subsystems/station && make flash` (defa
 - Every message must use the Protocol v1.0.0 envelope format.
 - Station firmware uses ArduinoJson v7 with static allocation.
 - Debug output on stations goes to USB serial, controlled by DEBUG_LEVEL in config.h.
+- **Live station debug stream is on UDP broadcast port 8888.** The dev-box's wired station (station-05 on `/dev/ttyACM0`) broadcasts every serial line — CTI TX/RX, REDIS, CMD, HEARTBEAT, errors — to the LAN as a fire-and-forget UDP feed. Listen with `socat -u UDP4-RECV:8888,broadcast,reuseaddr -` (or `cd subsystems/station && make mon`). **For ANY firmware/station/controller/comm-debug issue, listen on this stream first** — it's the cheapest source of ground truth and doesn't tie up the USB cable. Other stations don't broadcast (only the firmware on the dev box's wired station has the broadcaster active). Captured serial also lands at `/tmp/arturo-serial.log` via the Python logger, but that path doesn't transmit UDP itself.
 - Use `monitor` to observe all Redis traffic during development.
 - Scripts go in `scripts/` (.art files) with shared libraries in `scripts/lib/` (.artlib files).
 - Script engine interfaces (validation, error reporting, device introspection) must be LLM-usable — structured JSON, no implicit context.
@@ -107,6 +108,8 @@ Flash station firmware from dev box: `cd subsystems/station && make flash` (defa
 - `docs/SCRIPTING_HAL.md` - HAL reference for script authors (abstract command vocabulary per device type)
 - `docs/reference/PROTOCOL_ORIGINAL.md` - Original protocol spec (reference)
 - `docs/reference/SCRIPTING_LANGUAGE_ORIGINAL.md` - Arturo DSL reference
+- `docs/reference/CTI_COMMAND_REFERENCE.md` - **Single source of truth** for CTI/Brooks pump commands, S1/S2/S3 status byte bit definitions, regen state letters (`O` response), and regen abort codes (`e` response). Do not re-derive these from firmware source.
+- `docs/reference/CTI_BROOKS_PROTOCOL.md` - CTI/Brooks wire-level serial protocol (framing, checksum, error codes)
 - `docs/hardware/psram-lcd-jitter/` - PSRAM bus contention fix (WiFi + RGB LCD jitter research, plan, results)
 - `SCRIPTING_DISCUSSION.md` - Scripting design decisions, engine status, and open questions
 - `schemas/` - JSON Schema message contracts

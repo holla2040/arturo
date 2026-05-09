@@ -90,6 +90,25 @@ func (r *RedisRouter) SendCommand(ctx context.Context, deviceID, command string,
 				return nil, fmt.Errorf("parse response payload: %w", payloadErr)
 			}
 
+			// Device-reported failure (success=false) is surfaced as an error
+			// so callers see a meaningful message instead of an empty Response
+			// string. Transient failures (e.g. pump_cache_stale) trigger the
+			// executor's QUERY/SEND retry loop; persistent ones fail the test
+			// with the device's error code/message.
+			if !payload.Success {
+				code := "unknown"
+				msg := "device returned unsuccessful response"
+				if payload.Error != nil {
+					if payload.Error.Code != "" {
+						code = payload.Error.Code
+					}
+					if payload.Error.Message != "" {
+						msg = payload.Error.Message
+					}
+				}
+				return nil, fmt.Errorf("device error %s: %s", code, msg)
+			}
+
 			resp := ""
 			if payload.Response != nil {
 				resp = *payload.Response

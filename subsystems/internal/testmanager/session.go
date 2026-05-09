@@ -301,8 +301,8 @@ func (s *TestSession) runExecutor(ctx context.Context, scriptSource string) {
 
 	// Test completed normally
 	status := "passed"
-	summary := fmt.Sprintf("%d tests, %d passed, %d failed",
-		report.Summary.Total, report.Summary.Passed, report.Summary.Failed)
+	summary := fmt.Sprintf("%d tests, %d passed, %d failed, %d errored",
+		report.Summary.Total, report.Summary.Passed, report.Summary.Failed, report.Summary.Errors)
 	if report.Summary.Failed > 0 || report.Summary.Errors > 0 {
 		status = "failed"
 	}

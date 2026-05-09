@@ -638,7 +638,7 @@ var App = (function() {
 
         // Manual command panel
         var manualPanel = document.getElementById('manual-cmd-panel');
-        manualPanel.style.display = (stateStr === 'idle' || stateStr === 'online') ? 'block' : 'none';
+        manualPanel.style.display = (stateStr === 'idle' || stateStr === 'online' || stateStr === 'testing' || stateStr === 'paused') ? 'block' : 'none';
 
         // Pre-fill device ID if we know it
         if (s.Devices && s.Devices.length > 0) {

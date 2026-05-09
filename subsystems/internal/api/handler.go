@@ -715,14 +715,6 @@ func (h *Handler) getStationState(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) stationCommand(w http.ResponseWriter, r *http.Request) {
-	if h.TestMgr != nil {
-		stationID := r.PathValue("id")
-		if h.TestMgr.HasActiveSession(stationID) {
-			writeJSON(w, http.StatusConflict, map[string]string{"error": "station has an active test, cannot send manual commands"})
-			return
-		}
-	}
-
 	var req stationCommandRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})

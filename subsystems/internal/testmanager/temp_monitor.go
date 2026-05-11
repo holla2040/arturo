@@ -99,8 +99,24 @@ func (tm *TempMonitor) sample(ctx context.Context) {
 		return
 	}
 
-	tm.recordStage("first_stage", snap.Stage1TempK)
-	tm.recordStage("second_stage", snap.Stage2TempK)
+	// Skip non-positive temperatures. A cryopump can't read 0 K (or below);
+	// when we see one it's a partial-poll/comm-glitch artifact in the
+	// firmware cache — the firmware resets stale_count on ANY successful
+	// poll command, so a persistently failing J/K query still produces a
+	// "fresh-looking" snapshot with an un-updated stage temp. Better to
+	// skip the sample than inject a misleading zero into the plot.
+	if snap.Stage1TempK > 0 {
+		tm.recordStage("first_stage", snap.Stage1TempK)
+	} else {
+		log.Printf("temp_monitor: %s skipping first_stage sample, T1=%.3f (suspect data)",
+			tm.stationInstance, snap.Stage1TempK)
+	}
+	if snap.Stage2TempK > 0 {
+		tm.recordStage("second_stage", snap.Stage2TempK)
+	} else {
+		log.Printf("temp_monitor: %s skipping second_stage sample, T2=%.3f (suspect data)",
+			tm.stationInstance, snap.Stage2TempK)
+	}
 	tm.recordRegenChange(snap)
 }
 

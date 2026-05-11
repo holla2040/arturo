@@ -9,7 +9,7 @@ func StateName(letter string) string {
 	switch letter {
 	case "A", "\\":
 		return "Pump OFF"
-	case "B", "C", "E", "^", "]":
+	case "B", "C", "E", "^", "]", "`":
 		return "Warmup"
 	case "D", "F", "G", "Q", "R":
 		return "Purge gas failure"

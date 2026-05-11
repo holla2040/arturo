@@ -222,7 +222,7 @@ Bit 1 (0x02) = Pump phase 2 check
 | Response | State |
 |----------|-------|
 | `A`, `\` | Pump OFF |
-| `B`, `C`, `E`, `^`, `]` | Warmup |
+| `B`, `C`, `E`, `^`, `]`, `` ` `` | Warmup |
 | `D`, `F`, `G`, `Q`, `R` | Purge gas failure detected |
 | `H` | Extended purge |
 | `S` | Repurge cycle |

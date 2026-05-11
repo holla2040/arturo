@@ -43,7 +43,7 @@ CONST STEADY_HOLD_DURATION 300000
 FUNCTION regen_state_name(letter)
     IF letter == "A" || letter == "\\"
         RETURN "Pump OFF"
-    ELSEIF letter == "B" || letter == "C" || letter == "E" || letter == "^" || letter == "]"
+    ELSEIF letter == "B" || letter == "C" || letter == "E" || letter == "^" || letter == "]" || letter == "`"
         RETURN "Warmup"
     ELSEIF letter == "D" || letter == "F" || letter == "G" || letter == "Q" || letter == "R"
         RETURN "Purge gas failure"

@@ -93,7 +93,7 @@ var App = (function() {
             case 'A': case '\\': return 'Pump OFF';
             case 'B': case 'C': case 'E': case '^': case ']':
             case 'l': case 'm': case '_': case 'r': case 's':
-            case 't': case 'u': case 'v': case "'":
+            case 't': case 'u': case 'v': case "'": case '`':
                 return 'Warmup';
             case 'D': case 'F': case 'G': case 'Q': case 'R':
                 return 'Purge Gas Failure';
